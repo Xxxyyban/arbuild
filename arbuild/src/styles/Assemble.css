@@ -1,0 +1,85 @@
+.assemble {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.assemble__bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line-trace);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+
+.assemble__back {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.assemble__part-label {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--accent-cyan);
+  margin-left: auto;
+}
+
+.assemble__rotate-btn {
+  background: var(--bg-void);
+  border: 1px solid var(--line-trace);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.assemble__rotate-btn:hover {
+  border-color: var(--accent-cyan);
+}
+
+.assemble__viewport {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.assemble__feedback {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.assemble__feedback--success {
+  background: rgba(82, 209, 124, 0.15);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+
+.assemble__feedback--fail {
+  background: rgba(232, 163, 61, 0.15);
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+}
+
+.assemble__hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 10px;
+  margin: 0;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line-trace);
+  flex-shrink: 0;
+}

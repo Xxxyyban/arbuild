@@ -1,0 +1,93 @@
+:root {
+  /* Color: PCB schematic palette */
+  --bg-void: #0a0e14;        /* deep board substrate */
+  --bg-panel: #111826;        /* component panel surface */
+  --bg-panel-raised: #17202f; /* hover/raised panel */
+  --line-trace: #22304a;      /* subtle divider / inactive trace */
+  --text-primary: #e7ecf3;
+  --text-muted: #8a96ab;
+  --accent-cyan: #4fd8c9;     /* live trace / primary accent */
+  --accent-cyan-dim: #2a6b64;
+  --accent-amber: #e8a33d;    /* warning / penalty / explosion */
+  --accent-red: #ef5b4e;      /* fail / mistake */
+  --accent-green: #52d17c;    /* success / correct */
+
+  /* Type */
+  --font-display: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /* Layout */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --pin-gap: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(79, 216, 201, 0.06) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: var(--font-body);
+}
+
+/* Pin-connector divider: literal reference to header pins in the subject matter */
+.pin-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--pin-gap);
+  width: 100%;
+  margin: 0;
+}
+
+.pin-divider::before,
+.pin-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--accent-cyan-dim) 0px,
+    var(--accent-cyan-dim) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
