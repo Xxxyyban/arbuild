@@ -1,25 +1,42 @@
 :root {
-  /* Color: PCB schematic palette */
-  --bg-void: #0a0e14;        /* deep board substrate */
-  --bg-panel: #111826;        /* component panel surface */
-  --bg-panel-raised: #17202f; /* hover/raised panel */
-  --line-trace: #22304a;      /* subtle divider / inactive trace */
+  /* Color: PCB schematic palette (dark, default) */
+  --bg-void: #0a0e14;
+  --bg-panel: #111826;
+  --bg-panel-raised: #17202f;
+  --line-trace: #22304a;
   --text-primary: #e7ecf3;
   --text-muted: #8a96ab;
-  --accent-cyan: #4fd8c9;     /* live trace / primary accent */
+  --accent-cyan: #4fd8c9;
   --accent-cyan-dim: #2a6b64;
-  --accent-amber: #e8a33d;    /* warning / penalty / explosion */
-  --accent-red: #ef5b4e;      /* fail / mistake */
-  --accent-green: #52d17c;    /* success / correct */
+  --accent-amber: #e8a33d;
+  --accent-red: #ef5b4e;
+  --accent-green: #52d17c;
 
-  /* Type */
   --font-display: "JetBrains Mono", ui-monospace, monospace;
   --font-body: "Inter", system-ui, sans-serif;
 
-  /* Layout */
   --radius-sm: 4px;
   --radius-md: 8px;
   --pin-gap: 14px;
+
+  color-scheme: dark;
+}
+
+/* Light theme override — activated via [data-theme="light"] on <html> */
+:root[data-theme="light"] {
+  --bg-void: #f4f6f8;
+  --bg-panel: #ffffff;
+  --bg-panel-raised: #eef1f5;
+  --line-trace: #d7dde5;
+  --text-primary: #1a2130;
+  --text-muted: #5c6675;
+  --accent-cyan: #0f8f80;
+  --accent-cyan-dim: #a6e3da;
+  --accent-amber: #b5730a;
+  --accent-red: #c8382a;
+  --accent-green: #1d8a4d;
+
+  color-scheme: light;
 }
 
 * {
@@ -39,6 +56,12 @@ body {
   background-image:
     radial-gradient(circle at 1px 1px, rgba(79, 216, 201, 0.06) 1px, transparent 0);
   background-size: 28px 28px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(15, 143, 128, 0.08) 1px, transparent 0);
 }
 
 a {
@@ -49,7 +72,6 @@ button {
   font-family: var(--font-body);
 }
 
-/* Pin-connector divider: literal reference to header pins in the subject matter */
 .pin-divider {
   display: flex;
   align-items: center;

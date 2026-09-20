@@ -7,16 +7,49 @@
 .main__header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   margin-bottom: 24px;
   gap: 16px;
   flex-wrap: wrap;
 }
 
+.main__identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.main__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-cyan-dim);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.main__avatar--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-panel);
+  color: var(--accent-cyan);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
 .main__greeting {
   font-family: var(--font-display);
-  font-size: 1.8rem;
-  margin: 8px 0 0;
+  font-size: 1.5rem;
+  margin: 4px 0 0;
+  line-height: 1.2;
+}
+
+.main__section {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 2px 0 0;
 }
 
 .main__header-actions {
@@ -33,14 +66,29 @@
   font-size: 0.85rem;
   text-decoration: none;
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .main__icon-link:hover {
   border-color: var(--accent-cyan-dim);
 }
 
+.main__icon-link--danger:hover {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
 .main .pin-divider {
-  margin: 28px 0;
+  margin: 28px 0 20px;
+}
+
+.main__section-label {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 14px;
 }
 
 .main__modes {
@@ -58,13 +106,20 @@
   padding: 24px 20px;
   text-decoration: none;
   color: var(--text-primary);
-  min-height: 190px;
+  min-height: 200px;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
 .mode-card:hover {
   border-color: var(--accent-cyan);
   transform: translateY(-2px);
+}
+
+.mode-card__icon {
+  font-size: 1.6rem;
+  color: var(--accent-cyan);
+  line-height: 1;
+  margin-bottom: 10px;
 }
 
 .mode-card__label {
@@ -90,5 +145,9 @@
 @media (max-width: 720px) {
   .main__modes {
     grid-template-columns: 1fr;
+  }
+  .main__header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

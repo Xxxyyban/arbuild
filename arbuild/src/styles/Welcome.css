@@ -1,15 +1,17 @@
 .welcome {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 24px;
   position: relative;
   overflow: hidden;
 }
 
-/* Signature element: a row of header pins that light up in sequence,
-   like a motherboard front-panel connector powering on. */
+.welcome__theme-toggle {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 2;
+}
+
 .welcome__pins {
   position: absolute;
   top: 48px;
@@ -27,7 +29,6 @@
   height: 6px;
   border-radius: 50%;
   background: var(--accent-cyan-dim);
-  box-shadow: 0 0 0 rgba(79, 216, 201, 0);
   animation: pin-glow 3.2s ease-in-out infinite;
 }
 
@@ -42,15 +43,21 @@
   }
 }
 
+.welcome__hero {
+  max-width: 1080px;
+  margin: 100px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+
 .welcome__panel {
-  max-width: 520px;
-  width: 100%;
   background: var(--bg-panel);
   border: 1px solid var(--line-trace);
   border-radius: var(--radius-md);
   padding: 48px 40px 40px;
   text-align: left;
-  z-index: 1;
 }
 
 .welcome__title {
@@ -119,6 +126,71 @@
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   margin: 0 0 16px;
+}
+
+.welcome__about {
+  padding-top: 4px;
+}
+
+.welcome__about-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  line-height: 1.35;
+  margin: 10px 0 16px;
+  max-width: 480px;
+}
+
+.welcome__about-body {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 520px;
+  margin: 0 0 32px;
+}
+
+.welcome__features {
+  display: grid;
+  gap: 16px;
+}
+
+.feature-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-trace);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.feature-card:hover {
+  border-color: var(--accent-cyan);
+  transform: translateX(4px);
+}
+
+.feature-card__icon {
+  font-size: 1.3rem;
+  color: var(--accent-cyan);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.feature-card__title {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  margin: 0 0 6px;
+}
+
+.feature-card__desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .welcome__hero {
+    grid-template-columns: 1fr;
+    margin-top: 80px;
+  }
 }
 
 @media (max-width: 480px) {
