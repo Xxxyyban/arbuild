@@ -4,14 +4,8 @@ import * as THREE from "three";
 
 /**
  * Wraps any 3D part (motherboard, RAM, PSU, etc.) with drag-to-place
- * behavior:
- *  - Click and drag moves the part along a horizontal plane at `dragHeight`.
- *  - On release, checks distance/rotation against `target` (the correct
- *    slot). Within `tolerance` => snaps into place, calls onCorrect.
- *  - Outside tolerance but still dropped "in the build area" => explosion
- *    VFX + onIncorrect (point deduction), part resets to `trayPosition`.
- *  - Dropped outside the build area entirely => just returns to tray,
- *    no penalty (they didn't really attempt a placement).
+ * behavior. Reports live position via onDrag while dragging — used as
+ * a temporary debug tool to find correct snap-target coordinates.
  */
 export default function DraggablePart({
   trayPosition,
@@ -22,6 +16,7 @@ export default function DraggablePart({
   locked = false,
   onCorrect,
   onIncorrect,
+  onDrag,
   children,
 }) {
   const group = useRef();
@@ -91,6 +86,7 @@ export default function DraggablePart({
       group.current.position.x = hit.x;
       group.current.position.z = hit.z;
       group.current.position.y = planeY;
+      onDrag?.(hit.x, planeY, hit.z);
     }
   });
 
@@ -108,7 +104,6 @@ export default function DraggablePart({
   );
 }
 
-/** Small particle burst — the "wrong slot" penalty feedback moment. */
 function ExplosionBurst() {
   const particles = useMemo(() => {
     return Array.from({ length: 14 }).map(() => ({

@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
 const MODEL_PATH = "/models/motherboard.glb";
-const TARGET_WIDTH = 1.1;
+const TARGET_WIDTH = 1.0;
+
+// Many Sketchfab uploads are oriented for a nice camera angle, not for
+// "lying flat on a tray." This rotates the raw model into a flat,
+// chips-facing-up orientation before we measure/scale it.
+const ORIENTATION_FIX = [-Math.PI / 2, 0, 0];
 
 /**
- * Real motherboard model (.glb). Auto-scales to a consistent width and
- * centers itself regardless of source units, same pattern as CaseModel.
- * Falls back to a flat green placeholder board if the file isn't there
- * yet, so drag/snap logic stays testable in the meantime.
+ * Real motherboard model (.glb), corrected to lie flat and scaled to a
+ * consistent width regardless of source units/orientation. Falls back
+ * to a flat green placeholder board if the file isn't there yet.
  */
-export default function MotherboardModel(props) {
+export default function MotherboardModel({ spinY = 0, ...props }) {
   const [modelExists, setModelExists] = useState(null);
 
   useEffect(() => {
@@ -25,12 +29,12 @@ export default function MotherboardModel(props) {
   }, []);
 
   if (modelExists === false) {
-    return <PlaceholderBoard {...props} />;
+    return <PlaceholderBoard {...props} rotation={[0, spinY, 0]} />;
   }
   if (modelExists === null) {
     return null;
   }
-  return <RealMotherboard {...props} />;
+  return <RealMotherboard {...props} spinY={spinY} />;
 }
 
 function PlaceholderBoard(props) {
@@ -58,7 +62,7 @@ function PlaceholderBoard(props) {
   );
 }
 
-function RealMotherboard(props) {
+function RealMotherboard({ spinY = 0, ...props }) {
   const { scene } = useGLTF(MODEL_PATH);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
@@ -72,14 +76,17 @@ function RealMotherboard(props) {
   }, [cloned]);
 
   const { scale, offset } = useMemo(() => {
+    cloned.rotation.set(...ORIENTATION_FIX);
+    cloned.updateMatrixWorld(true);
+
     const box = new THREE.Box3().setFromObject(cloned);
     const size = new THREE.Vector3();
     box.getSize(size);
     const center = new THREE.Vector3();
     box.getCenter(center);
 
-    const width = size.x || 1;
-    const s = TARGET_WIDTH / width;
+    const horizontal = Math.max(size.x, size.z) || 1;
+    const s = TARGET_WIDTH / horizontal;
 
     return {
       scale: s,
@@ -88,7 +95,7 @@ function RealMotherboard(props) {
   }, [cloned]);
 
   return (
-    <group {...props}>
+    <group {...props} rotation={[0, spinY, 0]}>
       <group scale={scale} position={offset}>
         <primitive object={cloned} />
       </group>

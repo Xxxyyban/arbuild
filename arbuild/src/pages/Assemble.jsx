@@ -17,6 +17,7 @@ export default function Assemble() {
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState(null);
   const [spinY, setSpinY] = useState(0);
+  const [livePos, setLivePos] = useState(null);
 
   function handleCorrect() {
     setScore((s) => s + 100);
@@ -56,9 +57,10 @@ export default function Assemble() {
           <DraggablePart
             trayPosition={MOTHERBOARD_TRAY_POSITION}
             target={MOTHERBOARD_TARGET}
-            tolerance={0.4}
+            tolerance={5}
             onCorrect={handleCorrect}
             onIncorrect={handleIncorrect}
+            onDrag={(x, y, z) => setLivePos([x, y, z])}
           >
             <MotherboardModel spinY={spinY} />
           </DraggablePart>
@@ -69,11 +71,17 @@ export default function Assemble() {
             {feedback.text}
           </div>
         )}
+
+        {livePos && (
+          <div className="assemble__debug">
+            x: {livePos[0].toFixed(2)} &nbsp; y: {livePos[1].toFixed(2)} &nbsp; z: {livePos[2].toFixed(2)}
+          </div>
+        )}
       </div>
 
       <p className="assemble__hint">
-        Drag the motherboard from the tray into the case · Click "Rotate part"
-        to spin it 90° · Drag empty space to orbit the camera · Scroll to zoom
+        Drag the motherboard into the case until it looks seated correctly,
+        then note the x/y/z numbers shown — tell Claude those numbers.
       </p>
     </div>
   );
