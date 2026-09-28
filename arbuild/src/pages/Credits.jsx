@@ -9,6 +9,20 @@ const ASSETS = [
     license: "CC Attribution 4.0",
     licenseUrl: "http://creativecommons.org/licenses/by/4.0/",
   },
+  {
+    name: "MAXIMUS VI Formula (Motherboard)",
+    creator: "Vivien Deroche",
+    url: "https://skfb.ly/6SDPK",
+    license: "CC Attribution 4.0",
+    licenseUrl: "http://creativecommons.org/licenses/by/4.0/",
+  },
+  {
+    name: "Kingston Fury Beast DDR5 RAM Stick",
+    creator: "Darky Vip 3D",
+    url: "https://skfb.ly/pMxZQ",
+    license: "CC Attribution 4.0",
+    licenseUrl: "http://creativecommons.org/licenses/by/4.0/",
+  },
 ];
 
 export default function Credits() {

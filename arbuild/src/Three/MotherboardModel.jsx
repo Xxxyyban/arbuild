@@ -3,7 +3,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
 const MODEL_PATH = "/models/motherboard.glb";
-const TARGET_HEIGHT = 1.3;
+const TARGET_HEIGHT = 1.5;
 
 export default function MotherboardModel({ spinY = 0, ...props }) {
   const [modelExists, setModelExists] = useState(null);
@@ -96,16 +96,22 @@ function RealMotherboard({ spinY = 0, ...props }) {
 
     return {
       scale: s,
-      offset: [-center.x * s, -box.min.y * s, -center.z * s],
+      offset: [-center.x * s, -box.min.y * s, -box.min.z * s],
     };
   }, [cloned]);
 
   return (
     <group {...props} rotation={[0, spinY, 0]}>
-      {/* Ensures real model stands upright matching case tray orientation */}
-      <group rotation={[0, Math.PI / 2, 0]}>
-        <group scale={scale} position={offset}>
-          <primitive object={cloned} />
+      {/* Added a small vertical offset [0, 0.1, 0] here to move it up */}
+      <group position={[-0.14, 1.372, 0.12]}>
+        {/* Face North (away from camera) */}
+        <group rotation={[0, Math.PI, 0]}>
+          {/* Stand Upright */}
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <group scale={scale} position={offset}>
+              <primitive object={cloned} />
+            </group>
+          </group>
         </group>
       </group>
     </group>

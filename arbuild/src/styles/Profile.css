@@ -1,77 +1,426 @@
-.profile {
+/* ==========================================================================
+   Profile Module Styles
+   ========================================================================== */
+
+.profile-container {
+  padding: 32px 24px;
+  color: var(--text-primary);
+  font-family: inherit;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeInProfile 0.3s ease-out;
 }
 
-.profile__panel {
-  max-width: 460px;
-  width: 100%;
+@keyframes fadeInProfile {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.profile-breadcrumb {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.profile-breadcrumb a:hover {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Header Card
+   ========================================================================== */
+
+.profile-header-card {
   background: var(--bg-panel);
   border: 1px solid var(--line-trace);
   border-radius: var(--radius-md);
-  padding: 32px 32px 28px;
-}
-
-.profile__back {
-  display: inline-block;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  margin-bottom: 20px;
-}
-
-.profile__head {
+  padding: 24px 28px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
 }
 
-.profile__avatar {
-  width: 56px;
-  height: 56px;
+.profile-header-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--accent-cyan);
+}
+
+.profile-avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  border: 2px solid var(--accent-cyan-dim);
+  object-fit: cover;
+  border: 2px solid var(--line-trace);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.profile__name {
-  font-family: var(--font-display);
+.profile-avatar:hover {
+  transform: scale(1.02);
+}
+
+.avatar-edit-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: var(--accent-cyan);
+  border: 2px solid var(--bg-panel);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.avatar-edit-btn:hover,
+.avatar-edit-btn:focus-visible {
+  filter: brightness(0.92);
+  transform: scale(1.1);
+}
+
+.avatar-edit-btn:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.profile-header-info h2 {
+  font-family: var(--font-display, inherit);
   font-size: 1.25rem;
-  margin: 0 0 4px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
 }
 
-.profile__email {
+.profile-meta,
+.profile-email {
   font-size: 0.82rem;
   color: var(--text-muted);
-  margin: 0;
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.profile__panel .pin-divider {
-  margin: 24px 0;
+/* ==========================================================================
+   Tabs Navigation
+   ========================================================================== */
+
+.profile-tabs {
+  display: flex;
+  gap: 32px;
+  border-bottom: 1px solid var(--line-trace);
+  margin-bottom: 24px;
 }
 
-.profile__meta dt {
-  font-size: 0.75rem;
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 4px 14px 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
 }
 
-.profile__meta dd {
-  font-family: var(--font-display);
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-cyan);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ==========================================================================
+   Form Section Wrapper & Cards
+   ========================================================================== */
+
+.profile-form-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-trace);
+  border-radius: var(--radius-md);
+  padding: 32px;
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.03);
+}
+
+.section-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border-bottom: 1px solid var(--line-trace);
+  padding-bottom: 18px;
+  margin-bottom: 28px;
+}
+
+.section-icon {
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  color: var(--accent-cyan);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.section-card-header h3 {
+  font-family: var(--font-display, inherit);
   font-size: 1rem;
-  margin: 4px 0 20px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.section-card-header p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   Form Groups & Input Fields
+   ========================================================================== */
+
+.form-group-block {
+  margin-bottom: 28px;
+}
+
+.group-title {
+  font-family: var(--font-display, inherit);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  border-left: 2px solid var(--accent-cyan);
+  padding-left: 10px;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.form-field input,
+.form-field select {
+  padding: 10px 14px;
+  border: 1px solid var(--line-trace);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  background-color: color-mix(in srgb, var(--accent-cyan) 3%, var(--bg-panel));
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.form-field input:hover,
+.form-field select:hover {
+  border-color: color-mix(in srgb, var(--accent-cyan) 40%, var(--line-trace));
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  border-color: var(--accent-cyan);
+  background-color: var(--bg-panel);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+}
+
+.mt-3 {
+  margin-top: 16px;
+}
+
+/* ==========================================================================
+   Alert Messages (Errors / Success)
+   ========================================================================== */
+
+.error-message,
+.success-message {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: fadeInAlert 0.2s ease-out;
+}
+
+@keyframes fadeInAlert {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.error-message {
+  background: color-mix(in srgb, #ef4444 10%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+  color: #ef4444;
+}
+
+.success-message {
+  background: color-mix(in srgb, #10b981 10%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
+  color: #10b981;
+}
+
+/* ==========================================================================
+   Form Action Buttons & Footers
+   ========================================================================== */
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-trace);
+  margin-top: 28px;
+}
+
+.save-btn {
+  background-color: var(--accent-cyan);
+  color: #ffffff;
+  border: none;
+  padding: 10px 22px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+}
+
+.save-btn:hover {
+  filter: brightness(0.92);
+  transform: translateY(-1px);
+}
+
+.save-btn:active {
+  transform: translateY(0);
 }
 
 .profile__logout {
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--accent-red);
-  color: var(--accent-red);
+  background-color: color-mix(in srgb, #ef4444 12%, var(--bg-panel));
+  color: #ef4444;
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
   border-radius: var(--radius-sm);
-  padding: 11px;
-  font-size: 0.88rem;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.profile__logout:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Responsive Design Breakpoints
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .profile-form-section {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 16px;
+  }
+
+  .form-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .profile-header-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px 16px;
+  }
+
+  .profile-header-card::before {
+    width: 100%;
+    height: 4px;
+  }
+
+  .profile-meta,
+  .profile-email {
+    justify-content: center;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .save-btn,
+  .profile__logout {
+    width: 100%;
+    text-align: center;
+  }
 }

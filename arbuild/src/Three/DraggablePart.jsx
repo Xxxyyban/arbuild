@@ -1,11 +1,14 @@
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 /**
- * Wraps any 3D part (motherboard, RAM, PSU, etc.) with drag-to-place
- * behavior. Reports live position via onDrag while dragging — used as
- * a temporary debug tool to find correct snap-target coordinates.
+ * Wraps any 3D part with drag-to-place behavior. Reports live position
+ * via onDrag while actively dragging, AND via onPositionChange whenever
+ * the part's settled position changes (mount, snap, reset to tray) —
+ * so a parent can track "where is this part right now" even when it's
+ * not being actively dragged, e.g. to compute a dependent part's
+ * target relative to this one.
  */
 export default function DraggablePart({
   trayPosition,
@@ -17,6 +20,7 @@ export default function DraggablePart({
   onCorrect,
   onIncorrect,
   onDrag,
+  onPositionChange,
   children,
 }) {
   const group = useRef();
@@ -26,6 +30,11 @@ export default function DraggablePart({
   const [placed, setPlaced] = useState(false);
   const [position, setPosition] = useState(trayPosition);
   const [exploding, setExploding] = useState(false);
+
+  useEffect(() => {
+    onPositionChange?.(position[0], position[1], position[2]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position]);
 
   const planeY = dragHeight ?? trayPosition[1];
   const dragPlane = useMemo(
@@ -87,6 +96,7 @@ export default function DraggablePart({
       group.current.position.z = hit.z;
       group.current.position.y = planeY;
       onDrag?.(hit.x, planeY, hit.z);
+      onPositionChange?.(hit.x, planeY, hit.z);
     }
   });
 

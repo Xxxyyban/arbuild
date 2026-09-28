@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage"; // 1. Import getStorage
 
 const firebaseConfig = {
   apiKey: "AIzaSyA8AFpFEsw-v9AjQhonmM8rYp5WQNz0TD0",
@@ -16,11 +17,8 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app); // 2. Initialize and export storage
 
-export const googleProvider = new GoogleAuthProvider();
-// Restrict Google Sign-In to the school domain
-googleProvider.setCustomParameters({
-  hd: "cdd.edu.ph",
-});
-
-export const ALLOWED_DOMAIN = "cdd.edu.ph";
+export const STUDENT_DOMAIN = "cdd.edu.ph";
+export const FACULTY_DOMAIN = "udd.edu.ph";
+export const ALLOWED_DOMAINS = [STUDENT_DOMAIN, FACULTY_DOMAIN];

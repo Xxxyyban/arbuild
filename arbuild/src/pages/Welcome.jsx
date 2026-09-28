@@ -1,104 +1,174 @@
+import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import ThemeToggle from "../components/ThemeToggle";
 import "../styles/Welcome.css";
 
-const FEATURES = [
-  {
-    icon: "◎",
-    title: "Learn every part",
-    desc: "Tap any component — motherboard, RAM, PSU, cables — for a plain-language explanation of what it does.",
-  },
-  {
-    icon: "▣",
-    title: "Assemble in 3D",
-    desc: "Drag real components into place. Get it wrong, and it shows you — with consequences — why that matters in a real lab.",
-  },
-  {
-    icon: "▢",
-    title: "Disassemble safely",
-    desc: "Practice the reverse: taking a working build apart correctly, part by part, before you touch real hardware.",
-  },
-];
-
 export default function Welcome() {
-  const { signInWithGoogle, authError } = useAuth();
+  const { loginWithEmail, authError, loading } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState(""); // Starts blank
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    await loginWithEmail(email, password);
+  };
 
   return (
-    <div className="welcome">
-      <div className="welcome__theme-toggle">
-        <ThemeToggle />
-      </div>
-
-      <div className="welcome__pins" aria-hidden="true">
-        {Array.from({ length: 24 }).map((_, i) => (
-          <span key={i} className="pin" style={{ animationDelay: `${i * 0.08}s` }} />
-        ))}
-      </div>
-
-      <main className="welcome__hero">
-        <div className="welcome__panel">
-          <p className="eyebrow">CDD · Computer Systems Servicing</p>
-          <h1 className="welcome__title">
-            AR<span className="welcome__title-accent">Build</span>
-          </h1>
-          <p className="welcome__subtitle">
-            Augmented Reality-Based Computer Assembly Learning System
+    <div className="welcome-layout">
+      {/* Left Brand Panel with Animated Gradient & Floating Elements */}
+      <div className="welcome-brand-panel">
+        <div className="brand-glow-orb"></div>
+        <div className="brand-glow-orb-secondary"></div>
+        
+        <div className="brand-content animate-fade-in">
+          <div className="brand-logo-badge">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 8V5a1 1 0 0 1 1-1h3" />
+              <path d="M20 8V5a1 1 0 0 0-1-1h-3" />
+              <path d="M4 16v3a1 1 0 0 0 1 1h3" />
+              <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+              <rect x="8" y="8" width="8" height="8" rx="1.5" fill="#34d399" fillOpacity="0.25" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="10" y1="5.5" x2="10" y2="8" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="14" y1="5.5" x2="14" y2="8" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="10" y1="16" x2="10" y2="18.5" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="14" y1="16" x2="14" y2="18.5" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="5.5" y1="10" x2="8" y2="10" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="5.5" y1="14" x2="8" y2="14" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="16" y1="10" x2="18.5" y2="10" stroke="#34d399" strokeWidth="1.5" />
+              <line x1="16" y1="14" x2="18.5" y2="14" stroke="#34d399" strokeWidth="1.5" />
+            </svg>
+          </div>
+          <h1>AR<span className="brand-highlight">BUILD</span></h1>
+          <p className="brand-tagline">
+            An immersive 3D and AR PC assembly and troubleshooting simulator designed for next-generation hardware mastery.
           </p>
 
-          <p className="welcome__desc">
-            Practice building and taking apart a real desktop — motherboard,
-            CPU, RAM, storage, PSU, and every cable in between — before you
-            touch a real one. Place a part wrong here, and it teaches you why
-            that mistake costs money in the lab.
-          </p>
-
-          <div className="pin-divider" role="presentation" />
-
-          {authError && <p className="welcome__error">{authError}</p>}
-
-          <button className="welcome__cta focus-ring" onClick={signInWithGoogle}>
-            <GoogleIcon />
-            Sign in with school Google account
-          </button>
-
-          <p className="welcome__hint">Restricted to @cdd.edu.ph accounts</p>
-        </div>
-
-        <div className="welcome__about">
-          <p className="eyebrow">What is ARBuild?</p>
-          <h2 className="welcome__about-title">
-            Hands-on PC building, without the risk of frying a real part
-          </h2>
-          <p className="welcome__about-body">
-            ARBuild is a browser-based, augmented-reality training tool built
-            for CSS students. Instead of learning computer assembly only from
-            diagrams or watching a demo once, you get unlimited attempts on a
-            realistic 3D build — on your phone in AR, or on a lab computer
-            with just a mouse.
-          </p>
-
-          <div className="welcome__features">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="feature-card">
-                <span className="feature-card__icon" aria-hidden="true">{f.icon}</span>
-                <h3 className="feature-card__title">{f.title}</h3>
-                <p className="feature-card__desc">{f.desc}</p>
-              </div>
-            ))}
+          <div className="store-badges">
+            <div className="store-badge-mock">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>AR WebXR Ready</span>
+            </div>
+            <div className="store-badge-mock">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Three.js Powered</span>
+            </div>
           </div>
         </div>
-      </main>
-    </div>
-  );
-}
 
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.61z"/>
-      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.94v2.33A9 9 0 0 0 9 18z"/>
-      <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.94A9 9 0 0 0 0 9c0 1.45.35 2.83.94 4.03l3.01-2.33z"/>
-      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .94 4.97l3.01 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
-    </svg>
+        <div className="brand-footer animate-slide-up">
+          <div className="developer-info">
+            <span className="dev-label">DEVELOPED BY</span>
+            <div className="dev-name">Universidad de Dagupan — ITE</div>
+          </div>
+          <div className="team-info">
+            <span className="dev-label">PROJECT MODULE</span>
+            <div className="team-members">Interactive PC Builder</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Form Panel */}
+      <div className="welcome-form-panel">
+        <div className="welcome-form-card animate-scale-in">
+          <div className="form-header">
+            <h2>Welcome back</h2>
+            <p>Please enter your details to sign in.</p>
+          </div>
+
+          {authError && <div className="auth-error-banner animate-shake">{authError}</div>}
+
+          <form onSubmit={handleSubmit} className="auth-input-form" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div className="input-group">
+              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
+                Email Address or ID
+              </label>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <span style={{ position: "absolute", left: "14px", color: "#94a3b8" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                </span>
+                <input 
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@cdd.edu.ph"
+                  required
+                  style={{ width: "100%", padding: "12px 12px 12px 42px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.95rem", outline: "none", backgroundColor: "#ffffff" }}
+                />
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
+                Password
+              </label>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <span style={{ position: "absolute", left: "14px", color: "#94a3b8" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </span>
+                <input 
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  style={{ width: "100%", padding: "12px 42px 12px 42px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "0.95rem", outline: "none", backgroundColor: "#ffffff" }}
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: "14px", background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {showPassword ? (
+                      <>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="google-signin-btn focus-ring"
+              style={{ backgroundColor: "#2563eb", color: "#ffffff", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontWeight: "600", padding: "14px", borderRadius: "10px", cursor: "pointer", transition: "background 0.2s" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+              <span>{loading ? "Signing in..." : "Sign in"}</span>
+            </button>
+          </form>
+        </div>
+
+        <div className="footer-copyright">
+          <span>© 2026 Universidad de Dagupan</span>
+          <span className="dot-separator">•</span>
+          <span>ARBuild Studio</span>
+        </div>
+      </div>
+    </div>
   );
 }

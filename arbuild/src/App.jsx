@@ -8,7 +8,7 @@ import Profile from "./pages/Profile";
 import ModePlaceholder from "./pages/ModePlaceholder";
 import Assemble from "./pages/Assemble";
 import Credits from "./pages/Credits";
-import ThreeCameraView from "./pages/ThreeCameraView"; // Imported your new view page
+import ThreeCameraView from "./pages/ThreeCameraView";
 import "./styles/tokens.css";
 
 function Gate({ children }) {
@@ -55,10 +55,9 @@ export default function App() {
             <Route path="/main" element={<Gate><MainPage /></Gate>} />
             <Route path="/profile" element={<Gate><Profile /></Gate>} />
             <Route path="/credits" element={<Gate><Credits /></Gate>} />
-            <Route path="/learn" element={<Gate><ModePlaceholder title="Learn / Explore" /></Gate>} />
             <Route path="/assemble" element={<Gate><Assemble /></Gate>} />
             <Route path="/disassemble" element={<Gate><ModePlaceholder title="Disassemble" /></Gate>} />
-            <Route path="/3d-camera-view" element={<Gate><ThreeCameraView /></Gate>} /> {/* Added new AR / 3D camera route */}
+            <Route path="/3d-camera-view" element={<Gate><ThreeCameraView /></Gate>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
