@@ -12,18 +12,19 @@ const TARGET_WIDTH = 0.177; // world units — small square chip, roughly AM5 si
  * (the chip's height/thickness), and rotate that to point up so it
  * lies flat, chip-side up, ready to seat into the socket.
  */
-export default function CPUModel({ spinY = 0, ...props }) {
+export default function CPUModel({ spinY = 0, path = MODEL_PATH, ...props }) {
   const [modelExists, setModelExists] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(MODEL_PATH, { method: "HEAD" })
+    setModelExists(null);
+    fetch(path, { method: "HEAD" })
       .then((res) => !cancelled && setModelExists(res.ok))
       .catch(() => !cancelled && setModelExists(false));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [path]);
 
   if (modelExists === false) {
     return <PlaceholderCPU {...props} rotation={[0, spinY, 0]} />;
@@ -31,7 +32,7 @@ export default function CPUModel({ spinY = 0, ...props }) {
   if (modelExists === null) {
     return null;
   }
-  return <RealCPU {...props} spinY={spinY} />;
+  return <RealCPU {...props} path={path} spinY={spinY} />;
 }
 
 function PlaceholderCPU(props) {
@@ -53,8 +54,8 @@ function PlaceholderCPU(props) {
   );
 }
 
-function RealCPU({ spinY = 0, ...props }) {
-  const { scene } = useGLTF(MODEL_PATH);
+function RealCPU({ spinY = 0, path, ...props }) {
+  const { scene } = useGLTF(path);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   useEffect(() => {

@@ -1,17 +1,40 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  signOut, 
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  signInWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
-  updateProfile 
+  updateProfile,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { auth, db, storage, ALLOWED_DOMAINS, STUDENT_DOMAIN } from "../firebase/config";
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
+
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
+
+import {
+  auth,
+  db,
+  storage,
+  ALLOWED_DOMAINS,
+  STUDENT_DOMAIN,
+} from "../firebase/config";
 
 const AuthContext = createContext();
 
@@ -21,221 +44,881 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
 
+  // ============================================================
+  // DEFAULT ROLE
+  // ============================================================
+
   const deriveRoleFromEmail = (email) => {
     if (!email) return "student";
+
     const lowerEmail = email.toLowerCase();
+
     if (lowerEmail.endsWith(`@${STUDENT_DOMAIN}`)) {
       return "student";
     }
+
     return "faculty";
   };
 
-  const loginWithEmail = async (emailInput, passwordInput) => {
+  // ============================================================
+  // LOGIN
+  // IMPORTANT:
+  // Users are NO LONGER automatically registered here.
+  // Admin creates Student/Faculty accounts.
+  // ============================================================
+
+  const loginWithEmail = async (
+    emailInput,
+    passwordInput
+  ) => {
     setLoading(true);
     setAuthError("");
+
     try {
-      const formattedEmail = emailInput.trim().toLowerCase();
+      const formattedEmail = emailInput
+        .trim()
+        .toLowerCase();
+
       const domain = formattedEmail.split("@")[1];
 
-      if (!ALLOWED_DOMAINS.includes(domain)) {
-        setAuthError(`Access denied. Please use an official institutional account (@${STUDENT_DOMAIN} or @udd.edu.ph).`);
+      // --------------------------------------------------------
+      // Validate email
+      // --------------------------------------------------------
+
+      if (!formattedEmail || !formattedEmail.includes("@")) {
+        setAuthError("Please enter a valid email address.");
         setLoading(false);
         return;
       }
 
-      let user;
+      // --------------------------------------------------------
+      // Check allowed institutional domains
+      // --------------------------------------------------------
+
+      if (!ALLOWED_DOMAINS.includes(domain)) {
+        setAuthError(
+          `Access denied. Please use an official institutional account.`
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      // --------------------------------------------------------
+      // LOGIN ONLY
+      // DO NOT CREATE ACCOUNT HERE
+      // --------------------------------------------------------
+
+      let result;
+
       try {
-        const result = await signInWithEmailAndPassword(auth, formattedEmail, passwordInput);
-        user = result.user;
+        result = await signInWithEmailAndPassword(
+          auth,
+          formattedEmail,
+          passwordInput
+        );
       } catch (signInError) {
+        console.error("Firebase login error:", signInError);
+
         if (
-          signInError.code === "auth/user-not-found" || 
+          signInError.code === "auth/user-not-found" ||
           signInError.code === "auth/invalid-credential"
         ) {
-          try {
-            const createResult = await createUserWithEmailAndPassword(auth, formattedEmail, passwordInput);
-            user = createResult.user;
-          } catch (createError) {
-            if (createError.code === "auth/email-already-in-use") {
-              setAuthError("Incorrect password. Default password is Universidad2026.");
-            } else {
-              setAuthError(createError.message || "Failed to authenticate.");
-            }
-            setLoading(false);
-            return;
-          }
-        } else if (signInError.code === "auth/wrong-password" || signInError.code === "auth/invalid-login-credentials") {
-          setAuthError("Incorrect password. Default password is Universidad2026.");
-          setLoading(false);
-          return;
-        } else if (signInError.code === "auth/operation-not-allowed") {
-          setAuthError("Email/Password provider is disabled in Firebase Console.");
-          setLoading(false);
-          return;
+          setAuthError(
+            "Account not found or incorrect password. Please contact the ARBuild administrator."
+          );
+        } else if (
+          signInError.code === "auth/wrong-password" ||
+          signInError.code === "auth/invalid-login-credentials"
+        ) {
+          setAuthError("Incorrect password.");
+        } else if (
+          signInError.code === "auth/too-many-requests"
+        ) {
+          setAuthError(
+            "Too many login attempts. Please try again later."
+          );
+        } else if (
+          signInError.code === "auth/operation-not-allowed"
+        ) {
+          setAuthError(
+            "Email/Password authentication is disabled in Firebase."
+          );
         } else {
-          setAuthError("Invalid email or password. Please check your credentials.");
-          setLoading(false);
-          return;
+          setAuthError(
+            signInError.message ||
+              "Unable to sign in. Please try again."
+          );
         }
+
+        setLoading(false);
+        return;
       }
 
-      // Strictly isolate user document using user.uid
-      const userRef = doc(db, "users", user.uid);
+      const user = result.user;
+
+      // --------------------------------------------------------
+      // Load Firestore profile
+      // --------------------------------------------------------
+
+      const userRef = doc(
+        db,
+        "users",
+        user.uid
+      );
+
       const userSnap = await getDoc(userRef);
-      const assignedRole = deriveRoleFromEmail(formattedEmail);
 
       if (!userSnap.exists()) {
-        const newProfile = {
-          uid: user.uid,
-          email: user.email,
-          displayName: formattedEmail.split("@")[0],
-          role: assignedRole,
-          firstName: "",
-          middleName: "",
-          lastName: "",
-          studentId: "",
-          section: "",
-          contactNumber: "",
-          photoURL: user.photoURL || "",
-          createdAt: new Date().toISOString(),
-        };
-        await setDoc(userRef, newProfile);
-        setUserProfile(newProfile);
-      } else {
-        setUserProfile(userSnap.data());
+        // This should normally never happen because
+        // Admin-created accounts receive a Firestore profile.
+        await signOut(auth);
+
+        setCurrentUser(null);
+        setUserProfile(null);
+
+        setAuthError(
+          "Your account exists, but your ARBuild profile has not been configured. Please contact the administrator."
+        );
+
+        setLoading(false);
+        return;
       }
+
+      const profileData = userSnap.data();
+
+      // --------------------------------------------------------
+      // Check account status
+      // --------------------------------------------------------
+
+      if (profileData.status === "inactive") {
+        await signOut(auth);
+
+        setCurrentUser(null);
+        setUserProfile(null);
+
+        setAuthError(
+          "Your ARBuild account is currently inactive. Please contact the administrator."
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      // --------------------------------------------------------
+      // Migration support
+      //
+      // If an old account does not have profileCompleted,
+      // determine whether its profile is already complete.
+      // --------------------------------------------------------
+
+      let normalizedProfile = {
+        ...profileData,
+      };
+
+      if (
+        typeof normalizedProfile.profileCompleted !==
+        "boolean"
+      ) {
+        const isStudent =
+          normalizedProfile.role === "student";
+
+        const isFaculty =
+          normalizedProfile.role === "faculty";
+
+        let completed = false;
+
+        if (isStudent) {
+          completed =
+            Boolean(normalizedProfile.firstName) &&
+            Boolean(normalizedProfile.lastName) &&
+            Boolean(normalizedProfile.studentId) &&
+            Boolean(normalizedProfile.section);
+        }
+
+        if (isFaculty) {
+          completed =
+            Boolean(normalizedProfile.facultyId) &&
+            Boolean(normalizedProfile.department);
+        }
+
+        normalizedProfile.profileCompleted =
+          completed;
+
+        await updateDoc(userRef, {
+          profileCompleted: completed,
+        });
+      }
+
       setCurrentUser(user);
+      setUserProfile(normalizedProfile);
     } catch (error) {
       console.error("Login error:", error);
-      setAuthError(error.message || "Failed to sign in.");
+
+      setAuthError(
+        error.message ||
+          "Failed to sign in."
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // COMPLETE PROFILE
+  // ONE-TIME PROFILE SETUP
+  // ============================================================
+
+  const completeProfile = async (
+    profileData
+  ) => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      throw new Error(
+        "No authenticated user found."
+      );
+    }
+
+    try {
+      const uid = user.uid;
+
+      // Never trust a role supplied by the client
+      // if the existing profile already has one.
+      const existingRef = doc(
+        db,
+        "users",
+        uid
+      );
+
+      const existingSnap = await getDoc(
+        existingRef
+      );
+
+      const existingData =
+        existingSnap.exists()
+          ? existingSnap.data()
+          : {};
+
+      const role =
+        existingData.role ||
+        profileData.role ||
+        "student";
+
+      // --------------------------------------------------------
+      // COMMON DATA
+      // --------------------------------------------------------
+
+      const commonData = {
+        uid,
+        email: user.email || "",
+        role,
+        photoURL:
+          profileData.photoURL ||
+          existingData.photoURL ||
+          user.photoURL ||
+          "",
+        profileCompleted: true,
+        status:
+          existingData.status || "active",
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      // ========================================================
+      // STUDENT
+      // ========================================================
+
+      if (role === "student") {
+        const studentData = {
+          ...commonData,
+
+          firstName:
+            profileData.firstName || "",
+
+          middleName:
+            profileData.middleName || "",
+
+          lastName:
+            profileData.lastName || "",
+
+          studentId:
+            profileData.studentId || "",
+
+          section:
+            profileData.section || "",
+
+          contactNumber:
+            profileData.contactNumber ||
+            existingData.contactNumber ||
+            "",
+
+          createdAt:
+            existingData.createdAt ||
+            new Date().toISOString(),
+        };
+
+        // users/{uid}
+        await setDoc(
+          doc(db, "users", uid),
+          {
+            ...commonData,
+
+            firstName:
+              studentData.firstName,
+
+            middleName:
+              studentData.middleName,
+
+            lastName:
+              studentData.lastName,
+
+            studentId:
+              studentData.studentId,
+
+            section:
+              studentData.section,
+
+            contactNumber:
+              studentData.contactNumber,
+          },
+          { merge: true }
+        );
+
+        // students/{uid}
+        await setDoc(
+          doc(
+            db,
+            "students",
+            uid
+          ),
+          studentData,
+          { merge: true }
+        );
+
+        const updatedProfile = {
+          ...userProfile,
+          ...studentData,
+        };
+
+        setUserProfile(
+          updatedProfile
+        );
+
+        return {
+          success: true,
+          role: "student",
+          uid,
+        };
+      }
+
+      // ========================================================
+      // FACULTY
+      // ========================================================
+
+      if (role === "faculty") {
+        const facultyData = {
+          ...commonData,
+
+          facultyTitle:
+            profileData.facultyTitle ||
+            existingData.facultyTitle ||
+            "Prof.",
+
+          facultyId:
+            profileData.facultyId ||
+            existingData.facultyId ||
+            "",
+
+          department:
+            profileData.department ||
+            existingData.department ||
+            "",
+
+          createdAt:
+            existingData.createdAt ||
+            new Date().toISOString(),
+        };
+
+        // users/{uid}
+        await setDoc(
+          doc(db, "users", uid),
+          {
+            ...commonData,
+
+            facultyTitle:
+              facultyData.facultyTitle,
+
+            facultyId:
+              facultyData.facultyId,
+
+            department:
+              facultyData.department,
+          },
+          { merge: true }
+        );
+
+        // faculty/{uid}
+        await setDoc(
+          doc(
+            db,
+            "faculty",
+            uid
+          ),
+          facultyData,
+          { merge: true }
+        );
+
+        const updatedProfile = {
+          ...userProfile,
+          ...facultyData,
+        };
+
+        setUserProfile(
+          updatedProfile
+        );
+
+        return {
+          success: true,
+          role: "faculty",
+          uid,
+        };
+      }
+
+      throw new Error(
+        "Invalid user role."
+      );
+    } catch (error) {
+      console.error(
+        "Complete profile error:",
+        error
+      );
+
+      throw error;
+    }
+  };
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   const logout = async () => {
     try {
       await signOut(auth);
+
       setCurrentUser(null);
       setUserProfile(null);
+      setAuthError("");
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error(
+        "Logout error:",
+        error
+      );
     }
   };
 
-  const changePassword = async (currentPassword, newPassword) => {
+  // ============================================================
+  // CHANGE PASSWORD
+  // ============================================================
+
+  const changePassword = async (
+    currentPassword,
+    newPassword
+  ) => {
     const user = auth.currentUser;
-    if (!user || !user.email) throw new Error("No authenticated user found.");
+
+    if (!user || !user.email) {
+      throw new Error(
+        "No authenticated user found."
+      );
+    }
 
     try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
-      return { success: true };
+      const credential =
+        EmailAuthProvider.credential(
+          user.email,
+          currentPassword
+        );
+
+      await reauthenticateWithCredential(
+        user,
+        credential
+      );
+
+      await updatePassword(
+        user,
+        newPassword
+      );
+
+      return {
+        success: true,
+      };
     } catch (error) {
-      console.error("Password update error:", error);
+      console.error(
+        "Password update error:",
+        error
+      );
+
       throw error;
     }
   };
 
-  const updateUserProfile = async (updatedData) => {
+  // ============================================================
+  // UPDATE USER PROFILE
+  // ============================================================
+
+  const updateUserProfile = async (
+    updatedData
+  ) => {
     const user = auth.currentUser;
-    if (!user) throw new Error("No authenticated user.");
+
+    if (!user) {
+      throw new Error(
+        "No authenticated user."
+      );
+    }
+
     try {
-      // Strictly write to the unique user ID document path
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, updatedData);
-      setUserProfile((prev) => ({ ...prev, ...updatedData }));
-      return { success: true };
+      const userRef = doc(
+        db,
+        "users",
+        user.uid
+      );
+
+      await updateDoc(
+        userRef,
+        updatedData
+      );
+
+      // Also update role-specific profile
+      if (
+        userProfile?.role ===
+        "student"
+      ) {
+        await setDoc(
+          doc(
+            db,
+            "students",
+            user.uid
+          ),
+          {
+            ...updatedData,
+            uid: user.uid,
+            email:
+              user.email || "",
+          },
+          { merge: true }
+        );
+      }
+
+      if (
+        userProfile?.role ===
+        "faculty"
+      ) {
+        await setDoc(
+          doc(
+            db,
+            "faculty",
+            user.uid
+          ),
+          {
+            ...updatedData,
+            uid: user.uid,
+            email:
+              user.email || "",
+          },
+          { merge: true }
+        );
+      }
+
+      setUserProfile(
+        (prev) => ({
+          ...prev,
+          ...updatedData,
+        })
+      );
+
+      return {
+        success: true,
+      };
     } catch (error) {
-      console.error("Profile update error:", error);
+      console.error(
+        "Profile update error:",
+        error
+      );
+
       throw error;
     }
   };
 
-  const updateAvatar = async (file) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("No authenticated user.");
+  // ============================================================
+  // UPDATE AVATAR
+  // ============================================================
+
+  const updateAvatar = async (
+    file
+  ) => {
+    const user =
+      auth.currentUser;
+
+    if (!user) {
+      throw new Error(
+        "No authenticated user."
+      );
+    }
 
     try {
-      const fileRef = ref(storage, `avatars/${user.uid}/${file.name}`);
-      const snapshot = await uploadBytes(fileRef, file);
-      const photoURL = await getDownloadURL(snapshot.ref);
+      const fileRef = ref(
+        storage,
+        `avatars/${user.uid}/${file.name}`
+      );
 
-      await updateProfile(user, { photoURL });
+      const snapshot =
+        await uploadBytes(
+          fileRef,
+          file
+        );
 
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { photoURL });
+      const photoURL =
+        await getDownloadURL(
+          snapshot.ref
+        );
 
-      setUserProfile((prev) => ({ ...prev, photoURL }));
-      setCurrentUser({ ...user, photoURL });
+      await updateProfile(
+        user,
+        { photoURL }
+      );
+
+      await updateDoc(
+        doc(
+          db,
+          "users",
+          user.uid
+        ),
+        { photoURL }
+      );
+
+      if (
+        userProfile?.role ===
+        "student"
+      ) {
+        await setDoc(
+          doc(
+            db,
+            "students",
+            user.uid
+          ),
+          { photoURL },
+          { merge: true }
+        );
+      }
+
+      if (
+        userProfile?.role ===
+        "faculty"
+      ) {
+        await setDoc(
+          doc(
+            db,
+            "faculty",
+            user.uid
+          ),
+          { photoURL },
+          { merge: true }
+        );
+      }
+
+      setUserProfile(
+        (prev) => ({
+          ...prev,
+          photoURL,
+        })
+      );
 
       return photoURL;
     } catch (error) {
-      console.error("Avatar upload error:", error);
+      console.error(
+        "Avatar upload error:",
+        error
+      );
+
       throw error;
     }
   };
 
+  // ============================================================
+  // AUTH STATE LISTENER
+  // ============================================================
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
-      if (user) {
-        setCurrentUser(user);
-        try {
-          const userRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            setUserProfile(userSnap.data());
-          } else {
-            // Fallback initialization if auth exists but firestore doc is missing
-            const assignedRole = deriveRoleFromEmail(user.email);
-            const newProfile = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.email ? user.email.split("@")[0] : "",
-              role: assignedRole,
-              firstName: "",
-              middleName: "",
-              lastName: "",
-              studentId: "",
-              section: "",
-              contactNumber: "",
-              photoURL: user.photoURL || "",
-              createdAt: new Date().toISOString(),
-            };
-            await setDoc(userRef, newProfile);
-            setUserProfile(newProfile);
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (user) => {
+          setLoading(true);
+
+          if (!user) {
+            setCurrentUser(null);
+            setUserProfile(null);
+            setLoading(false);
+            return;
           }
-        } catch (err) {
-          console.error("Error fetching user profile:", err);
+
+          setCurrentUser(user);
+
+          try {
+            const userRef = doc(
+              db,
+              "users",
+              user.uid
+            );
+
+            const userSnap =
+              await getDoc(
+                userRef
+              );
+
+            if (
+              userSnap.exists()
+            ) {
+              let profileData =
+                userSnap.data();
+
+              // ------------------------------------------------
+              // Migration support
+              // ------------------------------------------------
+
+              if (
+                typeof profileData.profileCompleted !==
+                "boolean"
+              ) {
+                let completed =
+                  false;
+
+                if (
+                  profileData.role ===
+                  "student"
+                ) {
+                  completed =
+                    Boolean(
+                      profileData.firstName
+                    ) &&
+                    Boolean(
+                      profileData.lastName
+                    ) &&
+                    Boolean(
+                      profileData.studentId
+                    ) &&
+                    Boolean(
+                      profileData.section
+                    );
+                }
+
+                if (
+                  profileData.role ===
+                  "faculty"
+                ) {
+                  completed =
+                    Boolean(
+                      profileData.facultyId
+                    ) &&
+                    Boolean(
+                      profileData.department
+                    );
+                }
+
+                profileData = {
+                  ...profileData,
+                  profileCompleted:
+                    completed,
+                };
+
+                await updateDoc(
+                  userRef,
+                  {
+                    profileCompleted:
+                      completed,
+                  }
+                );
+              }
+
+              setUserProfile(
+                profileData
+              );
+            } else {
+              // ------------------------------------------------
+              // If an Auth account exists without a profile,
+              // DO NOT automatically assign it to a normal user.
+              // This situation should be handled by Admin setup.
+              // ------------------------------------------------
+
+              await signOut(auth);
+
+              setCurrentUser(null);
+              setUserProfile(null);
+
+              setAuthError(
+                "Your account is not registered in ARBuild. Please contact the administrator."
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Error fetching user profile:",
+              error
+            );
+
+            setAuthError(
+              "Unable to load your ARBuild profile."
+            );
+          }
+
+          setLoading(false);
         }
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
+      );
+
     return unsubscribe;
   }, []);
 
+  // ============================================================
+  // CONTEXT
+  // ============================================================
+
   return (
-    <AuthContext.Provider value={{ 
-      currentUser, 
-      user: currentUser,        
-      userProfile, 
-      profile: userProfile,     
-      loginWithEmail, 
-      logout, 
-      changePassword,
-      updateUserProfile,
-      updateAvatar,
-      authError, 
-      loading 
-    }}>
+    <AuthContext.Provider
+      value={{
+        currentUser,
+
+        user: currentUser,
+
+        userProfile,
+
+        profile: userProfile,
+
+        loginWithEmail,
+
+        completeProfile,
+
+        logout,
+
+        changePassword,
+
+        updateUserProfile,
+
+        updateAvatar,
+
+        authError,
+
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+// ============================================================
+// USE AUTH
+// ============================================================
+
+export const useAuth = () =>
+  useContext(AuthContext);

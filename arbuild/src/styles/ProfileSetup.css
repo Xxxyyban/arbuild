@@ -214,6 +214,39 @@
   gap: 12px;
 }
 
+/* School email (read-only) */
+.account-email-display {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-email-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 2px dashed #d1fae5;
+  border-radius: 10px;
+  background: #f0fdf9;
+  cursor: not-allowed;
+}
+
+.account-email-box span {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #065f46;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-email-box small {
+  font-size: 0.75rem;
+  color: #6b8f84;
+}
+
+/* Fields */
 .field {
   display: flex;
   flex-direction: column;
@@ -227,18 +260,25 @@
 }
 
 .required-star {
+  margin-left: 3px;
   color: #059669;
 }
 
 .field__input {
   width: 100%;
+  box-sizing: border-box;
   padding: 12px 14px;
   border: 2px solid #e2e8f0;
   border-radius: 10px;
+  font-family: inherit;
   font-size: 0.95rem;
   color: #0f172a;
   background-color: #f8fafc;
   transition: all 0.2s ease;
+}
+
+.field__input::placeholder {
+  color: #94a3b8;
 }
 
 .field__input:focus {
@@ -265,6 +305,7 @@
   border: none;
   padding: 14px 20px;
   border-radius: 12px;
+  font-family: inherit;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -288,6 +329,19 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.spinner-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .footer-copyright {
@@ -339,21 +393,42 @@
   75% { transform: translateX(6px); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .brand-glow-orb,
+  .brand-logo-badge,
+  .spinner-dot {
+    animation: none;
+  }
+}
+
 /* Responsive layout adjustments */
 @media (max-width: 900px) {
   .setup-layout {
     flex-direction: column;
     overflow-y: auto;
   }
+
   .setup-brand-panel {
     padding: 40px 24px;
     min-height: 35vh;
   }
+
   .brand-footer {
     display: none;
   }
+
   .setup-form-panel {
     min-height: 65vh;
-    padding: 30px 24px;
+    padding: 30px 24px 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .setup__row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-header h2 {
+    font-size: 1.7rem;
   }
 }

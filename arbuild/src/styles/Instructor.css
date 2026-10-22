@@ -1,0 +1,512 @@
+/* Instructor page. Colors come from the --lab-* variables in BuildLab.css,
+   so it follows the same light / dark theme. */
+
+.instructor {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: radial-gradient(circle at top, var(--lab-bg-soft) 0%, var(--lab-bg) 60%);
+  color: var(--lab-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.instructor a.flow-btn {
+  text-decoration: none;
+}
+
+/* ---------- top bar ---------- */
+.instructor__bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 24px;
+  background: var(--lab-panel);
+  border-bottom: 1px solid var(--lab-line);
+  backdrop-filter: blur(8px);
+}
+
+.instructor__title {
+  display: flex;
+  flex-direction: column;
+}
+
+.instructor__title h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.instructor__badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lab-accent);
+}
+
+.instructor__main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+/* ---------- panels ---------- */
+.ins-panel {
+  padding: 22px 24px;
+  border-radius: 14px;
+  background: var(--lab-card);
+  border: 1px solid var(--lab-line);
+  box-shadow: 0 12px 30px var(--lab-shadow);
+}
+
+.ins-panel h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.ins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ins-head h2 {
+  margin: 0;
+}
+
+.ins-muted {
+  color: var(--lab-muted);
+  font-size: 0.88rem;
+}
+
+.ins-hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+}
+
+.ins-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ins-alert {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-danger);
+  border-left-width: 4px;
+  color: var(--lab-danger);
+  font-size: 0.88rem;
+}
+
+.ins-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ins-row--wrap {
+  flex-wrap: wrap;
+}
+
+/* ---------- create form ---------- */
+.ins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+  margin: 16px 0 18px;
+}
+
+.ins-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ins-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ins-field > span {
+  color: var(--lab-text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.ins-field input,
+.ins-field select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.ins-field input:focus,
+.ins-field select:focus {
+  outline: none;
+  border-color: var(--lab-accent);
+  box-shadow: 0 0 0 3px var(--lab-accent-soft);
+}
+
+.ins-field select option {
+  background: var(--lab-bg-soft);
+  color: var(--lab-text);
+}
+
+.ins-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  grid-column: 1 / -1;
+  color: var(--lab-text-soft);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.ins-check input {
+  margin-top: 3px;
+  accent-color: var(--lab-accent);
+}
+
+/* ---------- sessions list ---------- */
+.ins-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.ins-sessions li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+}
+
+.ins-sessions strong,
+.ins-table strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.ins-sessions small,
+.ins-table small {
+  display: block;
+  color: var(--lab-muted);
+  font-size: 0.74rem;
+}
+
+.ins-code-sm {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+/* ---------- live monitor ---------- */
+.ins-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.ins-code {
+  margin: 2px 0 10px;
+  color: var(--lab-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: 0.25em;
+}
+
+.ins-clock {
+  margin: 2px 0 10px;
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-clock.is-low {
+  color: var(--lab-danger);
+}
+
+.ins-clock.is-ended {
+  color: var(--lab-muted);
+}
+
+.ins-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.ins-stats div {
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+  text-align: center;
+}
+
+.ins-stats b {
+  display: block;
+  font-size: 1.4rem;
+  color: var(--lab-accent);
+}
+
+.ins-stats span {
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- students table ---------- */
+.ins-table-wrap {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.ins-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ins-table th {
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--lab-line-strong);
+  white-space: nowrap;
+}
+
+.ins-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--lab-line);
+  white-space: nowrap;
+}
+
+.ins-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.ins-table tbody tr:hover,
+.ins-table tbody tr.is-picked {
+  background: var(--lab-accent-soft);
+}
+
+.ins-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---------- badges, chips, log ---------- */
+.ins-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ins-badge--live {
+  color: var(--lab-accent);
+  border-color: var(--lab-accent);
+  background: var(--lab-accent-soft);
+}
+
+.ins-badge--done {
+  color: var(--lab-text);
+  border-color: var(--lab-accent);
+  background: var(--lab-accent);
+  color: var(--lab-bg);
+}
+
+.ins-badge--danger {
+  color: var(--lab-danger);
+  border-color: var(--lab-danger);
+}
+
+.ins-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.ins-chips span {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ins-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.ins-log li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+  font-size: 0.84rem;
+}
+
+.ins-log time {
+  color: var(--lab-muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-log em {
+  margin-left: auto;
+  color: var(--lab-danger);
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ---------- time box, class rules, assignment bar ---------- */
+.ins-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+}
+
+.ins-time input {
+  width: 110px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.ins-time input:focus {
+  outline: none;
+  border-color: var(--lab-accent);
+  box-shadow: 0 0 0 3px var(--lab-accent-soft);
+}
+
+.ins-time span {
+  color: var(--lab-muted);
+  font-size: 0.85rem;
+}
+
+.ins-small {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+}
+
+.ins-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+  margin-top: 14px;
+}
+
+.ins-assignbar {
+  margin: 12px 0 4px;
+}
+
+.ins-spacer {
+  flex: 1;
+}
+
+.ins-select {
+  padding: 6px 8px;
+  max-width: 220px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.ins-select:focus {
+  outline: none;
+  border-color: var(--lab-accent);
+}
+
+.ins-select option {
+  background: var(--lab-bg-soft);
+  color: var(--lab-text);
+}
+
+/* ---------- phone ---------- */
+@media (max-width: 820px) {
+  .instructor__main {
+    padding: 16px;
+  }
+
+  .instructor__bar {
+    padding: 10px 16px;
+  }
+
+  .ins-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .ins-sessions li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .ins-sessions li > :nth-child(3),
+  .ins-sessions li > :nth-child(4) {
+    justify-self: start;
+  }
+}

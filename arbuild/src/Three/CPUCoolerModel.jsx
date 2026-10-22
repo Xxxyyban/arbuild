@@ -5,7 +5,7 @@ import * as THREE from "three";
 const MODEL_PATH = "/models/cpu_cooler.glb";
 // AMD Wraith Stealth is a small stock cooler, roughly 60-70mm across.
 // Tune against CPU_SCALE / the socket area once it's on screen.
-const TARGET_WIDTH = 0.42;
+const TARGET_WIDTH = 0.469;
 
 export default function CPUCoolerModel({ spinX = 0, spinY = 0, spinZ = 0, ...props }) {
   // Wrap useGLTF safely. If the file is missing or fails, it will catch and fallback.

@@ -1,378 +1,41 @@
-import { useEffect, useRef, useState, Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 import { OrbitControls, Center, Environment, Lightformer } from "@react-three/drei";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import ThemeToggle from "../components/ThemeToggle";
 import CaseModel from "../Three/CaseModel";
 import MotherboardModel from "../Three/MotherboardModel";
 import CPUModel from "../Three/CPUModel";
+import CPUCoolerModel from "../Three/CPUCoolerModel";
 import RAMModel from "../Three/RAMModel";
 import PSUModel from "../Three/PSUModel";
-import GPUModel from "../Three/GPUModel"; // ✅ GPU added
+import GPUModel from "../Three/GPUModel";
+import StorageModel from "../Three/StorageModel";
+import CaseFanModel from "../Three/CaseFanModel";
+import {
+  GLBridge,
+  ARHitTest,
+  ARRoot,
+  CameraDirector,
+  OverlayProjector,
+  CamAR,
+  useARSupport,
+  startARSession,
+  requestMotion,
+} from "../Three/ar/ARTools";
+import {
+  QUADRANTS,
+  QuadrantGuides,
+  quadrantFromLocal,
+  quadrantRect,
+  measureBoxInSpace,
+  BOARD_VIEW_SIGN,
+} from "../Three/ar/boardQuadrants";
+import WorldCard from "../Three/ar/WorldCard";
+import { PARTS, buildPartInfo, buildQuadInfo } from "../Three/ar/partInfo";
 import "../styles/Main.css";
-
-const BOARD_LABEL = "ASUS ROG Strix B550-F Gaming";
-
-const PARTS_DATA = {
-  cpu: {
-    name: "AMD Ryzen 9 5900X Processor (Socket AM4)",
-    purpose: "High-performance desktop processor executing multi-threaded instructions for gaming, rendering, and professional lab applications.",
-    specs: "Socket AM4 package (Zen 3 architecture, 12 cores, 24 threads), PCIe 4.0 support, unlocked for overclocking.",
-    tips: [
-      "Ground yourself first by touching the bare metal of the case, or wear an anti-static wrist strap.",
-      "Hold the processor by its edges only. Never touch the gold pins on the underside.",
-      "Look into the socket with a flashlight before installing. Bent socket pins are extremely fragile.",
-      "Lift the socket retention lever fully, match the golden triangle on the corner of the CPU with the triangle marker on the socket, and lower it straight down without pushing or sliding.",
-      "If it does not sit flat by itself, lift it out and recheck the orientation. Never press it down to make it fit.",
-      "Lower the retention lever to lock the CPU securely into place.",
-      "Apply thermal paste, mount the CPU cooler, and plug its fan cable into the CPU fan header.",
-    ],
-    dos: [
-      "Align the gold triangle marker with the socket pin 1 triangle indicator before dropping it in.",
-      "Check that the retention arm lifts and locks properly without applying vertical force.",
-    ],
-    donts: [
-      "Do not drop the processor into the socket; lower it vertically with zero angle.",
-      "Never touch or bend the delicate gold pins on the underside of the AM4 processor.",
-    ],
-  },
-  motherboard: {
-    name: BOARD_LABEL + " (AMD AM4, B550, ATX)",
-    purpose: "The main circuit board. It connects the processor, memory, storage, and expansion cards and distributes power to them. This view covers the front (component side) of the board.",
-    specs: "AMD AM4 socket for 3rd Gen AMD Ryzen and Ryzen 5000 Series CPUs[cite: 7], AMD B550 chipset, DDR4 DIMM slots, PCIe 4.0 x16 slot, PCIe 3.0 x16 slot, M.2 slots with heatsinks, SATA 6 Gb/s ports.",
-    tips: [
-      "Work on a clean, non-conductive surface with the power cable unplugged, and ground yourself before touching parts.",
-      "Snap the I/O shield into the case before mounting the board. It is very hard to fit afterwards.",
-      "Install brass standoffs only where the board has screw holes. An extra standoff under the board can short it.",
-      "Tighten mounting screws in a criss-cross pattern until snug. Do not overtighten.",
-      "Hold the board by its edges and avoid pressing on heatsinks or the back of the socket.",
-    ],
-    dos: [
-      "Verify brass standoffs align precisely with the mounting screw holes in the chassis.",
-      "Connect front panel headers (power switch, reset, LEDs) according to manual pinouts.",
-    ],
-    donts: [
-      "Do not rest the bare motherboard on conductive metallic surfaces or carpet during tests.",
-      "Avoid over-tightening motherboard mounting screws to prevent PCB hairline cracks.",
-    ],
-    sectionsTitle: "Parts on the front of the board",
-    sections: [
-      {
-        title: "Processor and memory",
-        items: [
-          { name: "CPU socket (Socket AM4)", text: "Holds the Ryzen processor. Its pin grid is delicate; never touch them.", tip: "Never touch the socket pins, and check for bent pins with a flashlight before installing." },
-          { name: "DIMM slots", text: "Hold the DDR4 memory sticks. Latches on each end lock the module in.", tip: "Open both latches first, then press both ends until they click." },
-        ],
-      },
-      {
-        title: "Expansion slots",
-        items: [
-          { name: "PCI Express x16 slots", text: "Hold graphics cards. PCIe 4.0 slot runs directly from the CPU for maximum bandwidth.", tip: "Remove the matching rear slot cover first, and press the card straight down until the latch clicks." },
-          { name: "PCI Express x1 slots", text: "Hold smaller add-in cards such as sound, network, or capture cards." },
-          { name: "M.2 NVMe slots", text: "High-speed storage slots located under integrated heatsinks for fast SSDs." },
-        ],
-      },
-      {
-        title: "Storage",
-        items: [
-          { name: "SATA ports", text: "Connect hard disks, SSDs, and optical drives with SATA data cables.", tip: "Connectors are L-shaped and only fit one way. Never force them." },
-        ],
-      },
-      {
-        title: "Power connectors",
-        items: [
-          { name: "24-pin ATX connector", text: "Main power from the power supply to the board.", tip: "Press evenly until the clip clicks. It only fits one way." },
-          { name: "8-pin CPU power", text: "Extra power connector near the CPU socket for the processor.", tip: "Required for the PC to start. Do not use the graphics card (PCIe) cable here." },
-        ],
-      },
-      {
-        title: "Headers (small pin groups on the board)",
-        items: [
-          { name: "Front panel header", text: "Power switch, reset switch, power LED, and drive activity LED wires from the case connect here. See the manual for the pinout.", tip: "LED wires have polarity (+ and -), switch wires do not. Flip an LED plug if it does not light." },
-          { name: "USB headers", text: "Connect the case's front USB ports to the motherboard.", tip: "Never force a keyed connector into the wrong header orientation." },
-          { name: "Front audio header", text: "Connects the case's front headphone and microphone jacks.", tip: "Keyed 9-pin header. Match the missing pin and push straight on." },
-          { name: "Fan headers", text: "Power and control for the CPU fan and case fans.", tip: "Plug the CPU cooler into the CPU fan header." },
-        ],
-      },
-      {
-        title: "Cooling and power delivery",
-        items: [
-          { name: "VRM heatsinks", text: "Cool the power circuits around the CPU socket that supply steady voltage to the processor.", tip: "Route cables away from them so airflow is not blocked." },
-          { name: "Chipset heatsink", text: "Cools the B550 chipset, which handles secondary system lanes." },
-        ],
-      },
-      {
-        title: "Other parts",
-        items: [
-          { name: "CMOS battery", text: "Small coin battery that keeps the clock and BIOS settings.", tip: "Do not pry it out with a metal tool. If the clock keeps resetting, replace the coin battery." },
-          { name: "BIOS Flashback button", text: "Allows updating the BIOS using a USB drive without a CPU installed." },
-        ],
-      },
-    ],
-  },
-  motherboard_rear: {
-    name: BOARD_LABEL + ": Rear I/O Panel",
-    purpose: "The back panel of the board, where external devices plug in from outside the case.",
-    specs: "Display output (HDMI, DisplayPort), network (2.5Gb Ethernet), USB 3.2 Gen 2 Type-A/Type-C, BIOS Flashback button, and audio ports with Optical S/PDIF.",
-    tips: [
-      "Ensure the pre-mounted I/O shield aligns properly with the chassis cutout when mounting.",
-      "Line the board's ports up with the shield openings before tightening any screws.",
-      "Plug cables in gently and straight. If a plug does not go in, check its orientation instead of forcing it.",
-    ],
-    dos: [
-      "Verify the integrated I/O shield is correctly positioned against the back chassis cutout.",
-      "Check plug orientation before inserting any cable.",
-    ],
-    donts: [
-      "Do not force a plug in upside down.",
-      "Do not plug a monitor into these ports when using a dedicated graphics card; use the card's ports.",
-    ],
-    sectionsTitle: "Ports on the rear panel",
-    sections: [
-      {
-        title: "USB and Controls",
-        items: [
-          { name: "USB 3.2 Gen 2 / Gen 1 ports", text: "High-speed ports for external drives, keyboards, and mice." },
-          { name: "USB Type-C port", text: "Reversible high-speed data connection port." },
-          { name: "BIOS Flashback button", text: "Special button to flash system BIOS from a designated USB slot." },
-        ],
-      },
-      {
-        title: "Video",
-        items: [
-          { name: "HDMI / DisplayPort", text: "Monitor outputs driven by processors featuring integrated graphics (APUs).", tip: "With a dedicated graphics card installed, use the card's ports instead." },
-        ],
-      },
-      {
-        title: "Network",
-        items: [
-          { name: "2.5G LAN port (RJ-45)", text: "High-speed wired network connection." },
-        ],
-      },
-      {
-        title: "Audio",
-        items: [
-          { name: "3.5 mm audio jacks", text: "Gold-plated audio jacks for speakers, line-in, and microphones." },
-          { name: "Optical S/PDIF out", text: "Digital audio output for external sound systems." },
-        ],
-      },
-    ],
-  },
-  ram: {
-    name: "DDR4 Memory Module (DIMM) with Heatsink",
-    purpose: "Provides high-speed volatile working memory for active tasks and the operating system.",
-    specs: "Unbuffered non-ECC DDR4 desktop module with a metal heat spreader, gold edge connectors, and a center notch key. Install in matching pairs for dual-channel operation.",
-    tips: [
-      "Touch the bare metal of the case first to discharge static, and hold the module by its edges.",
-      "Open the latches at both ends of the slot before inserting.",
-      "Line up the notch on the module with the key in the slot. It only fits one way.",
-      "Press down firmly with your thumbs at both ends, not in the middle, until both latches snap shut.",
-      "Check the manual for which slots to use. Matching pairs go in alternating slots for dual-channel optimization.",
-      "If it will not seat, take it out and recheck the notch. Never rock it in at an angle.",
-    ],
-    dos: [
-      "Push down firmly and evenly on both ends until the plastic side latches snap inward.",
-      "Match the memory slot notch orientation properly with the board's slot keyway.",
-    ],
-    donts: [
-      "Do not force the RAM module backward or at a slanted angle into the slot.",
-      "Avoid touching the exposed gold contact pins with bare fingers to prevent oil residue.",
-    ],
-  },
-  psu: {
-    name: "Power Supply Unit (PSU) - Modular & Form Factors",
-    purpose: "Converts AC wall power into regulated DC low-voltage power for internal PC components.",
-    specs: "Standard ATX form factor, available in Non-Modular, Semi-Modular, and Full-Modular wiring designs, offering efficiency ratings (80 Plus Bronze/Gold/Platinum).",
-    connectsTo: "Connects to AC wall outlet, Motherboard (24-pin ATX, 8-pin CPU), Graphics Card (PCIe), and Storage Drives (SATA).",
-    tips: [
-      "Ensure the PSU wattage rating comfortably exceeds your system component power requirements.",
-      "Modular designs allow you to attach only the cables you need, improving airflow and case cable management.",
-      "Always flip the physical power switch off and unplug the unit before servicing internal hardware.",
-    ],
-    dos: [
-      "Match the PSU physical form factor (e.g., standard ATX vs. SFX) to your chassis specifications.",
-      "Use dedicated PCIe cables from the PSU for graphics cards rather than daisy-chained splits when pulling high wattage.",
-    ],
-    donts: [
-      "Do not mix modular cables from different PSU brands or series, as internal pin layouts can vary and short-circuit components.",
-      "Never open the PSU casing yourself, as hazardous high-voltage capacitors retain a lethal charge even when unplugged.",
-    ],
-  },
-  // ✅ New GPU reference entry
-  gpu: {
-    name: "ASUS Dual GeForce RTX 3060 Ti / 3060 (PCIe x16 Graphics Card)",
-    purpose: "Dedicated graphics processor that renders images, video, and 3D graphics independently of the CPU, offloading the heaviest visual workloads for gaming and content creation.",
-    specs: "PCI Express 4.0 x16 interface, dual-fan open-air cooling shroud, GDDR6 video memory, rear I/O bracket with DisplayPort and HDMI outputs, supplementary PCIe power connector(s) on the card's top edge.",
-    connectsTo: "The motherboard's primary PCIe x16 slot (nearest the CPU), and one or more PCIe power cables directly from the power supply.",
-    tips: [
-      "Ground yourself first and handle the card by its metal bracket and edges, not the fan shroud or heatsink fins.",
-      "Remove the matching rear slot covers on the case before inserting the card so the I/O bracket has somewhere to sit.",
-      "Open the PCIe slot's retention latch, then press the card straight down evenly until it clicks and sits flush.",
-      "Screw the card's rear bracket to the case afterward so it doesn't sag or twist over time.",
-      "Connect the PCIe power cable(s) directly from the PSU. Never use a SATA-to-PCIe adapter for a card that needs meaningful wattage.",
-      "Support the card while inserting it — a long, heavy card can flex or crack the slot if only pushed from one end.",
-    ],
-    dos: [
-      "Remove the correct rear slot covers before installing the card.",
-      "Press evenly along the card's length until the PCIe slot latch clicks shut.",
-      "Screw the bracket into the case and connect all required PCIe power cables.",
-    ],
-    donts: [
-      "Do not install or remove the card while the system is powered on.",
-      "Do not lift or carry the card by the fan shroud; support it from the bracket and PCB edge.",
-      "Do not force the card in at an angle — a bent PCIe slot can damage the motherboard.",
-    ],
-  },
-
-  // ---- Motherboard sub-parts (opened by the clickable markers) ----
-  io_usb: {
-    name: "Rear USB Ports",
-    purpose: "Connect keyboards, mice, flash drives, and other external peripherals.",
-    specs: "High-speed USB 3.2 Gen 2 and Gen 1 ports offering fast data transfer rates.",
-    connectsTo: "Peripherals plug in from outside the case. Internally the ports run through the rear I/O assembly.",
-    tips: [
-      "Check the plug orientation before pushing. USB plugs only fit one way.",
-      "Use blue or red ports for fast external storage devices.",
-    ],
-    dos: [
-      "Use high-speed USB ports for external drives that need faster transfer speeds.",
-      "Check the plug orientation before inserting.",
-    ],
-    donts: [
-      "Do not force a USB plug in upside down.",
-      "Do not pull a storage device out while it is still copying files.",
-    ],
-  },
-  io_video: {
-    name: "Video Output Ports (HDMI / DisplayPort)",
-    purpose: "Send display signals from an integrated graphics processor (APU) to a monitor.",
-    specs: "Supports high-resolution digital video and audio streaming.",
-    connectsTo: "Monitor, using an HDMI or DisplayPort cable. Use these ports only when running on integrated graphics; if a dedicated graphics card is installed, plug the monitor into the card instead.",
-    tips: [
-      "With a graphics card installed, plug the monitor into the card, not the motherboard.",
-      "Power off before changing display cables, and push the plug in straight.",
-    ],
-    dos: [
-      "Match the cable type to a port on the monitor.",
-      "Power off the system before changing display cables.",
-    ],
-    donts: [
-      "Do not plug the monitor into the motherboard when a dedicated graphics card is installed and in use.",
-      "Do not bend the cable sharply at the connector.",
-    ],
-  },
-  io_lan: {
-    name: "2.5G LAN Port (RJ-45 Ethernet)",
-    purpose: "High-speed wired network and internet connection.",
-    specs: "Standard RJ-45 jack supporting up to 2.5 Gbps bandwidth transfers.",
-    connectsTo: "Router, switch, or wall network port using a Cat5e or Cat6 cable.",
-    tips: [
-      "Push the cable in until it clicks. Pinch the clip to release it instead of pulling the cable.",
-    ],
-    dos: [
-      "Push the cable in until the clip clicks.",
-      "Check the link LED after connecting.",
-    ],
-    donts: [
-      "Do not pull on the cable itself to unplug it; press the clip first.",
-      "Do not use a cable with a cracked latch.",
-    ],
-  },
-  io_audio: {
-    name: "Audio Jacks & Optical S/PDIF",
-    purpose: "Connect speakers, headphones, and microphones to high-definition onboard audio codecs.",
-    specs: "Multi-channel gold-plated analog jacks and optical digital output.",
-    connectsTo: "Speakers, headset, or microphone plugged in from outside the case.",
-    tips: [
-      "Match the plug to the jack color. If the sound does not work, check the audio settings before assuming a fault.",
-    ],
-    dos: [
-      "Match the plug to the jack color.",
-      "Check the sound settings in the operating system after connecting.",
-    ],
-    donts: [
-      "Do not plug speakers into the microphone jack.",
-      "Do not force the plug in at an angle.",
-    ],
-  },
-  pcie: {
-    name: "PCI Express Slots",
-    purpose: "Hold expansion cards such as a graphics card, sound card, or network card.",
-    specs: "PCIe 4.0 x16 slot reinforced with steel armor nearest the CPU for primary graphics cards.",
-    connectsTo: "Expansion cards seated directly in the slot. High-power graphics cards also need a PCIe power cable from the power supply.",
-    tips: [
-      "Remove the matching slot cover from the back of the case before installing a card.",
-      "Open the slot latch, press the card straight down evenly until the latch clicks, then secure the bracket with a screw.",
-      "Plug the card's power cable (if it has one) before closing the case. Use only PCIe power cables.",
-    ],
-    dos: [
-      "Remove the matching slot cover at the back of the case first.",
-      "Secure the card bracket with a screw after seating it.",
-    ],
-    donts: [
-      "Do not push a card in without releasing the slot latch if the slot has one.",
-      "Do not install or remove a card while the system is powered.",
-    ],
-  },
-  sata: {
-    name: "SATA Ports",
-    purpose: "Connect storage drives such as hard disks and 2.5-inch SSDs.",
-    specs: "SATA 6 Gb/s ports supporting high-speed data transfer rates.",
-    connectsTo: "The drive, using a SATA data cable. The drive also needs a separate SATA power cable from the power supply.",
-    tips: [
-      "SATA connectors are L-shaped. If it does not fit, flip it. Never force it.",
-      "Do not pull on the cable itself when unplugging; hold the connector.",
-      "The drive also needs its own SATA power cable from the power supply.",
-    ],
-    dos: [
-      "Use L-shaped connectors, which only fit one way.",
-      "Plug the boot drive into the lowest-numbered SATA port.",
-    ],
-    donts: [
-      "Do not bend the data cable tightly.",
-      "Do not forget the separate power cable to the drive.",
-    ],
-  },
-  atx_power: {
-    name: "24-pin ATX Power Connector",
-    purpose: "Main power input that feeds the motherboard from the power supply.",
-    specs: "24-pin connector with a locking clip. A separate 8-pin connector near the CPU supplies power to the processor.",
-    connectsTo: "The 24-pin cable from the power supply unit (PSU).",
-    tips: [
-      "Line the connector up with the clip on the correct side and press down evenly until the clip clicks.",
-      "Also plug in the 8-pin CPU power cable near the CPU socket. The PC will not start without it.",
-      "Connect or remove power cables only with the power supply switched off and unplugged.",
-    ],
-    dos: [
-      "Line up the clip side and press down evenly on the whole connector until the clip locks.",
-      "Also connect the 8-pin CPU power cable.",
-    ],
-    donts: [
-      "Do not connect or disconnect the cable while the PSU is on or plugged into the wall.",
-      "Do not force the connector; it only fits one way.",
-    ],
-  },
-  front_panel: {
-    name: "Front Panel Header",
-    purpose: "Connects the case's power button, reset button, and LED indicators to the motherboard.",
-    specs: "Rows of small pins labeled PWR_SW, RESET_SW, HDD_LED, and PWR_LED.",
-    connectsTo: "The small labeled wires coming from the front of the case.",
-    tips: [
-      "Use the pinout printed in the manual. Do not guess pin positions.",
-      "Power and reset switch wires have no polarity, but LED wires do. If an LED does not light, flip its plug.",
-      "Push each plug on straight so pins do not bend.",
-    ],
-    dos: [
-      "Follow the pinout diagram in the motherboard manual.",
-      "Connect the LED wires with the positive (+) lead on the marked pin.",
-    ],
-    donts: [
-      "Do not guess the pin positions.",
-      "Do not bend the pins while pushing on the connectors.",
-    ],
-  },
-};
+import "../styles/ar.css";
 
 const MOTHERBOARD_POSITION = [-0.3, 0.53, -0.3];
 const MOTHERBOARD_ROTATION = [0, Math.PI, 0];
@@ -387,23 +50,167 @@ const PSU_POSITION = [-0.625, 0.48, 0.00005];
 const PSU_ROTATION = [Math.PI, (3 * Math.PI) / 2, 0];
 const PSU_SCALE = [1, 1, 1];
 
-// ✅ GPU — placed directly in world space (like the PSU) rather than as a
-// motherboard child, since a card this size is easier to align against
-// the case's rear slot covers than against the board's local offsets.
-// Position/rotation and spin values match the tuned settings from
-// Assemble.jsx (GPU_TARGET / GPU_SPIN_X/Y/Z) so the card sits the same
-// way in both the inspection rig and the assembly lab.
 const GPU_POSITION = [-0.326, 1.0379, -0.449];
 const GPU_ROTATION = [0, Math.PI, 0];
 const GPU_SCALE = [1, 1, 1];
-const GPU_SPIN_X = -Math.PI / 2; // lay flat, flipped (top/bottom swapped vs. +Math.PI/2)
+const GPU_SPIN_X = -Math.PI / 2;
 const GPU_SPIN_Y = Math.PI / 2;
 const GPU_SPIN_Z = 0;
+
+const COOLER_SPIN_X = Math.PI / 2;
+const COOLER_YAW_DEGREES = 90;
+const COOLER_SPIN_Y = (COOLER_YAW_DEGREES * Math.PI) / 180;
+const COOLER_SPIN_Z = Math.PI;
+const COOLER_HEIGHT = 0.09;
+const COOLER_POSITION_OFFSET = [-0.006, -0.105, -0.002];
+
+const STORAGE_LOCAL = [0.14, 0.625, 0.075];
+const STORAGE_SPIN_DEGREES = 90;
+const STORAGE_MOUNT_ROTATION = [Math.PI / 2, (STORAGE_SPIN_DEGREES * Math.PI) / 180, 0];
+const STORAGE_FLIP_DEGREES = [180, 0, 0];
+const STORAGE_FLIP_ROTATION = STORAGE_FLIP_DEGREES.map((d) => (d * Math.PI) / 180);
+const STORAGE_DIMS = { length: 0.85, width: 1, thickness: 1 };
+
+const FAN_CONFIG = {
+  size: 0.6,
+  gap: 0.02,
+  margin: 0.05,
+  clearance: 0.02,
+  dims: { width: 1.01, thickness: 0.65, length: 0.95 },
+};
+const FRONT_SIGN = 1;
+const FAN_GROUPS = {
+  top:   { count: 2, size: null, dims: null, nudge: [0, -5.29, 0.12], flip: false },
+  front: { count: 3, size: null, dims: null, nudge: [-0.03, -2.54, 0.03], flip: false },
+  rear:  { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.14], flip: false },
+};
 
 const RIG_Y_OFFSET = 2.0;
 const CALIBRATE = false;
 const REAR_MESH_HINT = /(i\/?o[\s_-]?shield|back[\s_-]?(panel|plate)|rear)/i;
 
+const REAR_IO_ZONE = { position: [0.5, 1.0, 0.0], size: [0.2, 0.5, 0.1] };
+const REAR_ZONE_PAD = 0.02;
+
+// ---------------------------------------------------------------------------
+// AR / camera settings
+// ---------------------------------------------------------------------------
+const RIG_CENTER = new THREE.Vector3(0, RIG_Y_OFFSET, 0);
+const AR_TARGET_HEIGHT = 0.4; // how tall the case is in the real room (metres)
+const AR_FOCUS_SCALE = 1.8;   // how much the rig grows when you tap the board in AR
+const CARD_UNIT = 0.55;       // size of the in-scene info card (bigger = bigger card)
+
+// Scatter view: each part floats out to its own spot around the chassis.
+const EXPLODE_SCALE = 1;
+const EXPLODE = {
+  psu:    [-0.4, -0.6, -1.8],
+  gpu:    [1.8, 0.3, 1.5],
+  board:  [-1.8, 0.4, 1.4],
+  cpu:    [0.2, 2.2, 0.2],
+  cooler: [1.2, 2.8, -1.2],
+  ram1:   [-1.6, 1.9, -1.4],
+  ram2:   [1.9, 1.0, -1.6],
+  ssd:    [-0.2, -0.9, 1.9],
+};
+
+// Iron Man style reassembly.
+const ASSEMBLE_ORDER = ["psu", "board", "ssd", "cpu", "ram1", "ram2", "cooler", "gpu"];
+const FLY_DURATION = 0.45;
+const ASSEMBLE_STAGGER = 0.22;
+const SCATTER_STAGGER = 0.03;
+const FLOAT_BOB = 0.02;
+
+const SHAKE_AMOUNT = 0.05;
+const SHAKE_DECAY = 4;
+const SHAKE_FREQ = 70;
+const SHAKE_FLY_JITTER = 0.015;
+
+const KICK_IMPULSE = 2.4;
+const KICK_STIFFNESS = 90;
+const KICK_DAMPING = 8;
+const KICK_WEIGHT = {
+  psu: 1.2,
+  gpu: 1.0,
+  board: 1.4,
+  cpu: 0.5,
+  cooler: 0.6,
+  ram1: 0.4,
+  ram2: 0.4,
+  ssd: 0.5,
+};
+
+const OPEN_SIDE = 1;
+const GATE_MARGIN = 0.35;
+const LIFT_MARGIN = 0.45;
+
+const HOME = {
+  psu: PSU_POSITION,
+  gpu: GPU_POSITION,
+  board: MOTHERBOARD_POSITION,
+  cpu: CPU_SOCKET_ABS,
+  cooler: [CPU_SOCKET_ABS[0], CPU_SOCKET_ABS[1] + COOLER_HEIGHT, CPU_SOCKET_ABS[2]],
+  ram1: RAM_SLOT_1_ABS,
+  ram2: RAM_SLOT_2_ABS,
+  ssd: [
+    MOTHERBOARD_POSITION[0] - STORAGE_LOCAL[0] * MOTHERBOARD_SCALE[0],
+    MOTHERBOARD_POSITION[1] + STORAGE_LOCAL[1] * MOTHERBOARD_SCALE[1],
+    MOTHERBOARD_POSITION[2] - STORAGE_LOCAL[2] * MOTHERBOARD_SCALE[2],
+  ],
+};
+
+const toBoardLocal = (w) => [
+  -w[0] / MOTHERBOARD_SCALE[0],
+  w[1] / MOTHERBOARD_SCALE[1],
+  -w[2] / MOTHERBOARD_SCALE[2],
+];
+
+function buildPath(id, box) {
+  const d = EXPLODE[id].map((v) => v * EXPLODE_SCALE);
+  const H = HOME[id];
+  const gz = box
+    ? (OPEN_SIDE > 0 ? box.max.z + GATE_MARGIN : box.min.z - GATE_MARGIN) - H[2]
+    : OPEN_SIDE * 1.0;
+  const gate = [0, 0, gz];
+  const home = [0, 0, 0];
+  if (d[2] * OPEN_SIDE >= gz * OPEN_SIDE) return [d, gate, home];
+  const topY = box ? box.max.y + LIFT_MARGIN - H[1] : 2;
+  const upY = Math.max(d[1], topY);
+  return [d, [d[0], upY, d[2]], [d[0], upY, gz], gate, home];
+}
+
+function pathAt(pts, u) {
+  const lens = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1], pts[i + 1][2] - pts[i][2]);
+    lens.push(l);
+    total += l;
+  }
+  let remaining = (1 - u) * total;
+  for (let i = 0; i < lens.length; i++) {
+    if (remaining <= lens[i] || i === lens.length - 1) {
+      const f = lens[i] > 0 ? Math.min(1, remaining / lens[i]) : 1;
+      return [
+        pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f,
+        pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f,
+        pts[i][2] + (pts[i + 1][2] - pts[i][2]) * f,
+      ];
+    }
+    remaining -= lens[i];
+  }
+  return pts[pts.length - 1];
+}
+
+const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
+function isInsideRearZone(p) {
+  if (!p) return false;
+  const [cx, cy] = REAR_IO_ZONE.position;
+  const [w, h] = REAR_IO_ZONE.size;
+  return Math.abs(p.x - cx) <= w / 2 + REAR_ZONE_PAD && Math.abs(p.y - cy) <= h / 2 + REAR_ZONE_PAD;
+}
+
+// Only used while CALIBRATE is true (hotspots with no info card are ignored).
 const HOTSPOTS = [
   { id: "motherboard_rear", position: [0.5, 1.0, 0.0], size: [0.2, 0.5, 0.1], calibrated: false },
   { id: "io_usb", position: [0.35, 1.05, 0.05], size: [0.08, 0.08, 0.05], calibrated: false },
@@ -448,9 +255,149 @@ const RAM_1_OFFSET = offsetFrom(RAM_SLOT_1_ABS, MOTHERBOARD_POSITION);
 const RAM_2_OFFSET = offsetFrom(RAM_SLOT_2_ABS, MOTHERBOARD_POSITION);
 const CPU_OFFSET = offsetFrom(CPU_SOCKET_ABS, MOTHERBOARD_POSITION);
 
-/* Simple in-canvas loading indicator shown by Suspense while the
-   GLTF models are still downloading. Keeps mobile users (slower
-   connections) from staring at an empty gradient with no feedback. */
+const COOLER_OFFSET = [
+  CPU_OFFSET[0] + COOLER_POSITION_OFFSET[0],
+  CPU_OFFSET[1] + COOLER_HEIGHT + COOLER_POSITION_OFFSET[1],
+  CPU_OFFSET[2] + COOLER_POSITION_OFFSET[2],
+];
+
+function measureLocalBox(root) {
+  root.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const box = new THREE.Box3();
+  const isVisible = (o) => {
+    for (let p = o; p; p = p.parent) if (!p.visible) return false;
+    return true;
+  };
+  root.traverse((o) => {
+    const invisibleMat = o.material && !Array.isArray(o.material) && o.material.opacity === 0;
+    if (o.isMesh && o.geometry && isVisible(o) && !invisibleMat) {
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+      box.union(o.geometry.boundingBox.clone().applyMatrix4(m));
+    }
+  });
+  return box;
+}
+
+function CaseWithMeasure({ onMeasure }) {
+  const ref = useRef();
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const box = measureLocalBox(ref.current);
+    if (!box.isEmpty()) onMeasure(box);
+  }, [onMeasure]);
+  return (
+    <group ref={ref}>
+      <CaseModel position={[0, 0, 0]} />
+    </group>
+  );
+}
+
+function CaseFans({ box }) {
+  const fans = useMemo(() => {
+    const { min, max } = box;
+    const lenX = max.x - min.x;
+    const lenY = max.y - min.y;
+    const cx = (min.x + max.x) / 2;
+    const cy = (min.y + max.y) / 2;
+    const cz = (min.z + max.z) / 2;
+    const { gap, margin, clearance } = FAN_CONFIG;
+
+    const dimsOf = (g) => ({ ...FAN_CONFIG.dims, ...(g.dims || {}) });
+    const fitSize = (want, len, count, w) =>
+      Math.max(0.15, Math.min(want, (len - 2 * margin - (count - 1) * gap) / (count * w)));
+    const centered = (i, count) => i - (count - 1) / 2;
+    const inset = (size, d) => size * 0.104 * d.thickness + clearance;
+    const sideRot = (flip) => {
+      const a = FRONT_SIGN > 0 ? Math.PI / 2 : -Math.PI / 2;
+      return [0, 0, flip ? a + Math.PI : a];
+    };
+
+    const list = [];
+
+    {
+      const g = FAN_GROUPS.top;
+      const d = dimsOf(g);
+      const size = fitSize(g.size ?? FAN_CONFIG.size, lenX, g.count, d.width);
+      for (let i = 0; i < g.count; i++) {
+        list.push({
+          key: `top${i}`,
+          size,
+          dims: d,
+          position: [
+            cx + centered(i, g.count) * (size * d.width + gap) + g.nudge[0],
+            max.y - inset(size, d) + g.nudge[1],
+            cz + g.nudge[2],
+          ],
+          rotation: [g.flip ? Math.PI : 0, 0, 0],
+        });
+      }
+    }
+
+    {
+      const g = FAN_GROUPS.front;
+      const d = dimsOf(g);
+      const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
+      const x = FRONT_SIGN > 0 ? max.x - inset(size, d) : min.x + inset(size, d);
+      for (let i = 0; i < g.count; i++) {
+        list.push({
+          key: `front${i}`,
+          size,
+          dims: d,
+          position: [
+            x + g.nudge[0],
+            cy + centered(i, g.count) * (size * d.width + gap) + g.nudge[1],
+            cz + g.nudge[2],
+          ],
+          rotation: sideRot(g.flip),
+        });
+      }
+    }
+
+    {
+      const g = FAN_GROUPS.rear;
+      const d = dimsOf(g);
+      const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
+      const x = FRONT_SIGN > 0 ? min.x + inset(size, d) : max.x - inset(size, d);
+      const step = size * d.width + gap;
+      const span = ((g.count - 1) * step) / 2;
+      const lo = min.y + margin + (size * d.width) / 2 + span;
+      const hi = max.y - margin - (size * d.width) / 2 - span;
+      const y0 = Math.min(hi, Math.max(lo, CPU_SOCKET_ABS[1]));
+      for (let i = 0; i < g.count; i++) {
+        list.push({
+          key: `rear${i}`,
+          size,
+          dims: d,
+          position: [
+            x + g.nudge[0],
+            y0 + centered(i, g.count) * step + g.nudge[1],
+            cz + g.nudge[2],
+          ],
+          rotation: sideRot(g.flip),
+        });
+      }
+    }
+    return list;
+  }, [box]);
+
+  return (
+    <>
+      {fans.map((f) => (
+        <group key={f.key} position={f.position} rotation={f.rotation}>
+          <CaseFanModel
+            size={f.size}
+            width={f.dims.width}
+            thickness={f.dims.thickness}
+            length={f.dims.length}
+          />
+        </group>
+      ))}
+    </>
+  );
+}
+
 function RigLoadingFallback() {
   const ref = useRef();
   return (
@@ -463,140 +410,544 @@ function RigLoadingFallback() {
   );
 }
 
-function DesktopRig({ onOpenModal, onCalibrate }) {
+// Places its children at the displacement the sequencer computed for `id`.
+function Floaty({ id, parentId, disp, children }) {
+  const ref = useRef();
+  useFrame(() => {
+    const g = ref.current;
+    if (!g) return;
+    const d = disp.current[id];
+    if (parentId) {
+      const b = disp.current[parentId];
+      const l = toBoardLocal([d[0] - b[0], d[1] - b[1], d[2] - b[2]]);
+      g.position.set(l[0], l[1], l[2]);
+    } else {
+      g.position.set(d[0], d[1], d[2]);
+    }
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
+// Maps the info ids to the scene node (userData.partId).
+const PART_NODE = {
+  cpu: "cpu",
+  cpu_cooler: "cooler",
+  storage: "ssd",
+  ram: "ram1",
+  psu: "psu",
+  gpu: "gpu",
+  motherboard: "board",
+  motherboard_rear: "board",
+};
+const MODAL_FOR = {
+  psu: "psu",
+  gpu: "gpu",
+  cpu: "cpu",
+  cooler: "cpu_cooler",
+  ssd: "storage",
+  ram1: "ram",
+  ram2: "ram",
+};
+
+function DesktopRig({ onOpenModal, onBoardTap, onCalibrate, onMeasureCase, caseBox, exploded, rigApi, focused, activeQuad }) {
   const mbRef = useRef();
   const cornerA = useRef(null);
+  const rigRef = useRef();
+  const caseRef = useRef();
+  const boardMeshRef = useRef();
+  const partCache = useRef({});
+  const [boardBox, setBoardBox] = useState(null);
+
+  // Measure the bare motherboard model so we can cut it into 4 quadrants.
+  useEffect(() => {
+    let tries = 0;
+    const id = setInterval(() => {
+      tries++;
+      if (mbRef.current && boardMeshRef.current) {
+        const b = measureBoxInSpace(boardMeshRef.current, mbRef.current);
+        if (!b.isEmpty()) {
+          setBoardBox(b);
+          clearInterval(id);
+        }
+      }
+      if (tries > 30) clearInterval(id);
+    }, 150);
+    return () => clearInterval(id);
+  }, []);
+
+  const findNode = (id) => {
+    if (!partCache.current[id]) {
+      rigRef.current?.traverse((o) => {
+        if (!partCache.current[id] && o.userData?.partId === id) partCache.current[id] = o;
+      });
+    }
+    return partCache.current[id];
+  };
+
+  const handleBoard = (worldPoint, obj) => {
+    const local = mbRef.current.worldToLocal(worldPoint.clone());
+    const name = `${obj?.name || ""} ${obj?.parent?.name || ""}`;
+    onBoardTap({
+      rear: REAR_MESH_HINT.test(name) || isInsideRearZone(local),
+      quadrant: boardBox ? quadrantFromLocal(local, boardBox) : null,
+    });
+  };
+
+  // Re-created every render so it always sees the latest props.
+  useEffect(() => {
+    const ray = new THREE.Raycaster();
+    rigApi.current = {
+      anchorWorld(id) {
+        const mb = mbRef.current;
+        if (!mb) return null;
+        if (QUADRANTS[id]) {
+          return boardBox ? mb.localToWorld(quadrantRect(id, boardBox).center) : null;
+        }
+        const node = PART_NODE[id] && findNode(PART_NODE[id]);
+        return node ? new THREE.Box3().setFromObject(node).getCenter(new THREE.Vector3()) : null;
+      },
+      // How far the info card should sit from the anchor so it does not cover the part.
+      anchorRadius(id) {
+        if (QUADRANTS[id]) {
+          const b = rigApi.current.board();
+          return b ? b.radius * 0.28 : 0.3;
+        }
+        const node = PART_NODE[id] && findNode(PART_NODE[id]);
+        return node
+          ? new THREE.Box3().setFromObject(node).getBoundingSphere(new THREE.Sphere()).radius * 0.7
+          : 0.3;
+      },
+      board() {
+        const mb = mbRef.current;
+        if (!mb || !boardBox) return null;
+        const s = boardBox.getSize(new THREE.Vector3());
+        return {
+          center: mb.localToWorld(boardBox.getCenter(new THREE.Vector3())),
+          normal: new THREE.Vector3(0, 0, BOARD_VIEW_SIGN).transformDirection(mb.matrixWorld),
+          radius: 0.5 * Math.hypot(s.x * MOTHERBOARD_SCALE[0], s.y * MOTHERBOARD_SCALE[1]) * 1.35,
+        };
+      },
+      boardInRoot(root) {
+        const mb = mbRef.current;
+        if (!mb || !boardBox) return null;
+        return root.worldToLocal(mb.localToWorld(boardBox.getCenter(new THREE.Vector3())));
+      },
+      // AR tap: the ray comes from the phone, the first hit that belongs to a part wins.
+      tap(origin, dir) {
+        ray.set(origin, dir.normalize());
+        for (const h of ray.intersectObject(rigRef.current, true)) {
+          let o = h.object;
+          let id = null;
+          while (o && !id) {
+            id = o.userData?.partId || null;
+            o = o.parent;
+          }
+          if (!id) continue;
+          if (id === "board") handleBoard(h.point, h.object);
+          else onOpenModal(MODAL_FOR[id]);
+          return;
+        }
+      },
+    };
+  });
+
+  // Chassis recoil state (spring-damper) and which parts have already kicked it.
+  const kickPos = useRef(new THREE.Vector3());
+  const kickVel = useRef(new THREE.Vector3());
+  const kicked = useRef(Object.fromEntries(ASSEMBLE_ORDER.map((id) => [id, false])));
+  const kickDirs = useMemo(
+    () =>
+      Object.fromEntries(
+        ASSEMBLE_ORDER.map((id) => [id, new THREE.Vector3(...EXPLODE[id]).normalize()])
+      ),
+    []
+  );
+
+  const paths = useMemo(
+    () => Object.fromEntries(ASSEMBLE_ORDER.map((id) => [id, buildPath(id, caseBox)])),
+    [caseBox]
+  );
+  const prog = useRef(Object.fromEntries(ASSEMBLE_ORDER.map((id) => [id, 0])));
+  const disp = useRef(Object.fromEntries(ASSEMBLE_ORDER.map((id) => [id, [0, 0, 0]])));
+  const toggledAt = useRef(0);
+  const lastExploded = useRef(exploded);
+  useFrame((state, dt) => {
+    const now = state.clock.elapsedTime;
+    if (lastExploded.current !== exploded) {
+      lastExploded.current = exploded;
+      toggledAt.current = now;
+      ASSEMBLE_ORDER.forEach((id) => { kicked.current[id] = false; });
+    }
+    const elapsed = now - toggledAt.current;
+    const step = Math.min(dt, 0.05) / FLY_DURATION;
+
+    const burst = exploded ? Math.exp(-elapsed * SHAKE_DECAY) : 0;
+    if (rigRef.current) {
+      const t = now * SHAKE_FREQ;
+      rigRef.current.position.set(
+        Math.sin(t) * SHAKE_AMOUNT * burst,
+        RIG_Y_OFFSET + Math.sin(t * 1.3 + 1) * SHAKE_AMOUNT * 0.6 * burst,
+        Math.cos(t * 0.9) * SHAKE_AMOUNT * burst
+      );
+    }
+    ASSEMBLE_ORDER.forEach((id, i) => {
+      const delay = exploded
+        ? (ASSEMBLE_ORDER.length - 1 - i) * SCATTER_STAGGER
+        : i * ASSEMBLE_STAGGER;
+      if (elapsed >= delay) {
+        const next = prog.current[id] + (exploded ? step : -step);
+        prog.current[id] = Math.min(1, Math.max(0, next));
+        if (exploded && !kicked.current[id]) {
+          kicked.current[id] = true;
+          kickVel.current.addScaledVector(kickDirs[id], KICK_IMPULSE * (KICK_WEIGHT[id] ?? 1));
+        }
+      }
+      const p = prog.current[id];
+      const d = pathAt(paths[id], easeInOutCubic(p));
+      const settle = Math.min(1, Math.max(0, (p - 0.85) / 0.15));
+      const bob = Math.sin(now * 1.2 + i) * FLOAT_BOB * settle;
+      const moving = 4 * p * (1 - p);
+      const jt = now * SHAKE_FREQ + i * 2.1;
+      const jx = Math.sin(jt) * SHAKE_FLY_JITTER * moving;
+      const jy = Math.sin(jt * 1.17 + 2) * SHAKE_FLY_JITTER * moving;
+      const jz = Math.cos(jt * 0.83) * SHAKE_FLY_JITTER * moving;
+      disp.current[id] = [d[0] + jx, d[1] + bob + jy, d[2] + jz];
+    });
+
+    const h = Math.min(dt, 0.05);
+    const kp = kickPos.current;
+    const kv = kickVel.current;
+    kv.x += (-KICK_STIFFNESS * kp.x - KICK_DAMPING * kv.x) * h;
+    kv.y += (-KICK_STIFFNESS * kp.y - KICK_DAMPING * kv.y) * h;
+    kv.z += (-KICK_STIFFNESS * kp.z - KICK_DAMPING * kv.z) * h;
+    kp.addScaledVector(kv, h);
+    if (caseRef.current) caseRef.current.position.copy(kp);
+  });
   return (
-    <group position={[0, RIG_Y_OFFSET, 0]}>
+    <group ref={rigRef} position={[0, RIG_Y_OFFSET, 0]}>
       <pointLight position={[0, 1.2, 1.4]} intensity={25} decay={2} />
       <pointLight position={[0, 1.2, -1.4]} intensity={20} decay={2} />
       <pointLight position={[0, 2.2, 0]} intensity={15} decay={2} />
       <Center>
-        <CaseModel position={[0, 0, 0]} />
-
-        {/* PSU Model integration */}
-        <group
-          position={PSU_POSITION}
-          rotation={PSU_ROTATION}
-          scale={PSU_SCALE}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenModal("psu");
-          }}
-        >
-          <PSUModel />
+        <group ref={caseRef}>
+          <CaseWithMeasure onMeasure={onMeasureCase} />
+          {caseBox && <CaseFans box={caseBox} />}
         </group>
 
-        {/* ✅ GPU Model integration — same pattern as PSU: world-space,
-            clickable to open its reference panel. */}
-        <group
-          position={GPU_POSITION}
-          rotation={GPU_ROTATION}
-          scale={GPU_SCALE}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenModal("gpu");
-          }}
-        >
-          <GPUModel spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />
-        </group>
+        <Floaty id="psu" disp={disp}>
+          <group
+            userData={{ partId: "psu" }}
+            position={PSU_POSITION}
+            rotation={PSU_ROTATION}
+            scale={PSU_SCALE}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenModal("psu");
+            }}
+          >
+            <PSUModel />
+          </group>
+        </Floaty>
 
-        <group
-          ref={mbRef}
-          position={MOTHERBOARD_POSITION}
-          rotation={MOTHERBOARD_ROTATION}
-          scale={MOTHERBOARD_SCALE}
-          onClick={(e) => {
-            e.stopPropagation();
-            const meshName = `${e.object?.name || ""} ${e.object?.parent?.name || ""}`.trim();
-            if (CALIBRATE && e.nativeEvent.shiftKey && mbRef.current) {
-              const p = mbRef.current.worldToLocal(e.point.clone());
-              if (!cornerA.current) {
-                cornerA.current = p;
-                onCalibrate(`Corner 1 saved (mesh: ${meshName || "unnamed"}). Now Shift+click the opposite corner.`);
-              } else {
-                const a = cornerA.current;
-                const r = (n) => Number(n.toFixed(3));
-                const position = [(a.x + p.x) / 2, (a.y + p.y) / 2, (a.z + p.z) / 2].map(r);
-                const size = [Math.abs(a.x - p.x), Math.abs(a.y - p.y), Math.abs(a.z - p.z)].map((n) => r(Math.max(n, 0.05)));
-                const line = `position: [${position.join(", ")}], size: [${size.join(", ")}]`;
-                onCalibrate(line);
-                cornerA.current = null;
+        <Floaty id="gpu" disp={disp}>
+          <group
+            userData={{ partId: "gpu" }}
+            position={GPU_POSITION}
+            rotation={GPU_ROTATION}
+            scale={GPU_SCALE}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenModal("gpu");
+            }}
+          >
+            <GPUModel spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />
+          </group>
+        </Floaty>
+
+        <Floaty id="board" disp={disp}>
+          <group
+            ref={mbRef}
+            userData={{ partId: "board" }}
+            position={MOTHERBOARD_POSITION}
+            rotation={MOTHERBOARD_ROTATION}
+            scale={MOTHERBOARD_SCALE}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (CALIBRATE && e.nativeEvent.shiftKey && mbRef.current) {
+                const meshName = `${e.object?.name || ""} ${e.object?.parent?.name || ""}`.trim();
+                const p = mbRef.current.worldToLocal(e.point.clone());
+                if (!cornerA.current) {
+                  cornerA.current = p;
+                  onCalibrate(`Corner 1 saved (mesh: ${meshName || "unnamed"}). Now Shift+click the opposite corner.`);
+                } else {
+                  const a = cornerA.current;
+                  const r = (n) => Number(n.toFixed(3));
+                  const position = [(a.x + p.x) / 2, (a.y + p.y) / 2, (a.z + p.z) / 2].map(r);
+                  const size = [Math.abs(a.x - p.x), Math.abs(a.y - p.y), Math.abs(a.z - p.z)].map((n) => r(Math.max(n, 0.05)));
+                  const line = `position: [${position.join(", ")}], size: [${size.join(", ")}]`;
+                  onCalibrate(line);
+                  cornerA.current = null;
+                }
+                return;
               }
-              return;
-            }
-            onOpenModal(REAR_MESH_HINT.test(meshName) ? "motherboard_rear" : "motherboard");
-          }}
-        >
-          <MotherboardModel />
-
-          {HOTSPOTS.filter((h) => CALIBRATE || h.calibrated).map((h) => (
-            <Hotspot key={h.id} position={h.position} size={h.size} onSelect={() => onOpenModal(h.id)} />
-          ))}
-
-          <group
-            position={[-CPU_OFFSET[0], CPU_OFFSET[1], -CPU_OFFSET[2]]}
-            rotation={[Math.PI / 2, 0, Math.PI]}
-            onClick={(e) => { e.stopPropagation(); onOpenModal("cpu"); }}
+              handleBoard(e.point, e.object);
+            }}
           >
-            <CPUModel />
-          </group>
+            <group ref={boardMeshRef}>
+              <MotherboardModel />
+            </group>
 
-          <group
-            position={[-RAM_1_OFFSET[0], RAM_1_OFFSET[1], -RAM_1_OFFSET[2]]}
-            scale={RAM_SCALE}
-            onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
-          >
-            <RAMModel accentColor="#4fd8c9" />
-          </group>
+            <QuadrantGuides box={boardBox} visible={focused && !exploded} active={activeQuad} />
 
-          <group
-            position={[-RAM_2_OFFSET[0], RAM_2_OFFSET[1], -RAM_2_OFFSET[2]]}
-            scale={RAM_SCALE}
-            onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
-          >
-            <RAMModel accentColor="#e8a33d" />
+            {HOTSPOTS.filter((h) => CALIBRATE || h.calibrated).map((h) => (
+              <Hotspot key={h.id} position={h.position} size={h.size} onSelect={() => onOpenModal(h.id)} />
+            ))}
+
+            {CALIBRATE && (
+              <mesh position={REAR_IO_ZONE.position} raycast={() => null}>
+                <boxGeometry args={[REAR_IO_ZONE.size[0], REAR_IO_ZONE.size[1], 0.02]} />
+                <meshBasicMaterial color="#3b82f6" transparent opacity={0.35} depthWrite={false} />
+              </mesh>
+            )}
+
+            <Floaty id="cpu" parentId="board" disp={disp}>
+              <group
+                userData={{ partId: "cpu" }}
+                position={[-CPU_OFFSET[0], CPU_OFFSET[1], -CPU_OFFSET[2]]}
+                rotation={[Math.PI / 2, 0, Math.PI]}
+                onClick={(e) => { e.stopPropagation(); onOpenModal("cpu"); }}
+              >
+                <CPUModel />
+              </group>
+            </Floaty>
+
+            <Floaty id="cooler" parentId="board" disp={disp}>
+              <group
+                userData={{ partId: "cooler" }}
+                position={[-COOLER_OFFSET[0], COOLER_OFFSET[1], -COOLER_OFFSET[2]]}
+                rotation={[COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z]}
+                onClick={(e) => { e.stopPropagation(); onOpenModal("cpu_cooler"); }}
+              >
+                <CPUCoolerModel />
+              </group>
+            </Floaty>
+
+            <Floaty id="ssd" parentId="board" disp={disp}>
+              <group
+                userData={{ partId: "ssd" }}
+                position={STORAGE_LOCAL}
+                rotation={STORAGE_MOUNT_ROTATION}
+                onClick={(e) => { e.stopPropagation(); onOpenModal("storage"); }}
+              >
+                <group rotation={STORAGE_FLIP_ROTATION}>
+                  <StorageModel {...STORAGE_DIMS} />
+                </group>
+              </group>
+            </Floaty>
+
+            <Floaty id="ram1" parentId="board" disp={disp}>
+              <group
+                userData={{ partId: "ram1" }}
+                position={[-RAM_1_OFFSET[0], RAM_1_OFFSET[1], -RAM_1_OFFSET[2]]}
+                scale={RAM_SCALE}
+                onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
+              >
+                <RAMModel accentColor="#4fd8c9" />
+              </group>
+            </Floaty>
+
+            <Floaty id="ram2" parentId="board" disp={disp}>
+              <group
+                userData={{ partId: "ram2" }}
+                position={[-RAM_2_OFFSET[0], RAM_2_OFFSET[1], -RAM_2_OFFSET[2]]}
+                scale={RAM_SCALE}
+                onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
+              >
+                <RAMModel accentColor="#e8a33d" />
+              </group>
+            </Floaty>
           </group>
-        </group>
+        </Floaty>
       </Center>
     </group>
   );
 }
 
 export default function MainPage() {
-  const { profile } = useAuth();
   const navigate = useNavigate();
   const [modalPart, setModalPart] = useState(null);
+  const [activeQuad, setActiveQuad] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [calibPoint, setCalibPoint] = useState(null);
-  const referencePanelRef = useRef(null);
+  const [exploded, setExploded] = useState(false);
+  const [caseBox, setCaseBox] = useState(null);
+  const [boardFocus, setBoardFocus] = useState(false);
 
-  const modalInfo = modalPart ? PARTS_DATA[modalPart] : null;
+  // /main?ar=1 opens straight into the full-screen "tap to start AR" screen.
+  const deepLink = new URLSearchParams(window.location.search).get("ar") === "1";
+  const [focusMode, setFocusMode] = useState(deepLink);
+  const [splash, setSplash] = useState(deepLink);
+  const [inAR, setInAR] = useState(false);
+  const [placement, setPlacement] = useState(null);
+  const [arError, setArError] = useState("");
+
+  // Camera (+ gyroscope) AR for devices without WebXR.
+  const [camMode, setCamMode] = useState(false);
+  const [gyro, setGyro] = useState(false);
+  const [placeToken, setPlaceToken] = useState(0);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const arLite = camMode && gyro; // camera + gyroscope (iPhone)
+  const arLike = inAR || arLite;  // anything that behaves like AR
+
+  const arSupported = useARSupport();
+  const glRef = useRef(null);
+  const sessionRef = useRef(null);
+  const overlayRef = useRef(null);
+  const controlsRef = useRef(null);
+  const rigApi = useRef({});
+  const cardApi = useRef({});
+
   const closeSidebar = () => setSidebarOpen(false);
+  const closeInfo = () => { setModalPart(null); setActiveQuad(null); };
+  const openPart = (id) => {
+    if (!PARTS[id]) return;
+    setActiveQuad(null);
+    setModalPart(id);
+  };
 
-  // On phones the reference panel opens as a bottom sheet. Scroll it
-  // into view when it appears so it doesn't feel like it's just cutting
-  // off the 3D viewport mid-scroll.
-  useEffect(() => {
-    if (modalInfo && referencePanelRef.current && window.innerWidth <= 860) {
-      referencePanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  // 1st tap on the board zooms in, 2nd tap opens the card for the tapped quadrant.
+  const onBoardTap = ({ rear, quadrant }) => {
+    if (exploded) return openPart("motherboard");
+    if (rear) return openPart("motherboard_rear");
+    if (!boardFocus) return setBoardFocus(true);
+    if (quadrant) {
+      setModalPart(null);
+      setActiveQuad(quadrant);
     }
-  }, [modalInfo]);
+  };
+
+  const toggleExploded = () => {
+    setBoardFocus(false);
+    closeInfo();
+    setExploded((p) => !p);
+  };
+  const unfocus = () => { setBoardFocus(false); closeInfo(); };
+
+  const startAR = async () => {
+    setArError("");
+    try {
+      setFocusMode(true);
+      setSplash(false);
+      const session = await startARSession(glRef.current, overlayRef.current);
+      sessionRef.current = session;
+      session.addEventListener("end", () => {
+        sessionRef.current = null;
+        setInAR(false);
+        setPlacement(null);
+        setBoardFocus(false);
+      });
+      setPlacement(null);
+      setInAR(true);
+    } catch (err) {
+      console.error(err);
+      setArError("Couldn't start AR here. Use Chrome on Android, over HTTPS.");
+    }
+  };
+  const endAR = () => sessionRef.current?.end();
+
+  const startCamAR = async () => {
+    setArError("");
+    const motionP = requestMotion(); // must be called first, straight from the tap
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setGyro(await motionP);
+      setPlacement(null);
+      setFocusMode(true);
+      setSplash(false);
+      setCamMode(true);
+      setPlaceToken((t) => t + 1);
+    } catch (err) {
+      console.error(err);
+      setArError("Camera unavailable. Allow camera access and open the page over HTTPS.");
+    }
+  };
+
+  const stopCamAR = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCamMode(false);
+    setGyro(false);
+    setPlacement(null);
+    setBoardFocus(false);
+  };
+
+  // Hook the camera stream up to the <video> once it exists.
+  useEffect(() => {
+    if (camMode && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [camMode]);
+  useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
+
+  // Puts the normal 3D camera back when the gyroscope mode ends.
+  const resetCamera = (cam) => {
+    cam.position.set(3, RIG_Y_OFFSET + 1.6, 3.5);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(0, RIG_Y_OFFSET, 0);
+  };
+
+  const goLab = async (path) => {
+    stopCamAR();
+    try { await sessionRef.current?.end(); } catch { /* already ended */ }
+    navigate(path);
+  };
+
+  // Taps on our buttons must not also count as a tap in the AR scene.
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+    const block = (e) => { if (e.target !== el) e.preventDefault(); };
+    el.addEventListener("beforexrselect", block);
+    return () => el.removeEventListener("beforexrselect", block);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = focusMode ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [focusMode]);
+
+  // What the in-scene card shows: one card per quadrant, or one per part.
+  const info = useMemo(() => {
+    if (activeQuad) return buildQuadInfo(activeQuad, QUADRANTS[activeQuad]);
+    if (modalPart) return buildPartInfo(modalPart);
+    return null;
+  }, [activeQuad, modalPart]);
+
+  const fitRadius = useMemo(
+    () => (exploded ? 3.4 : caseBox ? caseBox.getBoundingSphere(new THREE.Sphere()).radius * 1.1 : 1.6),
+    [exploded, caseBox]
+  );
+  const caseHeight = caseBox ? caseBox.max.y - caseBox.min.y : 1.3;
+  const scaleBase = AR_TARGET_HEIGHT / caseHeight;
+  // The card shrinks with the rig in AR so it stays the same size relative to the case.
+  const cardUnit = CARD_UNIT * (arLike ? scaleBase * (boardFocus ? AR_FOCUS_SCALE : 1) : 1);
+
+  let hint = "Tap the motherboard to zoom in. Tap any part for details.";
+  if (inAR && !placement) hint = "Move your phone slowly to find a flat surface, then tap the ring to place the rig.";
+  else if (arLite) hint = boardFocus && !info ? "Tap a quadrant on the board to see its parts."
+    : "Turn your phone to look around. Tap any part. Use Move to re-place the rig.";
+  else if (boardFocus && !info) hint = "Tap a quadrant on the board to see its parts.";
 
   return (
     <div className="app-shell">
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={closeSidebar} aria-hidden="true" />
-      )}
-
-      {/* Dims the page behind the mobile bottom sheet so it reads as a
-          modal instead of an element awkwardly overlapping the canvas. */}
-      {modalInfo && (
-        <div
-          className="reference-backdrop"
-          onClick={() => setModalPart(null)}
-          aria-hidden="true"
-        />
       )}
 
       <aside className={`app-sidebar ${sidebarOpen ? "app-sidebar--open" : ""}`}>
@@ -631,13 +982,9 @@ export default function MainPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               <span>Rig Studio</span>
             </Link>
-            <Link to="/assemble" className="sidebar__link" onClick={closeSidebar}>
+            <Link to="/lab" className="sidebar__link" onClick={closeSidebar}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-              <span>Assembly Lab</span>
-            </Link>
-            <Link to="/disassemble" className="sidebar__link" onClick={closeSidebar}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" /></svg>
-              <span>Disassemble Lab</span>
+              <span>Build Lab</span>
             </Link>
             <Link to="/profile" className="sidebar__link" onClick={closeSidebar}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
@@ -668,163 +1015,168 @@ export default function MainPage() {
           </div>
         </header>
 
-        <div className="lab-instruction-card">
-          <div className="lab-instruction-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
-            </svg>
-          </div>
-          <div className="lab-instruction-text">
-            <span><strong>Inspection Mode:</strong> Click directly on any 3D workstation component in the viewport to open official handling guidelines and architectural specifications.</span>
-          </div>
-        </div>
-
         <section className="immersive-learn-section">
-          <div className="main__section-header">
-            <h2 className="main__section-label">Live Viewport Canvas</h2>
-            <span className="main__section-count">Orbit &amp; Zoom Enabled</span>
-          </div>
+          <div className={`viewport-3d buildcores-viewport ${focusMode ? "viewport--focus" : ""} ${camMode ? "viewport--cam" : ""}`}>
+            {camMode && <video ref={videoRef} className="cam-feed" playsInline muted autoPlay />}
+            <Canvas
+              dpr={[1, 2]}
+              gl={{ alpha: true, antialias: true }}
+              camera={{ position: [3, RIG_Y_OFFSET + 1.6, 3.5], fov: 50 }}
+              onCreated={({ gl }) => gl.setClearAlpha(0)}
+            >
+              <GLBridge glRef={glRef} />
+              <ambientLight intensity={2.0} />
+              <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
+              <directionalLight position={[6, 8, 6]} intensity={2.4} />
+              <directionalLight position={[-6, 4, -4]} intensity={1.6} />
+              <directionalLight position={[0, 3, 8]} intensity={1.6} />
+              <Environment resolution={256}>
+                <Lightformer form="rect" intensity={4} position={[0, 5, 5]} scale={[10, 6, 1]} />
+                <Lightformer form="rect" intensity={3} position={[-5, 2, 0]} rotation-y={Math.PI / 2} scale={[8, 5, 1]} />
+                <Lightformer form="rect" intensity={3} position={[5, 2, 0]} rotation-y={-Math.PI / 2} scale={[8, 5, 1]} />
+                <Lightformer form="rect" intensity={2} position={[0, 2, -5]} rotation-y={Math.PI} scale={[10, 5, 1]} />
+              </Environment>
 
-          <div className="lab-split">
-            <div className="viewport-3d buildcores-viewport">
-              <Canvas shadows camera={{ position: [3, 2, 3.5], fov: 50 }}>
-                <ambientLight intensity={2.0} />
-                <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
-                <directionalLight position={[6, 8, 6]} intensity={2.4} />
-                <directionalLight position={[-6, 4, -4]} intensity={1.6} />
-                <directionalLight position={[0, 3, 8]} intensity={1.6} />
-                <Environment resolution={256}>
-                  <Lightformer form="rect" intensity={4} position={[0, 5, 5]} scale={[10, 6, 1]} />
-                  <Lightformer form="rect" intensity={3} position={[-5, 2, 0]} rotation-y={Math.PI / 2} scale={[8, 5, 1]} />
-                  <Lightformer form="rect" intensity={3} position={[5, 2, 0]} rotation-y={-Math.PI / 2} scale={[8, 5, 1]} />
-                  <Lightformer form="rect" intensity={2} position={[0, 2, -5]} rotation-y={Math.PI} scale={[10, 5, 1]} />
-                </Environment>
-                {/* Suspense is required here: the model components use
-                    useGLTF, which suspends while the .glb files download.
-                    Without this boundary, slower connections (mobile data)
-                    leave the canvas empty with no fallback and no error. */}
-                <Suspense fallback={<RigLoadingFallback />}>
-                  <DesktopRig onOpenModal={setModalPart} onCalibrate={setCalibPoint} />
-                </Suspense>
+              <Suspense fallback={<RigLoadingFallback />}>
+                <ARRoot
+                  inAR={arLike}
+                  placement={placement}
+                  focused={boardFocus && !exploded}
+                  scaleBase={scaleBase}
+                  caseHeight={caseHeight}
+                  focusScale={AR_FOCUS_SCALE}
+                  rigCenterY={RIG_Y_OFFSET}
+                  rigApi={rigApi}
+                >
+                  <DesktopRig
+                    onOpenModal={openPart}
+                    onBoardTap={onBoardTap}
+                    onCalibrate={setCalibPoint}
+                    onMeasureCase={setCaseBox}
+                    caseBox={caseBox}
+                    exploded={exploded}
+                    rigApi={rigApi}
+                    focused={boardFocus}
+                    activeQuad={activeQuad}
+                  />
+                </ARRoot>
+
+                {/* The info card lives in the 3D scene, beside the part (also in AR). */}
+                {info && (
+                  <WorldCard
+                    info={info}
+                    anchorId={activeQuad || modalPart}
+                    rigApi={rigApi}
+                    cardApi={cardApi}
+                    onClose={closeInfo}
+                    unit={cardUnit}
+                  />
+                )}
+              </Suspense>
+
+              <ARHitTest
+                active={inAR}
+                placed={!!placement}
+                onPlace={setPlacement}
+                onRay={(o, d) => {
+                  // Card buttons get the tap first, then the parts.
+                  if (!cardApi.current.tap?.(o, d)) rigApi.current.tap?.(o, d);
+                }}
+              />
+              <CamAR active={arLite} placeToken={placeToken} onPlace={setPlacement} restore={resetCamera} />
+              <CameraDirector
+                controlsRef={controlsRef}
+                rigApi={rigApi}
+                center={RIG_CENTER}
+                fitRadius={fitRadius}
+                focused={boardFocus && !exploded}
+                disabled={arLite}
+              />
+              <OverlayProjector overlayRef={overlayRef} rigApi={rigApi} activeId={null} />
+              {!arLite && (
                 <OrbitControls
+                  ref={controlsRef}
+                  enabled={!inAR}
+                  target={[0, RIG_Y_OFFSET, 0]}
                   enablePan
                   enableZoom
                   enableRotate
                   enableDamping
                   dampingFactor={0.08}
-                  minDistance={0.6}
-                  maxDistance={9}
-                  autoRotate={false}
+                  minDistance={0.4}
+                  maxDistance={20}
                 />
-              </Canvas>
-              <div className="viewport-badge">
-                <span className="live-dot" />
-                <span>Interactive Rig Active</span>
-              </div>
+              )}
+            </Canvas>
+
+            {/* Everything below is also visible inside AR (it is the WebXR dom-overlay root) */}
+            <div className="ar-overlay" ref={overlayRef}>
+              <svg className="ar-leader">
+                <line data-leader />
+                <circle data-leader-dot r="5" />
+              </svg>
+
+              {!splash && !info && <div className="ar-hint">{hint}</div>}
+              {focusMode && !inAR && (
+                <button
+                  className="ar-close"
+                  onClick={() => { setFocusMode(false); stopCamAR(); }}
+                  aria-label="Exit full screen"
+                >
+                  ×
+                </button>
+              )}
+
+              {boardFocus && !exploded && Object.entries(QUADRANTS).map(([id, q]) => (
+                <button
+                  key={id}
+                  data-anchor={id}
+                  className={`ar-chip ${activeQuad === id ? "is-active" : ""}`}
+                  onClick={() => { setModalPart(null); setActiveQuad(id); }}
+                >
+                  {q.chip}
+                </button>
+              ))}
+
+              {splash && (
+                <div className="ar-splash">
+                  <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>Tap to start AR</button>
+                  <button className="ar-btn" onClick={() => setSplash(false)}>Use 3D view instead</button>
+                </div>
+              )}
+
+              {arError && <div className="ar-note">{arError}</div>}
+
               {CALIBRATE && calibPoint && (
                 <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "rgba(0,0,0,0.75)", color: "#fff", padding: "6px 10px", borderRadius: 8, fontFamily: "monospace", fontSize: 12 }}>
                   {calibPoint}
                 </div>
               )}
-            </div>
 
-            {modalInfo && (
-              <aside className="reference-panel" ref={referencePanelRef} aria-label="Component reference">
-                <div className="modal-header">
-                  <div className="modal-badge-tag">CSS NC II Standard Reference</div>
-                  <button className="modal-close-btn" onClick={() => setModalPart(null)} aria-label="Close">×</button>
-                </div>
-
-                <h2 className="modal-title">{modalInfo.name}</h2>
-                <p className="modal-desc">{modalInfo.purpose}</p>
-
-                <div className="modal-section-box">
-                  <span className="info-label">Technical Specifications</span>
-                  <p className="info-text">{modalInfo.specs}</p>
-                </div>
-
-                {modalInfo.connectsTo && (
-                  <div className="modal-section-box">
-                    <span className="info-label">Connects To</span>
-                    <p className="info-text">{modalInfo.connectsTo}</p>
-                  </div>
-                )}
-
-                {modalInfo.sections && (
-                  <div className="modal-section-box">
-                    <span className="info-label">{modalInfo.sectionsTitle || "Parts on this board"}</span>
-                    <div className="parts-groups">
-                      {modalInfo.sections.map((section) => (
-                        <div key={section.title} className="parts-group">
-                          <h5 className="parts-group-title">{section.title}</h5>
-                          <ul className="parts-list">
-                            {section.items.map((item) => (
-                              <li key={item.name}>
-                                <strong>{item.name}</strong>
-                                <span>{item.text}</span>
-                                {item.tip && <span className="parts-tip">Tip: {item.tip}</span>}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {modalInfo.tips && (
-                  <div className="modal-section-box tips-box">
-                    <span className="info-label">Assembly tips</span>
-                    <ul className="tips-list">
-                      {modalInfo.tips.map((tip, index) => (
-                        <li key={index}>{tip}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="modal-grid-rules">
-                  <div className="rule-card dos">
-                    <h4 className="rule-title">Standard Protocols (Dos)</h4>
-                    <ul>
-                      {modalInfo.dos.map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="rule-card donts">
-                    <h4 className="rule-title">Safety Precautions (Don'ts)</h4>
-                    <ul>
-                      {modalInfo.donts.map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="modal-footer">
-                  <button className="gate-btn primary" onClick={() => setModalPart(null)}>
-                    Close reference
+              <div className="ar-toolbar">
+                {!inAR && !camMode && (
+                  <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>
+                    Start AR
                   </button>
-                </div>
-              </aside>
-            )}
-          </div>
-        </section>
-
-        <section className="progression-gate-card">
-          <div className="gate-content">
-            <h3>Ready for Hands-On Practice?</h3>
-            <p>Proceed to simulated assembly or structural troubleshooting modules.</p>
-          </div>
-          <div className="gate-actions">
-            <button className="gate-btn primary" onClick={() => navigate("/assemble")}>
-              Launch Assembly Lab
-            </button>
-            <button className="gate-btn secondary" onClick={() => navigate("/disassemble")}>
-              Launch Disassemble Lab
-            </button>
+                )}
+                {!inAR && !focusMode && !camMode && (
+                  <button className="ar-btn" onClick={() => setFocusMode(true)}>Full screen</button>
+                )}
+                {inAR && placement && (
+                  <button className="ar-btn" onClick={() => { setPlacement(null); unfocus(); }}>Move</button>
+                )}
+                {arLite && (
+                  <button className="ar-btn" onClick={() => { unfocus(); setPlaceToken((t) => t + 1); }}>Move</button>
+                )}
+                {boardFocus && <button className="ar-btn" onClick={unfocus}>Back</button>}
+                <button className="ar-btn" onClick={toggleExploded}>
+                  {exploded ? "Reassemble" : "Exploded view"}
+                </button>
+                <button className="ar-btn" onClick={() => goLab("/lab")}>Build Lab</button>
+                {inAR && <button className="ar-btn ar-btn--danger" onClick={endAR}>Exit AR</button>}
+                {camMode && <button className="ar-btn ar-btn--danger" onClick={stopCamAR}>Exit AR</button>}
+              </div>
+            </div>
           </div>
         </section>
       </main>

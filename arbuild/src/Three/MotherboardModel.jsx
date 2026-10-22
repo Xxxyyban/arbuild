@@ -2,21 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
-const MODEL_PATH = "/models/motherboard.glb";
+// Default board. The Build Lab passes the picked board's file (AM4 or AM5) as `path`.
+const MODEL_PATH = "/models/motherboard1.glb";
 const TARGET_HEIGHT = 1.5;
 
-export default function MotherboardModel({ spinY = 0, ...props }) {
+export default function MotherboardModel({ spinY = 0, path = MODEL_PATH, ...props }) {
   const [modelExists, setModelExists] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(MODEL_PATH, { method: "HEAD" })
+    setModelExists(null);
+    fetch(path, { method: "HEAD" })
       .then((res) => !cancelled && setModelExists(res.ok))
       .catch(() => !cancelled && setModelExists(false));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [path]);
 
   if (modelExists === false) {
     return <PlaceholderBoard {...props} rotation={[0, spinY, 0]} />;
@@ -24,7 +26,7 @@ export default function MotherboardModel({ spinY = 0, ...props }) {
   if (modelExists === null) {
     return null;
   }
-  return <RealMotherboard {...props} spinY={spinY} />;
+  return <RealMotherboard {...props} path={path} spinY={spinY} />;
 }
 
 /**
@@ -69,8 +71,8 @@ function PlaceholderBoard(props) {
   );
 }
 
-function RealMotherboard({ spinY = 0, ...props }) {
-  const { scene } = useGLTF(MODEL_PATH);
+function RealMotherboard({ spinY = 0, path, ...props }) {
+  const { scene } = useGLTF(path);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   useEffect(() => {
@@ -118,4 +120,4 @@ function RealMotherboard({ spinY = 0, ...props }) {
   );
 }
 
-useGLTF.preload(MODEL_PATH);
+// No preload: the AM4 board file is large, so each board loads only once it is picked.

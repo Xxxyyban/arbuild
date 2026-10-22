@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import Scene3D from '../three/Scene3D';      // Match your actual folder case ('three' vs 'Three')
-import CameraView from '../three/CameraView';
-import CaseModel from '../three/CaseModel';
-import MotherboardModel from '../three/MotherboardModel';
+import Scene3D from '../Three/Scene3D';      // Match your actual folder case ('three' vs 'Three')
+import CameraView from '../Three/CameraView';
+import CaseModel from '../Three/CaseModel';
+import MotherboardModel from '../Three/MotherboardModel';
 import '../styles/Assemble.css';
 
 export default function ThreeCameraView() {
