@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { OrbitControls, Center, Environment, Lightformer } from "@react-three/drei";
-import { Link, useNavigate } from "react-router-dom";
-import ThemeToggle from "../components/ThemeToggle";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import AppShell from "../components/AppShell";
 import CaseModel from "../Three/CaseModel";
-import MotherboardModel from "../Three/MotherboardModel";
+import MotherboardModel, { MOUNTS as AM4_MOUNTS } from "../Three/MotherboardModel";
 import CPUModel from "../Three/CPUModel";
 import CPUCoolerModel from "../Three/CPUCoolerModel";
 import RAMModel from "../Three/RAMModel";
@@ -34,23 +35,26 @@ import {
 } from "../Three/ar/boardQuadrants";
 import WorldCard from "../Three/ar/WorldCard";
 import { PARTS, buildPartInfo, buildQuadInfo } from "../Three/ar/partInfo";
+import { boardLayout, moboLocalToWorld, STORAGE_MOUNT_ROTATION, CPU_SOCKET_ABS } from "../lab/Constants";
 import "../styles/Main.css";
 import "../styles/ar.css";
 
 const MOTHERBOARD_POSITION = [-0.3, 0.53, -0.3];
 const MOTHERBOARD_ROTATION = [0, Math.PI, 0];
-const MOTHERBOARD_SCALE = [0.9999999, 1.12, 1.25];
-
-const RAM_SLOT_1_ABS = [0.0361, 1.132, -0.291];
-const RAM_SLOT_2_ABS = [0.1191, 1.132, -0.291];
-const CPU_SOCKET_ABS = [-0.237, 1.456, -0.37];
-const RAM_SCALE = [0.85, 0.959, 0.85];
+// The AM4 board and where its parts sit: the same fit and mount points as the Build Lab
+// (MOUNTS in Three/MotherboardModel.jsx). Parts on the board undo its stretch (UNSTRETCH) so they
+// keep their real proportions.
+const AM4 = boardLayout(AM4_MOUNTS);
+const MOTHERBOARD_SCALE = AM4.scale;
+const UNSTRETCH = MOTHERBOARD_SCALE.map((v) => 1 / v);
+const onBoard = (local) => moboLocalToWorld(MOTHERBOARD_POSITION, local, MOTHERBOARD_ROTATION, MOTHERBOARD_SCALE);
+const RAM_SLOTS = [AM4.ramSlots[0], AM4.ramSlots[2]]; // slots 1 and 3: dual channel
 
 const PSU_POSITION = [-0.625, 0.48, 0.00005];
 const PSU_ROTATION = [Math.PI, (3 * Math.PI) / 2, 0];
 const PSU_SCALE = [1, 1, 1];
 
-const GPU_POSITION = [-0.326, 1.0379, -0.449];
+const GPU_POSITION = AM4_MOUNTS.gpu;
 const GPU_ROTATION = [0, Math.PI, 0];
 const GPU_SCALE = [1, 1, 1];
 const GPU_SPIN_X = -Math.PI / 2;
@@ -61,15 +65,6 @@ const COOLER_SPIN_X = Math.PI / 2;
 const COOLER_YAW_DEGREES = 90;
 const COOLER_SPIN_Y = (COOLER_YAW_DEGREES * Math.PI) / 180;
 const COOLER_SPIN_Z = Math.PI;
-const COOLER_HEIGHT = 0.09;
-const COOLER_POSITION_OFFSET = [-0.006, -0.105, -0.002];
-
-const STORAGE_LOCAL = [0.14, 0.625, 0.075];
-const STORAGE_SPIN_DEGREES = 90;
-const STORAGE_MOUNT_ROTATION = [Math.PI / 2, (STORAGE_SPIN_DEGREES * Math.PI) / 180, 0];
-const STORAGE_FLIP_DEGREES = [180, 0, 0];
-const STORAGE_FLIP_ROTATION = STORAGE_FLIP_DEGREES.map((d) => (d * Math.PI) / 180);
-const STORAGE_DIMS = { length: 0.85, width: 1, thickness: 1 };
 
 const FAN_CONFIG = {
   size: 0.6,
@@ -80,9 +75,9 @@ const FAN_CONFIG = {
 };
 const FRONT_SIGN = 1;
 const FAN_GROUPS = {
-  top:   { count: 2, size: null, dims: null, nudge: [0, -5.29, 0.12], flip: false },
-  front: { count: 3, size: null, dims: null, nudge: [-0.03, -2.54, 0.03], flip: false },
-  rear:  { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.14], flip: false },
+  top:   { count: 2, size: null, dims: null, nudge: [0, -0.041, 0.125], flip: false },
+  front: { count: 3, size: null, dims: null, nudge: [-0.03, 0.084, 0.035], flip: false },
+  rear:  { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.145], flip: false },
 };
 
 const RIG_Y_OFFSET = 2.0;
@@ -147,15 +142,11 @@ const HOME = {
   psu: PSU_POSITION,
   gpu: GPU_POSITION,
   board: MOTHERBOARD_POSITION,
-  cpu: CPU_SOCKET_ABS,
-  cooler: [CPU_SOCKET_ABS[0], CPU_SOCKET_ABS[1] + COOLER_HEIGHT, CPU_SOCKET_ABS[2]],
-  ram1: RAM_SLOT_1_ABS,
-  ram2: RAM_SLOT_2_ABS,
-  ssd: [
-    MOTHERBOARD_POSITION[0] - STORAGE_LOCAL[0] * MOTHERBOARD_SCALE[0],
-    MOTHERBOARD_POSITION[1] + STORAGE_LOCAL[1] * MOTHERBOARD_SCALE[1],
-    MOTHERBOARD_POSITION[2] - STORAGE_LOCAL[2] * MOTHERBOARD_SCALE[2],
-  ],
+  cpu: onBoard(AM4.cpuLocal),
+  cooler: onBoard(AM4.coolerLocal),
+  ram1: onBoard(RAM_SLOTS[0]),
+  ram2: onBoard(RAM_SLOTS[1]),
+  ssd: onBoard(AM4.storageLocal),
 };
 
 const toBoardLocal = (w) => [
@@ -247,19 +238,6 @@ function Hotspot({ position, size, onSelect }) {
   );
 }
 
-function offsetFrom(abs, base) {
-  return [abs[0] - base[0], abs[1] - base[1], abs[2] - base[2]];
-}
-
-const RAM_1_OFFSET = offsetFrom(RAM_SLOT_1_ABS, MOTHERBOARD_POSITION);
-const RAM_2_OFFSET = offsetFrom(RAM_SLOT_2_ABS, MOTHERBOARD_POSITION);
-const CPU_OFFSET = offsetFrom(CPU_SOCKET_ABS, MOTHERBOARD_POSITION);
-
-const COOLER_OFFSET = [
-  CPU_OFFSET[0] + COOLER_POSITION_OFFSET[0],
-  CPU_OFFSET[1] + COOLER_HEIGHT + COOLER_POSITION_OFFSET[1],
-  CPU_OFFSET[2] + COOLER_POSITION_OFFSET[2],
-];
 
 function measureLocalBox(root) {
   root.updateWorldMatrix(true, true);
@@ -713,34 +691,38 @@ function DesktopRig({ onOpenModal, onBoardTap, onCalibrate, onMeasureCase, caseB
             <Floaty id="cpu" parentId="board" disp={disp}>
               <group
                 userData={{ partId: "cpu" }}
-                position={[-CPU_OFFSET[0], CPU_OFFSET[1], -CPU_OFFSET[2]]}
-                rotation={[Math.PI / 2, 0, Math.PI]}
+                position={AM4.cpuLocal}
+                scale={UNSTRETCH}
                 onClick={(e) => { e.stopPropagation(); onOpenModal("cpu"); }}
               >
-                <CPUModel />
+                <group rotation={[Math.PI / 2, 0, Math.PI]}>
+                  <CPUModel />
+                </group>
               </group>
             </Floaty>
 
             <Floaty id="cooler" parentId="board" disp={disp}>
               <group
                 userData={{ partId: "cooler" }}
-                position={[-COOLER_OFFSET[0], COOLER_OFFSET[1], -COOLER_OFFSET[2]]}
-                rotation={[COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z]}
+                position={AM4.coolerLocal}
+                scale={UNSTRETCH}
                 onClick={(e) => { e.stopPropagation(); onOpenModal("cpu_cooler"); }}
               >
-                <CPUCoolerModel />
+                <group rotation={[COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z]}>
+                  <CPUCoolerModel />
+                </group>
               </group>
             </Floaty>
 
             <Floaty id="ssd" parentId="board" disp={disp}>
               <group
                 userData={{ partId: "ssd" }}
-                position={STORAGE_LOCAL}
-                rotation={STORAGE_MOUNT_ROTATION}
+                position={AM4.storageLocal}
+                scale={UNSTRETCH}
                 onClick={(e) => { e.stopPropagation(); onOpenModal("storage"); }}
               >
-                <group rotation={STORAGE_FLIP_ROTATION}>
-                  <StorageModel {...STORAGE_DIMS} />
+                <group rotation={STORAGE_MOUNT_ROTATION}>
+                  <StorageModel />
                 </group>
               </group>
             </Floaty>
@@ -748,19 +730,19 @@ function DesktopRig({ onOpenModal, onBoardTap, onCalibrate, onMeasureCase, caseB
             <Floaty id="ram1" parentId="board" disp={disp}>
               <group
                 userData={{ partId: "ram1" }}
-                position={[-RAM_1_OFFSET[0], RAM_1_OFFSET[1], -RAM_1_OFFSET[2]]}
-                scale={RAM_SCALE}
+                position={RAM_SLOTS[0]}
+                scale={UNSTRETCH}
                 onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
               >
-                <RAMModel accentColor="#4fd8c9" />
+                <RAMModel accentColor="#34d399" />
               </group>
             </Floaty>
 
             <Floaty id="ram2" parentId="board" disp={disp}>
               <group
                 userData={{ partId: "ram2" }}
-                position={[-RAM_2_OFFSET[0], RAM_2_OFFSET[1], -RAM_2_OFFSET[2]]}
-                scale={RAM_SCALE}
+                position={RAM_SLOTS[1]}
+                scale={UNSTRETCH}
                 onClick={(e) => { e.stopPropagation(); onOpenModal("ram"); }}
               >
                 <RAMModel accentColor="#e8a33d" />
@@ -775,9 +757,9 @@ function DesktopRig({ onOpenModal, onBoardTap, onCalibrate, onMeasureCase, caseB
 
 export default function MainPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [modalPart, setModalPart] = useState(null);
   const [activeQuad, setActiveQuad] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [calibPoint, setCalibPoint] = useState(null);
   const [exploded, setExploded] = useState(false);
   const [caseBox, setCaseBox] = useState(null);
@@ -808,7 +790,6 @@ export default function MainPage() {
   const rigApi = useRef({});
   const cardApi = useRef({});
 
-  const closeSidebar = () => setSidebarOpen(false);
   const closeInfo = () => { setModalPart(null); setActiveQuad(null); };
   const openPart = (id) => {
     if (!PARTS[id]) return;
@@ -945,241 +926,176 @@ export default function MainPage() {
   else if (boardFocus && !info) hint = "Tap a quadrant on the board to see its parts.";
 
   return (
-    <div className="app-shell">
-      {sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={closeSidebar} aria-hidden="true" />
-      )}
+    <AppShell
+      eyebrow="Rig Studio · 3D and AR"
+      title="Workstation Explorer"
+      subtitle="Look inside a working PC in 3D or augmented reality. Tap any part to learn what it does."
+    >
+      <section className="immersive-learn-section">
+        <div className={`viewport-3d buildcores-viewport ${focusMode ? "viewport--focus" : ""} ${camMode ? "viewport--cam" : ""}`}>
+          {camMode && <video ref={videoRef} className="cam-feed" playsInline muted autoPlay />}
+          <Canvas
+            dpr={[1, 2]}
+            gl={{ alpha: true, antialias: true }}
+            camera={{ position: [3, RIG_Y_OFFSET + 1.6, 3.5], fov: 50 }}
+            onCreated={({ gl }) => gl.setClearAlpha(0)}
+          >
+            <GLBridge glRef={glRef} />
+            <ambientLight intensity={2.0} />
+            <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
+            <directionalLight position={[6, 8, 6]} intensity={2.4} />
+            <directionalLight position={[-6, 4, -4]} intensity={1.6} />
+            <directionalLight position={[0, 3, 8]} intensity={1.6} />
+            <Environment resolution={256}>
+              <Lightformer form="rect" intensity={4} position={[0, 5, 5]} scale={[10, 6, 1]} />
+              <Lightformer form="rect" intensity={3} position={[-5, 2, 0]} rotation-y={Math.PI / 2} scale={[8, 5, 1]} />
+              <Lightformer form="rect" intensity={3} position={[5, 2, 0]} rotation-y={-Math.PI / 2} scale={[8, 5, 1]} />
+              <Lightformer form="rect" intensity={2} position={[0, 2, -5]} rotation-y={Math.PI} scale={[10, 5, 1]} />
+            </Environment>
 
-      <aside className={`app-sidebar ${sidebarOpen ? "app-sidebar--open" : ""}`}>
-        <div className="sidebar__top-section">
-          <div className="sidebar__brand">
-            <div className="sidebar__logo-wrapper">
-              <svg className="wordmark-logo" viewBox="0 0 100 100" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="6">
-                <path d="M25 15 H15 V25" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M75 15 H85 V25" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M25 85 H15 V75" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M75 85 H85 V75" strokeLinecap="round" strokeLinejoin="round" />
-                <rect x="30" y="30" width="40" height="40" rx="8" fill="currentColor" fillOpacity="0.15" />
-                <line x1="30" y1="42" x2="20" y2="42" />
-                <line x1="30" y1="58" x2="20" y2="58" />
-                <line x1="70" y1="42" x2="80" y2="42" />
-                <line x1="70" y1="58" x2="80" y2="58" />
-                <line x1="42" y1="30" x2="42" y2="20" />
-                <line x1="58" y1="30" x2="58" y2="20" />
-                <line x1="42" y1="70" x2="42" y2="80" />
-                <line x1="58" y1="70" x2="58" y2="80" />
-              </svg>
-            </div>
-            <span className="sidebar__brand-name">ARBuild</span>
-            <button type="button" className="sidebar__close-btn" onClick={closeSidebar} aria-label="Close menu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-            </button>
-          </div>
-
-          <nav className="sidebar__nav">
-            <p className="sidebar__nav-title">Workspaces</p>
-            <Link to="/main" className="sidebar__link active" onClick={closeSidebar}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-              <span>Rig Studio</span>
-            </Link>
-            <Link to="/lab" className="sidebar__link" onClick={closeSidebar}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-              <span>Build Lab</span>
-            </Link>
-            <Link to="/profile" className="sidebar__link" onClick={closeSidebar}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-              <span>Profile</span>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="sidebar__footer">
-          <div className="sidebar__footer-row">
-            <span className="sidebar__footer-label">Appearance</span>
-            <ThemeToggle />
-          </div>
-          <div className="sidebar__footer-divider" />
-          <span className="sidebar__term">CSS NC II Professional Suite</span>
-        </div>
-      </aside>
-
-      <main className="app-main">
-        <header className="main__header">
-          <button type="button" className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu" aria-expanded={sidebarOpen}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          <div className="main__title-group">
-            <span className="main__badge-pill">Interactive 3D Environment</span>
-            <h1 className="main__greeting">Workstation Explorer</h1>
-            <p className="main__section">Examine institutional hardware components in real-time stereoscopic layout.</p>
-          </div>
-        </header>
-
-        <section className="immersive-learn-section">
-          <div className={`viewport-3d buildcores-viewport ${focusMode ? "viewport--focus" : ""} ${camMode ? "viewport--cam" : ""}`}>
-            {camMode && <video ref={videoRef} className="cam-feed" playsInline muted autoPlay />}
-            <Canvas
-              dpr={[1, 2]}
-              gl={{ alpha: true, antialias: true }}
-              camera={{ position: [3, RIG_Y_OFFSET + 1.6, 3.5], fov: 50 }}
-              onCreated={({ gl }) => gl.setClearAlpha(0)}
-            >
-              <GLBridge glRef={glRef} />
-              <ambientLight intensity={2.0} />
-              <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
-              <directionalLight position={[6, 8, 6]} intensity={2.4} />
-              <directionalLight position={[-6, 4, -4]} intensity={1.6} />
-              <directionalLight position={[0, 3, 8]} intensity={1.6} />
-              <Environment resolution={256}>
-                <Lightformer form="rect" intensity={4} position={[0, 5, 5]} scale={[10, 6, 1]} />
-                <Lightformer form="rect" intensity={3} position={[-5, 2, 0]} rotation-y={Math.PI / 2} scale={[8, 5, 1]} />
-                <Lightformer form="rect" intensity={3} position={[5, 2, 0]} rotation-y={-Math.PI / 2} scale={[8, 5, 1]} />
-                <Lightformer form="rect" intensity={2} position={[0, 2, -5]} rotation-y={Math.PI} scale={[10, 5, 1]} />
-              </Environment>
-
-              <Suspense fallback={<RigLoadingFallback />}>
-                <ARRoot
-                  inAR={arLike}
-                  placement={placement}
-                  focused={boardFocus && !exploded}
-                  scaleBase={scaleBase}
-                  caseHeight={caseHeight}
-                  focusScale={AR_FOCUS_SCALE}
-                  rigCenterY={RIG_Y_OFFSET}
-                  rigApi={rigApi}
-                >
-                  <DesktopRig
-                    onOpenModal={openPart}
-                    onBoardTap={onBoardTap}
-                    onCalibrate={setCalibPoint}
-                    onMeasureCase={setCaseBox}
-                    caseBox={caseBox}
-                    exploded={exploded}
-                    rigApi={rigApi}
-                    focused={boardFocus}
-                    activeQuad={activeQuad}
-                  />
-                </ARRoot>
-
-                {/* The info card lives in the 3D scene, beside the part (also in AR). */}
-                {info && (
-                  <WorldCard
-                    info={info}
-                    anchorId={activeQuad || modalPart}
-                    rigApi={rigApi}
-                    cardApi={cardApi}
-                    onClose={closeInfo}
-                    unit={cardUnit}
-                  />
-                )}
-              </Suspense>
-
-              <ARHitTest
-                active={inAR}
-                placed={!!placement}
-                onPlace={setPlacement}
-                onRay={(o, d) => {
-                  // Card buttons get the tap first, then the parts.
-                  if (!cardApi.current.tap?.(o, d)) rigApi.current.tap?.(o, d);
-                }}
-              />
-              <CamAR active={arLite} placeToken={placeToken} onPlace={setPlacement} restore={resetCamera} />
-              <CameraDirector
-                controlsRef={controlsRef}
-                rigApi={rigApi}
-                center={RIG_CENTER}
-                fitRadius={fitRadius}
+            <Suspense fallback={<RigLoadingFallback />}>
+              <ARRoot
+                inAR={arLike}
+                placement={placement}
                 focused={boardFocus && !exploded}
-                disabled={arLite}
-              />
-              <OverlayProjector overlayRef={overlayRef} rigApi={rigApi} activeId={null} />
-              {!arLite && (
-                <OrbitControls
-                  ref={controlsRef}
-                  enabled={!inAR}
-                  target={[0, RIG_Y_OFFSET, 0]}
-                  enablePan
-                  enableZoom
-                  enableRotate
-                  enableDamping
-                  dampingFactor={0.08}
-                  minDistance={0.4}
-                  maxDistance={20}
+                scaleBase={scaleBase}
+                caseHeight={caseHeight}
+                focusScale={AR_FOCUS_SCALE}
+                rigCenterY={RIG_Y_OFFSET}
+                rigApi={rigApi}
+              >
+                <DesktopRig
+                  onOpenModal={openPart}
+                  onBoardTap={onBoardTap}
+                  onCalibrate={setCalibPoint}
+                  onMeasureCase={setCaseBox}
+                  caseBox={caseBox}
+                  exploded={exploded}
+                  rigApi={rigApi}
+                  focused={boardFocus}
+                  activeQuad={activeQuad}
+                />
+              </ARRoot>
+
+              {/* The info card lives in the 3D scene, beside the part (also in AR). */}
+              {info && (
+                <WorldCard
+                  info={info}
+                  anchorId={activeQuad || modalPart}
+                  rigApi={rigApi}
+                  cardApi={cardApi}
+                  onClose={closeInfo}
+                  unit={cardUnit}
                 />
               )}
-            </Canvas>
+            </Suspense>
 
-            {/* Everything below is also visible inside AR (it is the WebXR dom-overlay root) */}
-            <div className="ar-overlay" ref={overlayRef}>
-              <svg className="ar-leader">
-                <line data-leader />
-                <circle data-leader-dot r="5" />
-              </svg>
+            <ARHitTest
+              active={inAR}
+              placed={!!placement}
+              onPlace={setPlacement}
+              onRay={(o, d) => {
+                // Card buttons get the tap first, then the parts.
+                if (!cardApi.current.tap?.(o, d)) rigApi.current.tap?.(o, d);
+              }}
+            />
+            <CamAR active={arLite} placeToken={placeToken} onPlace={setPlacement} restore={resetCamera} />
+            <CameraDirector
+              controlsRef={controlsRef}
+              rigApi={rigApi}
+              center={RIG_CENTER}
+              fitRadius={fitRadius}
+              focused={boardFocus && !exploded}
+              disabled={arLite}
+            />
+            <OverlayProjector overlayRef={overlayRef} rigApi={rigApi} activeId={null} />
+            {!arLite && (
+              <OrbitControls
+                ref={controlsRef}
+                enabled={!inAR}
+                target={[0, RIG_Y_OFFSET, 0]}
+                enablePan
+                enableZoom
+                enableRotate
+                enableDamping
+                dampingFactor={0.08}
+                minDistance={0.4}
+                maxDistance={20}
+              />
+            )}
+          </Canvas>
 
-              {!splash && !info && <div className="ar-hint">{hint}</div>}
-              {focusMode && !inAR && (
-                <button
-                  className="ar-close"
-                  onClick={() => { setFocusMode(false); stopCamAR(); }}
-                  aria-label="Exit full screen"
-                >
-                  ×
-                </button>
-              )}
+          {/* Everything below is also visible inside AR (it is the WebXR dom-overlay root) */}
+          <div className="ar-overlay" ref={overlayRef}>
+            <svg className="ar-leader">
+              <line data-leader />
+              <circle data-leader-dot r="5" />
+            </svg>
 
-              {boardFocus && !exploded && Object.entries(QUADRANTS).map(([id, q]) => (
-                <button
-                  key={id}
-                  data-anchor={id}
-                  className={`ar-chip ${activeQuad === id ? "is-active" : ""}`}
-                  onClick={() => { setModalPart(null); setActiveQuad(id); }}
-                >
-                  {q.chip}
-                </button>
-              ))}
+            {!splash && !info && <div className="ar-hint">{hint}</div>}
+            {focusMode && !inAR && (
+              <button
+                className="ar-close"
+                onClick={() => { setFocusMode(false); stopCamAR(); }}
+                aria-label="Exit full screen"
+              >
+                ×
+              </button>
+            )}
 
-              {splash && (
-                <div className="ar-splash">
-                  <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>Tap to start AR</button>
-                  <button className="ar-btn" onClick={() => setSplash(false)}>Use 3D view instead</button>
-                </div>
-              )}
+            {boardFocus && !exploded && Object.entries(QUADRANTS).map(([id, q]) => (
+              <button
+                key={id}
+                data-anchor={id}
+                className={`ar-chip ${activeQuad === id ? "is-active" : ""}`}
+                onClick={() => { setModalPart(null); setActiveQuad(id); }}
+              >
+                {q.chip}
+              </button>
+            ))}
 
-              {arError && <div className="ar-note">{arError}</div>}
-
-              {CALIBRATE && calibPoint && (
-                <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "rgba(0,0,0,0.75)", color: "#fff", padding: "6px 10px", borderRadius: 8, fontFamily: "monospace", fontSize: 12 }}>
-                  {calibPoint}
-                </div>
-              )}
-
-              <div className="ar-toolbar">
-                {!inAR && !camMode && (
-                  <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>
-                    Start AR
-                  </button>
-                )}
-                {!inAR && !focusMode && !camMode && (
-                  <button className="ar-btn" onClick={() => setFocusMode(true)}>Full screen</button>
-                )}
-                {inAR && placement && (
-                  <button className="ar-btn" onClick={() => { setPlacement(null); unfocus(); }}>Move</button>
-                )}
-                {arLite && (
-                  <button className="ar-btn" onClick={() => { unfocus(); setPlaceToken((t) => t + 1); }}>Move</button>
-                )}
-                {boardFocus && <button className="ar-btn" onClick={unfocus}>Back</button>}
-                <button className="ar-btn" onClick={toggleExploded}>
-                  {exploded ? "Reassemble" : "Exploded view"}
-                </button>
-                <button className="ar-btn" onClick={() => goLab("/lab")}>Build Lab</button>
-                {inAR && <button className="ar-btn ar-btn--danger" onClick={endAR}>Exit AR</button>}
-                {camMode && <button className="ar-btn ar-btn--danger" onClick={stopCamAR}>Exit AR</button>}
+            {splash && (
+              <div className="ar-splash">
+                <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>Tap to start AR</button>
+                <button className="ar-btn" onClick={() => setSplash(false)}>Use 3D view instead</button>
               </div>
+            )}
+
+            {arError && <div className="ar-note">{arError}</div>}
+
+            {CALIBRATE && calibPoint && (
+              <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "rgba(0,0,0,0.75)", color: "#fff", padding: "6px 10px", borderRadius: 8, fontFamily: "monospace", fontSize: 12 }}>
+                {calibPoint}
+              </div>
+            )}
+
+            <div className="ar-toolbar">
+              {!inAR && !camMode && (
+                <button className="ar-btn ar-btn--accent" onClick={arSupported ? startAR : startCamAR}>
+                  Start AR
+                </button>
+              )}
+              {!inAR && !focusMode && !camMode && (
+                <button className="ar-btn" onClick={() => setFocusMode(true)}>Full screen</button>
+              )}
+              {inAR && placement && (
+                <button className="ar-btn" onClick={() => { setPlacement(null); unfocus(); }}>Move</button>
+              )}
+              {arLite && (
+                <button className="ar-btn" onClick={() => { unfocus(); setPlaceToken((t) => t + 1); }}>Move</button>
+              )}
+              {boardFocus && <button className="ar-btn" onClick={unfocus}>Back</button>}
+              <button className="ar-btn" onClick={toggleExploded}>
+                {exploded ? "Reassemble" : "Exploded view"}
+              </button>
+              <button className="ar-btn" onClick={() => goLab("/lab")}>Build Lab</button>
+              <button className="ar-btn" onClick={() => goLab(profile?.role === "faculty" ? "/instructor" : "/classes")}>Classes</button>
+              {inAR && <button className="ar-btn ar-btn--danger" onClick={endAR}>Exit AR</button>}
+              {camMode && <button className="ar-btn ar-btn--danger" onClick={stopCamAR}>Exit AR</button>}
             </div>
           </div>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+    </AppShell>
   );
 }

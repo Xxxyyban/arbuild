@@ -1,63 +1,158 @@
 // Pure rules: what may be installed / removed right now, and what happens on boot.
 // No React, no Three.js. `installed` is { cpu: true, gpu: true, ... }.
 import { PART_LABEL } from "./Constants";
-import { itemFor, requiredWatts } from "./Catalog";
+import { itemFor, requiredWatts, buildSlots } from "./Catalog";
+
+// How technicians build a PC:
+//   1. On the bench, with the board on its box: CPU, then RAM, then the M.2 SSD (easy to reach here),
+//      then thermal paste and the CPU cooler.
+//   2. Mount the finished board in the case and drive in its 9 screws.
+//   3. Install the PSU, then plug the 24-pin and the 8-pin CPU cable into the board.
+//   4. Graphics card last (it covers the M.2 slot), then plug in its PCIe power cable.
+//   5. Power on.
+// A teardown has no fixed order: after power off, unplug and drain, parts can come out in any order
+// as long as nothing is physically in the way (REMOVE_NEEDS). The board may come out with its
+// CPU, cooler, RAM and SSD still on it, the way technicians usually do it.
 
 // Assemble: part -> parts that must already be installed.
-// (cpu and storage sit on the board while it is still on the bench, so they have no requirement.)
-// cooler needs cpu: fixes the "cooler placed before CPU" bug in the old Assemble.jsx.
 export const INSTALL_NEEDS = {
-  motherboard: [],
   cpu: [],
-  storage: [],
-  ram1: ["motherboard"],
-  ram2: ["motherboard"],
-  psu: ["motherboard"],
-  gpu: ["motherboard"],
-  cpu_cooler: ["motherboard", "cpu"],
-};
-
-// Disassemble: part -> parts that must already be removed (from the old Disassemble.jsx).
-export const REMOVE_NEEDS = {
-  gpu: [],
-  cpu_cooler: [],
   ram1: [],
   ram2: [],
   storage: [],
-  cpu: ["cpu_cooler"],
-  motherboard: ["gpu", "cpu_cooler", "cpu", "ram1", "ram2", "storage"],
+  cpu_cooler: ["cpu"],
+  motherboard: ["cpu"],
   psu: ["motherboard"],
+  gpu: ["motherboard", "psu"],
 };
 
 export const INSTALL_MSG = {
-  cpu_cooler: "Install the CPU first, and mount the motherboard, before the cooler.",
-  default: "Mount the motherboard in the case first.",
+  cpu_cooler: "The cooler sits on the CPU. Install the CPU first.",
+  motherboard: "Put the CPU in the socket while the board is still on the bench. It's much harder (and riskier for the pins) once the board is in the case.",
+  psu: "Mount the motherboard in the case first, then the PSU.",
+  gpu: "The graphics card goes in last: mount the motherboard and install the PSU first, so its power cable can reach it.",
 };
 
-// These go onto the board while it lies on the bench, so a board has to be picked first.
-const ON_BOARD = ["cpu", "storage"];
-const NO_BOARD_MSG = "Pick a motherboard first. This part goes onto the board.";
+// Disassemble: part -> parts that physically block it. Only real obstacles, no fixed order.
+export const REMOVE_NEEDS = {
+  gpu: [],
+  motherboard: ["gpu"], // the card is screwed to the case through the board's slot
+  psu: [],
+  cpu_cooler: [],
+  cpu: ["cpu_cooler"], // the cooler sits on top of the CPU
+  ram1: [],
+  ram2: [],
+  storage: ["gpu"], // the card covers the M.2 slot
+};
 
 export const REMOVE_MSG = {
+  motherboard: "Take the graphics card out first. It's screwed to the case and plugged into the board.",
   cpu: "Remove the CPU cooler first, it sits right on top of the CPU.",
-  motherboard: "Clear the board first: GPU, cooler, CPU, RAM and drive must all be out.",
-  psu: "Take the motherboard out first, the PSU cables run to it.",
+  storage: "The graphics card covers the M.2 slot. Take the graphics card out first.",
 };
 
+// These go onto the board, so a board has to be on the bench (picked) first.
+const ON_BOARD = ["cpu", "ram1", "ram2", "storage"];
+const NO_BOARD_MSG = "Pick a motherboard first. This part goes onto the board.";
+
 /** Returns null if the part can be installed, else { key, msg }. `picks` = what is on the bench. */
-export function installBlock(name, installed, picks = null) {
+export function installBlock(name, installed, picks = null, psuCables = null) {
   if (picks && ON_BOARD.includes(name) && !picks.motherboard) return { key: name, msg: NO_BOARD_MSG };
+  // a modular PSU gets its cables on the bench: once it is in the case its sockets are hard to reach
+  if (name === "psu" && picks && psuCables) {
+    const loose = psuCablesNeeded(picks).filter((c) => !psuEndDone(c, picks, psuCables));
+    if (loose.length > 0) {
+      return {
+        key: "psu",
+        msg: `Plug the cables into the PSU first, while it's on the bench: ${loose.map((c) => CABLES[c].label).join(", ")}. Its sockets are hard to reach once it's in the case.`,
+      };
+    }
+  }
+  if (name === "storage" && installed.gpu) {
+    return { key: name, msg: "The graphics card covers the M.2 slot. Fit the SSD before the graphics card." };
+  }
   const missing = INSTALL_NEEDS[name].filter((r) => !installed[r]);
   if (missing.length === 0) return null;
-  return { key: name, msg: INSTALL_MSG[name] || INSTALL_MSG.default };
+  return { key: name, msg: INSTALL_MSG[name] || `Install the ${PART_LABEL[missing[0]]} first.` };
 }
 
-/** Returns null if the part can be removed, else { key, msg }. Needs the safety steps first. */
-export function removeBlock(name, installed, power) {
+/* ---------- cables and screws ---------- */
+
+// PSU cables: what each one plugs into. links = { cables: { atx24, eps8, pcie }, screws: [9 × bool] }
+// A cable has two ends: `cables` says the part end is in, `psuCables` the PSU end (modular PSUs only).
+// psuSocket: the labelled socket its PSU end goes into.
+export const CABLES = {
+  atx24: { label: "24-pin cable", needs: ["motherboard", "psu"], psuSocket: "mb" },
+  eps8: { label: "8-pin CPU cable", needs: ["motherboard", "psu"], psuSocket: "cpu" },
+  pcie: { label: "PCIe power cable", needs: ["gpu", "psu"], psuSocket: "pcie" },
+};
+
+/** Does the picked PSU take its cables in sockets (modular), or are they fixed to it? */
+export const psuModular = (picks) => !!itemFor("psu", picks)?.modular;
+
+/** Is this cable's PSU end done? Always true for a PSU with fixed cables. */
+export const psuEndDone = (cable, picks, psuCables) => !psuModular(picks) || !!psuCables?.[cable];
+
+/** The cables this build needs on its PSU: the board's two, and the PCIe one if there's a graphics card. */
+export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => c !== "pcie" || !!picks?.gpu);
+
+/** Can this cable's PSU end be plugged in now? null, or { key, msg }. */
+export function psuPlugBlock(cable, picks) {
+  if (!picks?.psu) return { key: `psu_${cable}`, msg: "Pick a PSU first." };
+  if (!psuModular(picks)) return { key: `psu_${cable}`, msg: "This PSU's cables are fixed to it, so its end is already attached." };
+  if (cable === "pcie" && !picks.gpu) return { key: "psu_pcie", msg: "This build has no graphics card, so it needs no PCIe power cable." };
+  return null;
+}
+export const SCREW_COUNT = 9;
+
+/** Can this cable's part end be plugged in now? null, or { key, msg }. */
+export function plugBlock(cable, installed, picks = null, psuCables = null) {
+  const missing = CABLES[cable].needs.filter((p) => !installed[p]);
+  if (missing.length > 0) {
+    const what = cable === "pcie" ? "the graphics card" : "the motherboard";
+    return { key: `cable_${cable}`, msg: `Install ${what} and the PSU first. The ${CABLES[cable].label} runs between them.` };
+  }
+  if (picks && psuCables && !psuEndDone(cable, picks, psuCables)) {
+    return { key: `cable_${cable}`, msg: `Plug the ${CABLES[cable].label} into the PSU first.` };
+  }
+  return null;
+}
+
+/** Which cables a build needs plugged in right now. */
+export const neededCables = (installed) => Object.keys(CABLES).filter((c) => CABLES[c].needs.every((p) => installed[p]));
+
+/** The safety steps every hands-on step needs first (null when safe). */
+export function safetyBlock(power) {
   if (!power.unplugged) {
     return !power.shutdown
       ? { key: "shutdown", msg: "Shut the PC down, then unplug it, before touching any part." }
       : { key: "unplug", msg: "Unplug the PC from power before touching any part." };
+  }
+  if (!power.discharged) {
+    return { key: "discharge", msg: "Press and hold the power button for a few seconds to drain the power left in the PC." };
+  }
+  return null;
+}
+
+/** Returns null if the part can be removed, else { key, msg }. Needs the safety steps first. */
+export function removeBlock(name, installed, power, links = null) {
+  const safety = safetyBlock(power);
+  if (safety) return safety;
+  if (links) {
+    const { cables = {}, screws = [] } = links;
+    if (name === "gpu" && cables.pcie) {
+      return { key: name, msg: "Unplug the PCIe power cable from the graphics card first." };
+    }
+    if (name === "motherboard" && (cables.atx24 || cables.eps8)) {
+      return { key: name, msg: "Unplug the 24-pin and the 8-pin CPU cables from the board first." };
+    }
+    const left = screws.filter(Boolean).length;
+    if (name === "motherboard" && left > 0) {
+      return { key: name, msg: `Unscrew the motherboard first: ${left} of ${SCREW_COUNT} screws are still in.` };
+    }
+    if (name === "psu" && Object.values(cables).some(Boolean)) {
+      return { key: name, msg: "Unplug the PSU's cables (24-pin, 8-pin CPU, PCIe) before taking it out." };
+    }
   }
   // "removed" = not installed
   const missing = REMOVE_NEEDS[name].filter((r) => installed[r]);
@@ -73,15 +168,28 @@ export function removeBlock(name, installed, power) {
  * `hints` false hides the "fix" text so students must troubleshoot on their own.
  */
 export function evaluateBoot(state, { hints = true } = {}) {
-  const { installed, pasteApplied, ramSlot, picks = null } = state;
+  const { installed, pasteApplied, ramSlot, picks = null, cables = null } = state;
   const ramCount = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   const lowRes = !installed.gpu;
   const fix = (text) => (hints ? text : "");
 
   if (!installed.motherboard) return { status: "dead", message: "Nothing happens, there is no motherboard in the case." };
   if (!installed.psu) return { status: "dead", message: "Nothing happens, there's no power supply installed." };
+  if (cables && !cables.atx24) {
+    return {
+      status: "dead", part: "cable_atx24",
+      message: hints ? "Nothing happens. The 24-pin cable isn't plugged into the motherboard, so the board gets no power." : "Nothing happens.",
+    };
+  }
   if (!installed.cpu) {
     return { status: "post", lowRes, title: "CPU not detected", detail: "The board has power but can't start without a processor.", code: "Error: CPU-00" };
+  }
+  if (cables && !cables.eps8) {
+    return {
+      status: "post", lowRes, title: "Fans spin, but nothing starts",
+      detail: fix("The CPU has no power. Plug the 8-pin CPU cable into the header at the top-left of the board."),
+      code: "Error: CPU power missing",
+    };
   }
   if (ramCount === 0) {
     return { status: "post", lowRes, title: "No memory detected", detail: fix("Install at least one RAM stick."), code: "Error: MEM-01 (long continuous beeps)" };
@@ -99,6 +207,21 @@ export function evaluateBoot(state, { hints = true } = {}) {
   if (!pasteApplied) {
     return { status: "overheat", lowRes, ramCount, detail: "The cooler has no thermal paste, so heat could not leave the CPU.", fix: fix("Fix: power off, apply thermal paste on the CPU, then mount the cooler.") };
   }
+  if (cables && installed.gpu && !cables.pcie) {
+    return {
+      status: "post", lowRes: true, title: "No signal from the graphics card",
+      detail: fix("The graphics card has no power. Plug the PCIe power cable into the top edge of the card."),
+      code: "GPU power missing",
+    };
+  }
+  const cooler = picks ? itemFor("cpu_cooler", picks) : null;
+  if (cooler && cpu && cooler.cooling < cpu.tdp) {
+    return {
+      status: "overheat", lowRes, ramCount,
+      detail: `The ${cooler.short} cooler can only move ${cooler.cooling} W of heat, but the ${cpu.short} puts out ${cpu.tdp} W.`,
+      fix: fix("Fix: power off and fit a cooler rated for this CPU's heat output."),
+    };
+  }
   const psu = picks ? itemFor("psu", picks) : null;
   const need = picks ? requiredWatts(picks, installed) : 0;
   if (psu && psu.watts < need) {
@@ -110,7 +233,7 @@ export function evaluateBoot(state, { hints = true } = {}) {
   }
 
   const notes = [];
-  if (ramCount === 1) notes.push("Single RAM stick, two would run faster.");
+  if (ramCount === 1) notes.push("One RAM stick works, but it runs in single channel. A matching second stick in slot 3 makes memory about twice as fast.");
   if (ramCount === 2 && Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) {
     notes.push("RAM sticks are in neighbouring slots, try slots 1+3 or 2+4 for dual channel.");
   }
@@ -119,6 +242,63 @@ export function evaluateBoot(state, { hints = true } = {}) {
 }
 
 /** True if the PC is fully built (every part in). */
-export const isFullyBuilt = (installed) => Object.keys(INSTALL_NEEDS).every((p) => installed[p]);
-/** True if every part is out. */
-export const isFullyStripped = (installed) => Object.keys(INSTALL_NEEDS).every((p) => !installed[p]);
+export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) => installed[p]);
+
+/**
+ * Checklist for the lab's guide card: [{ label, done, anyOrder }].
+ * Building follows the expert order. Taking apart starts with the safety steps (in order),
+ * then every part can come out in any order (anyOrder: true).
+ * state = { installed, picks, pasteApplied, booted, power }
+ */
+export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {} }) {
+  const driven = screws.filter(Boolean).length;
+  const has = (slot) => !!picks?.[slot];
+  const modular = psuModular(picks);
+  const psuEndsIn = psuCablesNeeded(picks).every((c) => psuEndDone(c, picks, psuCables));
+  if (mode === "disassemble") {
+    const out = (slot) => !installed[slot];
+    const any = (label, done) => ({ label, done, anyOrder: true });
+    return [
+      { label: "Shut the PC down", done: power.shutdown },
+      { label: "Unplug the power cable", done: power.unplugged },
+      { label: "Hold the power button to drain leftover power", done: power.discharged },
+      any("PCIe cable unplugged (before the graphics card comes out)", !cables.pcie),
+      any("Graphics card out (it covers the M.2 slot)", out("gpu")),
+      any("24-pin and 8-pin CPU cables unplugged (before the board comes out)", !cables.atx24 && !cables.eps8),
+      any(`Motherboard screws out (${SCREW_COUNT - driven} of ${SCREW_COUNT})`, out("motherboard") || driven === 0),
+      any("PSU out (its cables unplugged from the parts)", out("psu")),
+      ...(modular ? [any("Cables off the PSU (once it's out)", !Object.values(psuCables).some(Boolean))] : []),
+      any("Motherboard out (graphics card, cables and screws out first)", out("motherboard")),
+      any("CPU cooler off", out("cpu_cooler")),
+      any("Old thermal paste wiped (before the CPU comes out)", !pasteApplied),
+      any("CPU out (the cooler must be off)", out("cpu")),
+      any("RAM stick(s) out", out("ram1") && out("ram2")),
+      any("M.2 SSD out", out("storage")),
+    ];
+  }
+  const ramDone = installed.ram1 && (!has("ram2") || installed.ram2);
+  return [
+    { label: "Pick parts that work together", done: buildSlots(picks).every(has) },
+    { label: "Seat the CPU in the socket (board on the bench)", done: !!installed.cpu },
+    { label: has("ram2") ? "Click both RAM sticks into slots 1 and 3" : "Click the RAM stick into its slot", done: !!ramDone },
+    { label: "Screw the M.2 SSD into its slot", done: !!installed.storage },
+    { label: "Add a pea-sized dot of thermal paste", done: pasteApplied || !!installed.cpu_cooler },
+    { label: "Mount the CPU cooler", done: !!installed.cpu_cooler },
+    { label: "Set the motherboard in the case", done: !!installed.motherboard },
+    { label: `Drive in the motherboard screws (${driven} of ${SCREW_COUNT})`, done: driven === SCREW_COUNT },
+    ...(modular ? [{ label: "Plug the cables into the PSU (still on the bench)", done: psuEndsIn }] : []),
+    { label: "Install the PSU", done: !!installed.psu },
+    { label: "Plug the 24-pin cable into the board", done: !!cables.atx24 },
+    { label: "Plug the 8-pin CPU cable in (top-left)", done: !!cables.eps8 },
+    ...(has("gpu")
+      ? [
+          { label: "Install the graphics card last", done: !!installed.gpu },
+          { label: "Plug PCIe power into the graphics card", done: !!cables.pcie },
+        ]
+      : []),
+    { label: "Power on and check it boots", done: !!booted },
+  ];
+}
+/** True if every part is out (and, for a modular PSU, its cables are off it). */
+export const isFullyStripped = (installed, psuCables = {}) =>
+  Object.keys(INSTALL_NEEDS).every((p) => !installed[p]) && !Object.values(psuCables).some(Boolean);

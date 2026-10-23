@@ -243,6 +243,10 @@ body {
   gap: 12px;
 }
 
+.main__header-tools {
+  margin-left: auto;
+}
+
 .mobile-menu-btn {
   display: none;
   align-items: center;

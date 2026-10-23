@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { orientQuaternion, MM } from "./orient";
 
 const MODEL_PATH = "/models/ram.glb";
-const TARGET_HEIGHT = 0.66; // world units — how tall the stick should stand
+const STICK_LENGTH = 133.35 * MM; // a DIMM is 133.35 mm long
 
-/**
- * Real RAM stick model (.glb). Auto-detects which axis is the model's
- * tallest dimension (a RAM stick standing up is taller than it is
- * wide/thick) and rotates that axis to point straight up. Falls back
- * to a procedural placeholder stick if the file isn't found yet.
- */
-export default function RAMModel({ spinY = 0, accentColor = "#4fd8c9", ...props }) {
+/** DDR4 stick (ram.glb), true to size. Falls back to a procedural placeholder if the file isn't found. */
+export default function RAMModel({ spinY = 0, accentColor = "#34d399", ...props }) {
   const [modelExists, setModelExists] = useState(null);
 
   useEffect(() => {
@@ -33,7 +29,7 @@ export default function RAMModel({ spinY = 0, accentColor = "#4fd8c9", ...props 
   return <RealRAM {...props} spinY={spinY} />;
 }
 
-function PlaceholderRAM({ accentColor = "#4fd8c9", ...props }) {
+function PlaceholderRAM({ accentColor = "#34d399", ...props }) {
   return (
     <group {...props}>
       <mesh castShadow receiveShadow>
@@ -79,40 +75,19 @@ function RealRAM({ spinY = 0, ...props }) {
     });
   }, [cloned]);
 
+  // The lab's stick: length up (+Y), standing out of the board toward -Z, gold contacts at the origin,
+  // centred on its length and thickness. Every RAM component draws its stick this way, so any stick
+  // seats in any board's slot from the same mount point.
   const { scale, offset } = useMemo(() => {
+    // ram.glb: length along Z, height along Y (contacts at the bottom), thickness along X
     cloned.rotation.set(0, 0, 0);
+    cloned.quaternion.copy(orientQuaternion({ z: [0, 1, 0], y: [0, 0, -1] }));
     cloned.updateMatrixWorld(true);
-    const rawBox = new THREE.Box3().setFromObject(cloned);
-    const rawSize = new THREE.Vector3();
-    rawBox.getSize(rawSize);
-
-    const dims = [
-      { value: rawSize.x, normal: new THREE.Vector3(1, 0, 0) },
-      { value: rawSize.y, normal: new THREE.Vector3(0, 1, 0) },
-      { value: rawSize.z, normal: new THREE.Vector3(0, 0, 1) },
-    ];
-    dims.sort((a, b) => a.value - b.value);
-    const tallAxisNormal = dims[2].normal;
-
-    const quat = new THREE.Quaternion().setFromUnitVectors(
-      tallAxisNormal,
-      new THREE.Vector3(0, 1, 0)
-    );
-    cloned.quaternion.copy(quat);
-    cloned.updateMatrixWorld(true);
-
     const box = new THREE.Box3().setFromObject(cloned);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-
-    const s = TARGET_HEIGHT / (size.y || 1);
-
-    return {
-      scale: s,
-      offset: [-center.x * s, -box.min.y * s, -center.z * s],
-    };
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const s = STICK_LENGTH / (size.y || 1);
+    return { scale: s, offset: [-center.x * s, -center.y * s, -box.max.z * s] };
   }, [cloned]);
 
   return (

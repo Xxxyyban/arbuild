@@ -1,0 +1,13 @@
+{
+  "name": "arbuild-firestore-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Attack tests for firestore.rules, run on the local Firestore emulator (needs Java 11+ and the Firebase CLI).",
+  "scripts": {
+    "test": "firebase emulators:exec --project arbuild-attack-test --only firestore \"node attack.test.mjs ../../firestore.rules\""
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.0.0"
+  }
+}

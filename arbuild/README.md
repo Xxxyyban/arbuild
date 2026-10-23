@@ -1,16 +1,32 @@
-# React + Vite
+# ARBuild
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A virtual PC assembly and troubleshooting lab for **Computer Systems Servicing NC II**, made for
+Universidad de Dagupan (SITE).
 
-Currently, two official plugins are available:
+Students learn what to do before they touch real hardware: pick compatible parts, build a PC in 3D
+or augmented reality, wire it, power it on, and troubleshoot what goes wrong, then take it apart
+safely. It's built for school, and students can keep practising at home or wherever they are.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+It runs in the browser on **any phone, tablet or computer**, because not every student has a laptop.
 
-## React Compiler
+ARBuild doesn't replace hands-on work. It helps students understand the steps first, virtually, so
+they're ready for the actual manual assembly and troubleshooting in the lab.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## What's in it
 
-## Expanding the Oxlint configuration
+- **Rig Studio**: explore a PC's parts in 3D and AR.
+- **Build Lab**: assemble and disassemble AM4 and AM5 PCs, with real compatibility, cables, screws,
+  boot problems and safety steps. Free build for practice; scored tasks in class.
+- **Classes**: instructors make a class (subject, section, schedule) and share its code. Inside it:
+  announcements, learning materials, lab activities with official scores, progress, and private
+  messages between instructor and student.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Development
+
+    npm install
+    npm run dev       # https://localhost:5173
+    npm run build
+
+Firebase (Auth, Firestore, Storage) is configured in `src/firebase/config.js`. Security rules are
+in `firestore.rules` and `storage.rules`; publish them in the Firebase console. The attack tests
+for the rules are in `tests/firestore-rules/` (see its README).

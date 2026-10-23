@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import Logo from "../components/Logo";
 import "../styles/ProfileSetup.css";
 
 // ============================================================
@@ -83,40 +84,7 @@ export default function ProfileSetup() {
 
         <div className="brand-content animate-fade-in">
           <div className="brand-logo-badge">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 8V5a1 1 0 0 1 1-1h3" />
-              <path d="M20 8V5a1 1 0 0 0-1-1h-3" />
-              <path d="M4 16v3a1 1 0 0 0 1 1h3" />
-              <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
-              <rect
-                x="8"
-                y="8"
-                width="8"
-                height="8"
-                rx="1.5"
-                fill="#34d399"
-                fillOpacity="0.2"
-                stroke="#34d399"
-                strokeWidth="1.5"
-              />
-              <line x1="10" y1="5.5" x2="10" y2="8" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="14" y1="5.5" x2="14" y2="8" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="10" y1="16" x2="10" y2="18.5" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="14" y1="16" x2="14" y2="18.5" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="5.5" y1="10" x2="8" y2="10" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="5.5" y1="14" x2="8" y2="14" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="16" y1="10" x2="18.5" y2="10" stroke="#34d399" strokeWidth="1.5" />
-              <line x1="16" y1="14" x2="18.5" y2="14" stroke="#34d399" strokeWidth="1.5" />
-            </svg>
+            <Logo size={44} />
           </div>
 
           <h1>

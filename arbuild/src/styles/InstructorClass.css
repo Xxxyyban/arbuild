@@ -1,0 +1,234 @@
+/* Instructor class page: tasks, the class list's tick column, the student report and the
+   class's common mistakes (components/instructor/*). Uses the --lab-* variables. */
+
+/* ---------- tasks ---------- */
+.ins-tasks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ins-task {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+}
+
+.ins-task.is-default {
+  border-color: var(--lab-accent);
+  box-shadow: 0 0 0 1px var(--lab-accent-soft);
+}
+
+.ins-task--edit {
+  grid-column: 1 / -1;
+  background: var(--lab-bg-soft);
+  border-color: var(--lab-accent);
+}
+
+.ins-task--edit .ins-grid {
+  margin: 0 0 4px;
+}
+
+.ins-task__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ins-task__top strong {
+  margin-right: auto;
+  font-size: 0.95rem;
+}
+
+.ins-task__summary {
+  margin: 0;
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+}
+
+.ins-task__text {
+  margin: 0;
+  color: var(--lab-text-soft);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ins-field textarea {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.ins-field textarea:focus {
+  outline: none;
+  border-color: var(--lab-accent);
+  box-shadow: 0 0 0 3px var(--lab-accent-soft);
+}
+
+/* ---------- class list ---------- */
+.ins-grading {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--lab-line);
+  border-radius: 12px;
+}
+
+.ins-grading legend {
+  padding: 0 6px;
+  color: var(--lab-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ins-tick {
+  width: 28px;
+}
+
+.ins-tick input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--lab-accent);
+  cursor: pointer;
+}
+
+.ins-check--inline {
+  grid-column: auto;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.ins-check--inline input {
+  margin-top: 0;
+}
+
+/* ---------- one student's report ---------- */
+.ins-report h3 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.ins-report__task {
+  margin: 4px 0 14px;
+  font-size: 0.88rem;
+}
+
+.ins-report__task .ins-muted {
+  margin-left: 6px;
+  font-size: 0.78rem;
+}
+
+.ins-report__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ins-report__tiles div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+}
+
+.ins-report__tiles span {
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ins-report__tiles b {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-report__tiles small {
+  color: var(--lab-muted);
+  font-size: 0.74rem;
+}
+
+.ins-report__tiles .is-good { color: var(--lab-accent); }
+.ins-report__tiles .is-bad { color: var(--lab-danger); }
+
+.ins-report__repeat {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--lab-danger);
+  border-radius: 8px;
+  background: var(--lab-surface);
+}
+
+.ins-report__repeat ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.ins-report .ins-head {
+  margin-top: 14px;
+}
+
+/* ---------- common mistakes ---------- */
+.ins-common {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.ins-common li {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ins-common__row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.ins-common__detail {
+  flex: 1 1 240px;
+  color: var(--lab-text);
+}
+
+.ins-common__count {
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ins-common__bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lab-accent);
+  opacity: 0.75;
+}

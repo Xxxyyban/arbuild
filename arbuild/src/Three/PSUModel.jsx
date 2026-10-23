@@ -5,6 +5,20 @@ import * as THREE from "three";
 const MODEL_PATH = "/models/psu.glb";
 const TARGET_WIDTH = 0.71;
 
+// The modular sockets on psu.glb's front face (two rows of four: three 8-pin columns and a 6-pin one),
+// measured by ray-casting the fitted model. Points are in the PSU's own frame (the group PSUModel is
+// drawn in): the face is the plane z = face, and plugs go in along +Z. Each socket name lists the
+// sockets of that label; the 24-pin cable's PSU end takes both MB sockets.
+export const MODULAR = {
+  face: -0.3406,
+  sockets: {
+    mb: { label: "MB", at: [[0.1425, 0.181], [0.1425, 0.251]] },
+    cpu: { label: "CPU", at: [[0.02, 0.181]], spare: [[0.02, 0.251]] },
+    pcie: { label: "PCI-E", at: [[-0.1, 0.181]], spare: [[-0.1, 0.251]] },
+    sata: { label: "SATA", at: [[-0.2325, 0.181]], spare: [[-0.2325, 0.251]] },
+  },
+};
+
 export default function PSUModel({ spinY = 0, ...props }) {
   // Wrap useGLTF safely. If the file is missing or fails, it will catch and fallback.
   let gltf = null;

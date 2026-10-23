@@ -31,6 +31,7 @@ import ThreeCameraView from "./pages/ThreeCameraView";
 
 import Admin from "./pages/Admin.jsx";
 import Instructor from "./pages/Instructor";
+import Classes from "./pages/Classes";
 
 // ============================================================
 // STYLES
@@ -62,6 +63,37 @@ function LoadingScreen() {
 // ROOT REDIRECT
 // ============================================================
 
+// An invite link (/classes?join=CODE) opened while signed out: keep the code through sign-in
+// (and first-time setup), then go to the class.
+const PENDING_JOIN = "arbuild.pendingJoin";
+
+function rememberJoin() {
+  const code = new URLSearchParams(window.location.search).get("join");
+  if (window.location.pathname === "/classes" && code) {
+    try {
+      sessionStorage.setItem(PENDING_JOIN, code);
+    } catch {
+      /* storage blocked */
+    }
+  }
+}
+
+// read only: the class page clears it once it has joined (renders may run twice)
+function pendingJoin() {
+  try {
+    return sessionStorage.getItem(PENDING_JOIN);
+  } catch {
+    return null;
+  }
+}
+
+/** Where a signed-in student or faculty member lands. */
+function homeFor(profile) {
+  // everyone starts on the main page; an invite link a student opened goes to that class
+  const join = profile.role === "faculty" ? null : pendingJoin();
+  return join ? `/classes?join=${encodeURIComponent(join)}` : "/main";
+}
+
 function RootRedirect() {
   const { user, profile, loading } = useAuth();
 
@@ -80,11 +112,8 @@ function RootRedirect() {
   // First-time student/faculty
   if (profile.profileCompleted !== true) return <Navigate to="/setup" replace />;
 
-  // Faculty land on the instructor page
-  if (profile.role === "faculty") return <Navigate to="/instructor" replace />;
-
-  // Normal student user
-  return <Navigate to="/main" replace />;
+  // Students and faculty land on the main page (a student's invite link goes to that class)
+  return <Navigate to={homeFor(profile)} replace />;
 }
 
 // ============================================================
@@ -104,7 +133,7 @@ function SetupRoute() {
 
   // Profile has already been completed
   if (profile?.profileCompleted === true) {
-    return <Navigate to={profile.role === "faculty" ? "/instructor" : "/main"} replace />;
+    return <Navigate to={homeFor(profile)} replace />;
   }
 
   // New student/faculty account
@@ -120,8 +149,11 @@ function Gate({ children }) {
 
   if (loading) return <LoadingScreen />;
 
-  // Not logged in
-  if (!user) return <Navigate to="/" replace />;
+  // Not logged in (an invite link's code is kept for after sign-in)
+  if (!user) {
+    rememberJoin();
+    return <Navigate to="/" replace />;
+  }
 
   // No Firestore profile
   if (!profile) return <Navigate to="/" replace />;
@@ -278,6 +310,13 @@ export default function App() {
                 </InstructorGate>
               }
             />
+            <Route path="/instructor/c/:classId" element={<InstructorGate><Instructor page="class" /></InstructorGate>} />
+            <Route path="/instructor/c/:classId/lab/:code" element={<InstructorGate><Instructor page="classLab" /></InstructorGate>} />
+            <Route path="/instructor/lab/:code" element={<InstructorGate><Instructor page="oldLab" /></InstructorGate>} />
+
+            {/* Classes (students): join with a code, then announcements, materials, labs, messages */}
+            <Route path="/classes" element={<Gate><Classes /></Gate>} />
+            <Route path="/classes/:classId" element={<Gate><Classes page="class" /></Gate>} />
 
             <Route
               path="/admin"

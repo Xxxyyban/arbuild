@@ -9,7 +9,7 @@ const DEFAULT_TARGET_HEIGHT = 2.2;
  * Real scanned/modeled PC case with integrated internal placeholders 
  * for the Motherboard tray and PSU shroud chamber.
  */
-export default function CaseModel({ targetHeight = DEFAULT_TARGET_HEIGHT, showPlaceholders = true, ...props }) {
+export default function CaseModel({ targetHeight = DEFAULT_TARGET_HEIGHT, showPlaceholders = false, ...props }) {
   const group = useRef();
   const [modelExists, setModelExists] = useState(null);
   const { scene } = useGLTF(MODEL_PATH);

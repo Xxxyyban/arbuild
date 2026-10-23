@@ -43,7 +43,12 @@ export function buildStart(setup) {
     pasteApplied: full, // a PC that was running already has paste
     // slots 1+3 so a "full" PC boots with dual channel and no warning
     ramSlot: { ram1: installed.ram1 ? 0 : null, ram2: installed.ram2 ? 2 : null },
-    power: { shutdown: false, unplugged: false },
+    power: { shutdown: false, unplugged: false, discharged: false },
+    // a PC that was running has its cables plugged in and its board screwed down
+    cables: { atx24: full, eps8: full, pcie: full && !!picks.gpu },
+    // a PSU in the case has its modular cables on it already (only the ones this build uses)
+    psuCables: { atx24: !!installed.psu, eps8: !!installed.psu, pcie: !!installed.psu && !!picks.gpu },
+    screws: Array.from({ length: 9 }, () => !!installed.motherboard),
   };
 }
 

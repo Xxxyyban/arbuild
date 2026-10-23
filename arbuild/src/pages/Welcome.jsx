@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import Logo from "../components/Logo";
 import "../styles/Welcome.css";
 
 // Copper "traces" running from a CPU socket out to the board edge.
@@ -38,10 +39,14 @@ export default function Welcome() {
       {/* Brand side: a circuit board that "draws" itself once on load */}
       <section className="wl-brand" aria-label="About ARBuild">
         <div className="wl-brand-text">
-          <p className="wl-wordmark">ARBuild</p>
+          <p className="wl-wordmark">
+            <Logo size={40} />
+            ARBuild
+          </p>
           <h1 className="wl-headline">Build the PC before you touch a single part.</h1>
           <p className="wl-sub">
-            Assemble and troubleshoot hardware in 3D and augmented reality.
+            Practise Computer Systems Servicing NC II in 3D and augmented reality, on any phone, tablet or
+            computer, in school or at home. Learn the steps here, then do them for real on actual hardware.
           </p>
         </div>
 

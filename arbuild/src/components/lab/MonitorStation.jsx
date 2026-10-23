@@ -26,7 +26,7 @@ function Spinner({ y = 0.08 }) {
   return (
     <mesh ref={ref} position={[0, y, 0.002]}>
       <torusGeometry args={[0.09, 0.014, 8, 32, Math.PI * 1.5]} />
-      <meshBasicMaterial color="#4fd8c9" />
+      <meshBasicMaterial color="#34d399" />
     </mesh>
   );
 }

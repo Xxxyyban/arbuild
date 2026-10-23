@@ -1,0 +1,203 @@
+/* Build Lab: the guide card (the class task and/or the expert steps), the task on the waiting screen,
+   and the start screen's free-build note. Uses the --lab-* variables from BuildLab.css. */
+
+/* Top right: clear of the parts rail (left) and the control buttons (bottom). The part info
+   panel opens in the same corner and covers it while it is open. */
+.lab-task {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: min(320px, calc(100% - 32px));
+  border-radius: 12px;
+  background: var(--lab-panel);
+  border: 1px solid var(--lab-line-strong);
+  box-shadow: 0 10px 28px var(--lab-shadow);
+  backdrop-filter: blur(10px);
+  color: var(--lab-text);
+  z-index: 25;
+  pointer-events: auto;
+}
+
+.lab-task.is-done {
+  border-color: var(--lab-accent);
+}
+
+.lab-task__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab-task__head:focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
+.lab-task__tag {
+  grid-column: 1;
+  color: var(--lab-accent);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lab-task__head strong {
+  grid-column: 1;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.lab-task__chev {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--lab-muted);
+  font-size: 1.1rem;
+}
+
+.lab-task__body {
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+  padding: 0 14px 12px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--lab-text-soft);
+}
+
+.lab-task__text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+/* the expert order checklist */
+.lab-steps {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.lab-steps li {
+  color: var(--lab-muted);
+}
+
+.lab-steps li + li {
+  margin-top: 3px;
+}
+
+.lab-steps li.is-done {
+  color: var(--lab-text-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--lab-accent);
+}
+
+.lab-steps li.is-next {
+  color: var(--lab-text);
+  font-weight: 700;
+}
+
+.lab-steps li.is-next::marker {
+  color: var(--lab-accent);
+}
+
+.lab-steps__note {
+  margin: 0 0 4px;
+  color: var(--lab-text);
+  font-weight: 600;
+}
+
+.lab-task__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lab-task__chips li {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--lab-line-strong);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.lab-task__done {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lab-accent-soft);
+  color: var(--lab-text);
+}
+
+/* the task on the "waiting for your instructor" screen */
+.lab-gate__task {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 440px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: var(--lab-card);
+  border: 1px solid var(--lab-line-strong);
+  text-align: left;
+}
+
+.lab-gate__task span {
+  color: var(--lab-accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lab-gate__task p {
+  white-space: pre-wrap;
+}
+
+.lab-start__note {
+  margin: -8px 0 14px;
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Phone: the task card sits above the two-row control panel */
+@media (max-width: 720px) {
+  .lab-task {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 124px;
+    width: auto;
+  }
+}
+
+/* Start screen: a lab opened from a class */
+.lab-start__status {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--lab-accent);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.lab-start__back {
+  display: inline-flex;
+  margin: 0 auto 12px;
+  text-decoration: none;
+}
+
+.lab-start__cards + .lab-start__note {
+  margin-top: 18px;
+}

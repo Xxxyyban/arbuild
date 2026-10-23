@@ -23,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 
 import { auth, db, ALLOWED_DOMAINS } from "../firebase/config";
 
+import Logo from "../components/Logo";
 import "../styles/Admin.css";
 
 const DEFAULT_PASSWORD = "Universidad2026";
@@ -1151,7 +1152,9 @@ export default function Admin() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <div className="admin-brand-mark">AR</div>
+          <div className="admin-brand-mark">
+            <Logo size={30} />
+          </div>
           <div>
             <h1>ARBuild</h1>
             <span>Admin portal</span>

@@ -4,6 +4,7 @@ import Scene3D from '../Three/Scene3D';      // Match your actual folder case ('
 import CameraView from '../Three/CameraView';
 import CaseModel from '../Three/CaseModel';
 import MotherboardModel from '../Three/MotherboardModel';
+import Icon from '../components/Icon';
 import '../styles/Assemble.css';
 
 export default function ThreeCameraView() {
@@ -14,8 +15,8 @@ export default function ThreeCameraView() {
       
       {/* Top Bar with Camera Toggle Button */}
       <header className="assemble__bar" style={{ position: 'relative', zIndex: 10 }}>
-        <Link to="/assemble" className="assemble__back">
-          ← Back to Assemble
+        <Link to="/lab" className="assemble__back">
+          ← Back to the Build Lab
         </Link>
         
         <div className="assemble__title-group">
@@ -33,7 +34,7 @@ export default function ThreeCameraView() {
               color: showCamera ? '#ffffff' : 'var(--text-primary, #e2e8f0)'
             }}
           >
-            {showCamera ? '📷 Camera ON' : '📷 Camera OFF'}
+            <Icon name="camera" size={16} /> {showCamera ? 'Camera on' : 'Camera off'}
           </button>
         </div>
       </header>

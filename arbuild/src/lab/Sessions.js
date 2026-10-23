@@ -1,8 +1,8 @@
 // Classes (live lab sessions) in Firestore.
 //
-//   sessions/{code}                  the class: name, rules, timer, status
-//   sessions/{code}/students/{uid}   one row per student: score, parts left, mistakes,
-//                                    and assignedMode (what the instructor chose for them)
+//   sessions/{code}                  the class: name, class rules, tasks, status
+//   sessions/{code}/students/{uid}   one row per student: score, time, parts left, mistakes,
+//                                    and assignedTask (the task the instructor gave them)
 //   sessions/{code}/events/{id}      every mistake / safety / revert, kept after the class ends
 //
 // A class goes through three phases:
@@ -25,7 +25,8 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { DEFAULT_SETUP, generateJoinCode, normalizeCode, normalizeSetup } from "./Setup";
-import { normalizePlatform } from "./Catalog";
+import { taskFor, setupForTask, normalizeTask, newTaskId } from "./Tasks";
+import { cappedScore } from "./Scoring";
 
 export const MAX_MINUTES = 600;
 
@@ -66,24 +67,20 @@ export function formatClock(ms) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-/** The lab setup for one student's starting mode (full PC to take apart, or an empty bench). */
-export const startSetupFor = (setup, mode, platform) => ({
-  ...normalizeSetup(setup),
-  startMode: mode,
-  startState: mode === "disassemble" ? "full" : "empty",
-  ...(normalizePlatform(platform) ? { platform } : {}),
-});
-
-/** One student's setup: their own assignment wins, then the class default. */
+/** One student's lab setup: the class rules plus the task they were given (or the default task). */
 export function studentSetup(session, row) {
-  const setup = normalizeSetup(session?.setup);
-  return startSetupFor(setup, row?.assignedMode || setup.startMode, row?.assignedPlatform || setup.platform);
+  return setupForTask(normalizeSetup(session?.setup), taskFor(session, row));
 }
 
 /* ---------- instructor ---------- */
 
-/** Creates the class in the "waiting" phase. Students start when the instructor presses Start. */
-export async function createSession({ instructor, title, parMin }) {
+/**
+ * Creates a lab session in the "waiting" phase. Students start when the instructor presses Start.
+ * classId: the class it belongs to (a lab activity); task: the first task's settings (mode, platform,
+ * hints, partPicking, partInfo, parMin, instructions).
+ */
+export async function createSession({ instructor, title, parMin = 10, classId = null, className = "", task = {} }) {
+  const first = normalizeTask({ mode: "assemble", platform: "am4", parMin, ...task, id: newTaskId() });
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateJoinCode();
     if ((await getDoc(sessionRef(code))).exists()) continue; // code already used
@@ -93,7 +90,11 @@ export async function createSession({ instructor, title, parMin }) {
       title: title.trim() || "Untitled class",
       instructorUid: instructor.uid,
       instructorName: instructor.name,
-      setup: normalizeSetup({ ...DEFAULT_SETUP, parMin }),
+      classId,
+      className,
+      setup: normalizeSetup({ ...DEFAULT_SETUP, parMin: first.parMin }),
+      tasks: [first],
+      defaultTaskId: first.id,
       status: "waiting",
       createdAt: Timestamp.now(),
       startedAt: null,
@@ -135,18 +136,20 @@ export function updateSetup(code, patch) {
   return updateDoc(sessionRef(code), fields);
 }
 
-/**
- * What one student gets. patch = { assignedMode?: "assemble" | "disassemble" | null,
- * assignedPlatform?: "am4" | "am5" | null }. null means "use the class default".
- */
-export const assignStudent = (code, uid, patch) =>
-  updateDoc(studentRef(code, uid), { ...patch, assignedAt: Date.now() });
+/** Saves the class's task list and which task is the default. Students pick changes up straight away. */
+export function saveTasks(code, tasks, defaultTaskId) {
+  const clean = tasks.map(normalizeTask);
+  const def = clean.some((t) => t.id === defaultTaskId) ? defaultTaskId : clean[0]?.id ?? null;
+  return updateDoc(sessionRef(code), { tasks: clean, defaultTaskId: def });
+}
 
-/** The same for many students at once. */
-export async function assignMany(code, uids, patch) {
+/** Gives students a task (null = the class's default task). A new task sends them back to its start. */
+export async function assignTask(code, uids, taskId) {
   for (let i = 0; i < uids.length; i += 400) {
     const batch = writeBatch(db);
-    uids.slice(i, i + 400).forEach((uid) => batch.update(studentRef(code, uid), { ...patch, assignedAt: Date.now() }));
+    uids.slice(i, i + 400).forEach((uid) =>
+      batch.update(studentRef(code, uid), { assignedTask: taskId || null, assignedAt: Date.now() })
+    );
     await batch.commit();
   }
 }
@@ -166,6 +169,14 @@ export const subscribeStudents = (code, cb, onError) =>
 export const subscribeStudentRow = (code, uid, cb, onError) =>
   onSnapshot(studentRef(code, uid), (snap) => cb(snap.exists() ? snap.data() : null), onError);
 
+/** Every event of the class (all students), newest first. Used for the class's common mistakes. */
+export const subscribeAllEvents = (code, cb, onError) =>
+  onSnapshot(
+    collection(db, "sessions", code, "events"),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.ts - a.ts)),
+    onError
+  );
+
 // No orderBy here so no composite index is needed. Sorted in the browser instead.
 export const subscribeEvents = (code, uid, cb, onError) =>
   onSnapshot(
@@ -181,10 +192,10 @@ export async function joinSession(rawCode, user, profile) {
   const code = normalizeCode(rawCode);
   try {
     const snap = await getDoc(sessionRef(code));
-    if (!snap.exists()) return { error: "Code not found. Check it with your instructor." };
+    if (!snap.exists()) return { error: "No lab has that code. Check it with your instructor." };
 
     const session = snap.data();
-    if (isEnded(session)) return { error: "This class has ended." };
+    if (isEnded(session)) return { error: "This lab is closed. Ask your instructor to reopen it." };
 
     const ref = studentRef(code, user.uid);
     const prev = await getDoc(ref);
@@ -207,9 +218,10 @@ export async function joinSession(rawCode, user, profile) {
         ...(prev.exists()
           ? {}
           : {
-              mode: session.setup?.startMode || "assemble",
-              platform: normalizeSetup(session.setup).platform,
+              mode: taskFor(session, null).mode,
+              platform: taskFor(session, null).platform,
               score: 0,
+              scoreScale: 100, // official score, out of 100 (lab/Scoring.js)
               assembleMs: 0,
               disassembleMs: 0,
               assemble: 0,
@@ -234,22 +246,21 @@ export async function joinSession(rawCode, user, profile) {
 /** 95000 -> "1:35" (blank when there is no time yet) */
 export const formatMs = (ms) => (ms > 0 ? formatClock(ms) : "");
 
-export function resultsToCsv(students, setup) {
-  const s0 = normalizeSetup(setup);
+export function resultsToCsv(students, session) {
   const head = [
-    "Name", "Student ID", "Section", "Assigned start", "Platform", "Mode", "Score", "Assemble pts", "Assemble time",
-    "Disassemble pts", "Disassemble time", "Penalties", "Parts left", "Mistakes", "Phase done", "Rejoins", "Joined",
-    "Last active",
+    "Name", "Student ID", "Section", "Task", "Platform", "Task done", "Task time", "Score", "Out of", "Assemble pts",
+    "Assemble time", "Disassemble pts", "Disassemble time", "Penalties", "Parts left", "Mistakes", "Rejoins",
+    "Joined", "Last active",
   ];
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = students.map((s) =>
-    [
-      s.name, s.studentId, s.section, s.assignedMode || `${s0.startMode} (class default)`,
-      (s.assignedPlatform || s0.platform).toUpperCase(),
-      s.mode, s.score, s.assemble, formatMs(s.assembleMs), s.disassemble, formatMs(s.disassembleMs),
-      s.penalty, s.partsLeft, s.mistakes,
-      s.phaseDone ? "yes" : "no", Math.max(0, (s.joins || 1) - 1), s.joinedAt, s.lastActive,
-    ].map(esc).join(",")
-  );
+  const rows = students.map((s) => {
+    const task = taskFor(session, s);
+    return [
+      s.name, s.studentId, s.section, task.title, task.platform.toUpperCase(),
+      s.taskDone ? "yes" : "no", formatMs(s.taskMs),
+      s.scoreScale ? cappedScore(s, task.points) : s.score, s.scoreScale ? task.points : "", s.assemble, formatMs(s.assembleMs), s.disassemble, formatMs(s.disassembleMs),
+      s.penalty, s.partsLeft, s.mistakes, Math.max(0, (s.joins || 1) - 1), s.joinedAt, s.lastActive,
+    ].map(esc).join(",");
+  });
   return [head.map(esc).join(","), ...rows].join("\n");
 }

@@ -16,6 +16,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+// In-memory cache only, no copy on disk: school lab computers are shared, and class data kept in the
+// browser would still be readable after someone logs out. Writes made while the connection drops
+// (a message, lab progress) are still queued and sent when it comes back, while the page stays open.
 export const db = getFirestore(app);
 export const storage = getStorage(app); // 2. Initialize and export storage
 

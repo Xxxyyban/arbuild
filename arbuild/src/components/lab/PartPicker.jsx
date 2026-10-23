@@ -1,7 +1,15 @@
 // Packet Tracer style parts drawer: a rail of category icons, and the options for the open category.
 // Picking an option lays that part on the bench. Styles: styles/BuildLab.css (.picker*).
 import { useState } from "react";
-import { CATEGORIES, optionsFor, badgesFor } from "../../lab/Catalog";
+import { CATEGORIES, OPTIONAL_SLOTS, optionsFor, badgesFor } from "../../lab/Catalog";
+
+// Headings when a category fills more than one slot (RAM), and the "leave it out" choice
+// for parts a build can do without.
+const SLOT_HEADING = { ram1: "Stick 1", ram2: "Stick 2 (optional)" };
+const NONE_LABEL = {
+  ram2: "No second stick (run on one stick)",
+  gpu: "No graphics card (use the CPU's built-in graphics)",
+};
 
 const ICON_PATHS = {
   motherboard: (
@@ -63,20 +71,21 @@ export function CategoryIcon({ id, size = 22 }) {
 }
 
 /**
- * picks      { motherboard: "mb_b550", ... } what is on the bench now
- * locked     category -> reason string, for categories that can't be swapped right now
+ * picks      { motherboard: "mb_b550", ram1: "ram_ddr4", ram2: null, ... } what is on the bench now, by slot
+ * locked     slot -> reason string, for slots that can't be swapped right now
  * showSpecs  false hides the socket / memory / watt badges (instructor turned part info off)
- * onPick(category, id), onInspect(id)
+ * onPick(slot, id | null), onInspect(id)
  */
 export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect }) {
   const [open, setOpen] = useState(null);
+  const cat = CATEGORIES.find((c) => c.id === open);
   const options = open ? optionsFor(open) : [];
 
   return (
     <div className="picker" onPointerDown={(e) => e.stopPropagation()}>
       <div className="picker__rail" role="toolbar" aria-label="Parts">
         {CATEGORIES.map((c) => {
-          const has = !!picks[c.id];
+          const has = c.slots.some((s) => picks[s]);
           return (
             <button
               key={c.id}
@@ -97,39 +106,52 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
       {open && (
         <div className="picker__drawer">
           <div className="picker__head">
-            <strong>{CATEGORIES.find((c) => c.id === open).label}</strong>
+            <strong>{cat.label}</strong>
             <button type="button" className="picker__close" aria-label="Close" onClick={() => setOpen(null)}>×</button>
           </div>
-          {locked[open] && <p className="picker__locked">{locked[open]}</p>}
-          <ul className="picker__list">
-            {options.map((o) => {
-              const chosen = picks[open] === o.id;
-              return (
-                <li key={o.id} className={chosen ? "is-chosen" : ""}>
-                  <button
-                    type="button"
-                    className="picker__option"
-                    disabled={!!locked[open]}
-                    onClick={() => {
-                      onPick(open, o.id);
-                      if (!chosen) setOpen(null);
-                    }}
-                  >
-                    <span className="picker__name">{o.name}</span>
-                    {showSpecs && (
-                      <span className="picker__badges">
-                        {badgesFor(o).map((b) => <em key={b}>{b}</em>)}
-                      </span>
-                    )}
-                    <span className="picker__state">{chosen ? "On the bench" : "Place on bench"}</span>
-                  </button>
-                  {showSpecs && (
-                    <button type="button" className="picker__info" aria-label={`About ${o.name}`} onClick={() => onInspect(o.id)}>i</button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {cat.slots.map((slot) => (
+            <div key={slot} className="picker__slot">
+              {cat.slots.length > 1 && <h3 className="picker__slot-head">{SLOT_HEADING[slot] || slot}</h3>}
+              {locked[slot] && <p className="picker__locked">{locked[slot]}</p>}
+              <ul className="picker__list">
+                {options.map((o) => {
+                  const chosen = picks[slot] === o.id;
+                  return (
+                    <li key={o.id} className={chosen ? "is-chosen" : ""}>
+                      <button
+                        type="button"
+                        className="picker__option"
+                        disabled={!!locked[slot]}
+                        onClick={() => {
+                          onPick(slot, o.id);
+                          if (!chosen && cat.slots.length === 1) setOpen(null);
+                        }}
+                      >
+                        <span className="picker__name">{o.name}</span>
+                        {showSpecs && (
+                          <span className="picker__badges">
+                            {badgesFor(o).map((b) => <em key={b}>{b}</em>)}
+                          </span>
+                        )}
+                        <span className="picker__state">{chosen ? "On the bench" : "Place on bench"}</span>
+                      </button>
+                      {showSpecs && (
+                        <button type="button" className="picker__info" aria-label={`About ${o.name}`} onClick={() => onInspect(o.id)}>i</button>
+                      )}
+                    </li>
+                  );
+                })}
+                {OPTIONAL_SLOTS.includes(slot) && (
+                  <li className={!picks[slot] ? "is-chosen" : ""}>
+                    <button type="button" className="picker__option" disabled={!!locked[slot]} onClick={() => onPick(slot, null)}>
+                      <span className="picker__name">{NONE_LABEL[slot]}</span>
+                      <span className="picker__state">{!picks[slot] ? "Chosen" : "Leave it out"}</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </div>

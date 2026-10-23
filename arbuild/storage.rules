@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// ARBuild Firebase Storage rules.
+// Publish in the Firebase console (Storage > Rules), or with `firebase deploy --only storage`.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // profile photos: everyone signed in can see them; you change only your own
+    match /avatars/{uid}/{file=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // files attached to a class's learning materials: the instructor uploads, the class reads
+    match /classes/{classId}/posts/{postId}/{file} {
+      function cls() {
+        return firestore.get(/databases/(default)/documents/classes/$(classId)).data;
+      }
+      function member() {
+        return firestore.exists(/databases/(default)/documents/classes/$(classId)/members/$(request.auth.uid));
+      }
+
+      allow read: if request.auth != null && (cls().instructorUid == request.auth.uid || member());
+      allow create: if request.auth != null && cls().instructorUid == request.auth.uid
+        && request.resource.size < 20 * 1024 * 1024;
+      allow delete: if request.auth != null && cls().instructorUid == request.auth.uid;
+    }
+  }
+}

@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
-import "../styles/Credits.css";
+// The 3D models ARBuild uses under Creative Commons licences, and who made them.
+import AppShell from "../components/AppShell";
+import Icon from "../components/Icon";
 
 const ASSETS = [
   {
@@ -27,31 +28,29 @@ const ASSETS = [
 
 export default function Credits() {
   return (
-    <div className="credits">
-      <Link to="/main" className="credits__back focus-ring">← Main menu</Link>
-
-      <p className="eyebrow">Attribution</p>
-      <h1 className="credits__title">3D Asset Credits</h1>
-      <p className="credits__intro">
-        ARBuild uses third-party 3D models under Creative Commons licenses.
-        We're grateful to these creators for making their work freely available.
-      </p>
-
-      <div className="pin-divider" />
-
-      <ul className="credits__list">
+    <AppShell
+      className="app-page--content"
+      eyebrow="Attribution"
+      title="3D model credits"
+      subtitle="ARBuild uses 3D models shared under Creative Commons licences. Thank you to the people who made them."
+    >
+      <ul className="credits-list">
         {ASSETS.map((asset) => (
-          <li key={asset.url} className="credits__item">
-            <p className="credits__name">{asset.name}</p>
-            <p className="credits__creator">
-              by <a href={asset.url} target="_blank" rel="noopener noreferrer">{asset.creator}</a>
-            </p>
-            <a href={asset.licenseUrl} target="_blank" rel="noopener noreferrer" className="credits__license">
-              Licensed under {asset.license}
+          <li key={asset.url} className="ins-panel">
+            <strong>{asset.name}</strong>
+            <span className="ins-muted">
+              by{" "}
+              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-link">
+                {asset.creator}
+              </a>
+            </span>
+            <a href={asset.licenseUrl} target="_blank" rel="noopener noreferrer" className="text-link">
+              <Icon name="award" size={14} />
+              {asset.license}
             </a>
           </li>
         ))}
       </ul>
-    </div>
+    </AppShell>
   );
 }

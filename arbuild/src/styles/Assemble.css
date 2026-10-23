@@ -46,7 +46,7 @@
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #4fd8c9;
+  color: #34d399;
   font-weight: 600;
 }
 
@@ -85,9 +85,9 @@
 }
 
 .assemble__rotate-btn--active {
-  background: rgba(79, 216, 201, 0.12);
-  border-color: #4fd8c9;
-  color: #4fd8c9;
+  background: rgba(52, 211, 153, 0.12);
+  border-color: #34d399;
+  color: #34d399;
 }
 
 /* Score Card & Popup Wrapper */
@@ -116,7 +116,7 @@
 }
 
 .assemble__score-value {
-  color: #4fd8c9;
+  color: #34d399;
   font-weight: 700;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
@@ -148,8 +148,8 @@
 }
 
 .assemble__floating-popup--success {
-  color: #4fd8c9;
-  border: 1px solid rgba(79, 216, 201, 0.3);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
 }
 
 .assemble__floating-popup--fail {
@@ -184,7 +184,7 @@
 }
 
 .assemble__selection-indicator strong {
-  color: #4fd8c9;
+  color: #34d399;
 }
 
 /* Viewport & Scene */
@@ -221,7 +221,7 @@
 }
 
 .assemble__toast--success {
-  border-left: 3px solid #4fd8c9;
+  border-left: 3px solid #34d399;
 }
 
 .assemble__toast--fail {
@@ -258,7 +258,7 @@
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid #4fd8c9;
+  outline: 2px solid #34d399;
   outline-offset: 2px;
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { MM } from "./orient";
 
 const MODEL_PATH = "/models/cpu.glb";
-const TARGET_WIDTH = 0.177; // world units — small square chip, roughly AM5 size
+const TARGET_WIDTH = 40 * MM; // an AM4 package is 40 × 40 mm
 
 /**
  * Real CPU model (.glb). A CPU is flat and thin (like the motherboard),
@@ -12,19 +13,18 @@ const TARGET_WIDTH = 0.177; // world units — small square chip, roughly AM5 si
  * (the chip's height/thickness), and rotate that to point up so it
  * lies flat, chip-side up, ready to seat into the socket.
  */
-export default function CPUModel({ spinY = 0, path = MODEL_PATH, ...props }) {
+export default function CPUModel({ spinY = 0, ...props }) {
   const [modelExists, setModelExists] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    setModelExists(null);
-    fetch(path, { method: "HEAD" })
+    fetch(MODEL_PATH, { method: "HEAD" })
       .then((res) => !cancelled && setModelExists(res.ok))
       .catch(() => !cancelled && setModelExists(false));
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, []);
 
   if (modelExists === false) {
     return <PlaceholderCPU {...props} rotation={[0, spinY, 0]} />;
@@ -32,7 +32,7 @@ export default function CPUModel({ spinY = 0, path = MODEL_PATH, ...props }) {
   if (modelExists === null) {
     return null;
   }
-  return <RealCPU {...props} path={path} spinY={spinY} />;
+  return <RealCPU {...props} spinY={spinY} />;
 }
 
 function PlaceholderCPU(props) {
@@ -54,8 +54,8 @@ function PlaceholderCPU(props) {
   );
 }
 
-function RealCPU({ spinY = 0, path, ...props }) {
-  const { scene } = useGLTF(path);
+function RealCPU({ spinY = 0, ...props }) {
+  const { scene } = useGLTF(MODEL_PATH);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   useEffect(() => {

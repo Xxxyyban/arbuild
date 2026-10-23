@@ -1,0 +1,301 @@
+rules_version = '2';
+
+// ARBuild Firestore security rules.
+// Publish in the Firebase console (Firestore Database > Rules), or with `firebase deploy --only firestore:rules`.
+//
+// Principles: deny by default; every write is checked against who is signing in; people can only
+// write their own things; counters only move by one, alongside the change they count; timestamps
+// are the server's; anything shown with a name or a badge can't be faked.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profileOf(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    // Admin = the signed-in user's profile has role "admin"
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && profileOf(request.auth.uid).role == 'admin';
+    }
+
+    // Faculty = the signed-in user's profile has role "faculty"
+    function isFaculty() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && profileOf(request.auth.uid).role == 'faculty';
+    }
+
+    // Instructors can run labs and classes: faculty and admins
+    function isInstructor() {
+      return isFaculty() || isAdmin();
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Only these fields change in this update
+    function onlyChanges(keys) {
+      return changed().hasOnly(keys);
+    }
+
+    // A short piece of text: a string of 1..max characters
+    function text(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+
+    // Fields a student/faculty must NOT be able to change on their own profile. Once the profile is
+    // set up, the student ID and section are fixed too (only the admin changes them), so nobody can
+    // take another student's ID.
+    function lockedFieldsUntouched() {
+      return !changed().hasAny(['role', 'status', 'email', 'uid', 'createdAt', 'createdBy', 'lastNotifiedAt'])
+        && (resource.data.get('profileCompleted', false) != true
+            || !changed().hasAny(['studentId', 'section', 'profileCompleted']));
+    }
+
+    // ---------- lab-session helpers ----------
+
+    // Running and not past its time. A lab runs until the instructor closes it (expiresAt is
+    // null); older labs saved with a countdown still stop when expiresAt passes.
+    function running(s) {
+      return s.status == 'running'
+        && (s.get('expiresAt', null) == null || request.time < s.expiresAt);
+    }
+
+    // Waiting for the instructor to start, or running
+    function sessionAlive(code) {
+      let s = get(/databases/$(database)/documents/sessions/$(code)).data;
+      return s.status == 'waiting' || running(s);
+    }
+
+    function sessionRunning(code) {
+      return running(get(/databases/$(database)/documents/sessions/$(code)).data);
+    }
+
+    // The instructor who created the session, or an admin
+    function ownsSession(code) {
+      return signedIn()
+        && (get(/databases/$(database)/documents/sessions/$(code)).data.instructorUid == request.auth.uid
+            || isAdmin());
+    }
+
+    // ---------- profiles ----------
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+    }
+
+    match /students/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+    }
+
+    match /faculty/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+    }
+
+    // ---------- notifications ----------
+
+    match /notifications/{id} {
+      // admin: full control. user: read their own, and may only flip "read".
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid && onlyChanges(['read']));
+    }
+
+    // ---------- lab activities (Build Lab sessions) ----------
+
+    match /sessions/{code} {
+      // A student can look up one code; instructors list only their own labs.
+      allow get: if signedIn();
+      allow list: if signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin());
+
+      allow create: if isInstructor() && request.resource.data.instructorUid == request.auth.uid;
+      allow update: if ownsSession(code) && request.resource.data.instructorUid == resource.data.instructorUid;
+      allow delete: if ownsSession(code);
+
+      // One row per student. A student writes only their own row while the lab is alive, and
+      // can never set the task the instructor assigned. Their official score is a whole number,
+      // out of the task's points (scoreScale, at most 100), never above it. The instructor can
+      // write any row. (Screens read the task's points from the lab itself, not from this row.)
+      match /students/{uid} {
+        function validScore() {
+          let d = request.resource.data;
+          let scale = d.get('scoreScale', 100);
+          return scale is int && scale >= 1 && scale <= 100
+            && (!('score' in d) || (d.score is int && d.score >= 0 && d.score <= scale));
+        }
+
+        allow read: if isOwner(uid) || ownsSession(code);
+        allow create: if isOwner(uid) && sessionAlive(code)
+          && !request.resource.data.keys().hasAny(['assignedTask', 'assignedMode', 'assignedAt'])
+          && validScore();
+        allow update: if ownsSession(code)
+          || (isOwner(uid) && sessionAlive(code)
+              && !changed().hasAny(['assignedTask', 'assignedMode', 'assignedAt', 'uid'])
+              && (!changed().hasAny(['score', 'scoreScale']) || validScore()));
+        allow delete: if ownsSession(code);
+      }
+
+      // Mistake log. Students add their own events (small ones), only the instructor reads them.
+      match /events/{eventId} {
+        allow read: if ownsSession(code);
+        allow create: if signedIn()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.size() <= 20
+          && sessionRunning(code);
+      }
+    }
+
+    // ---------- classes ----------
+    //   classCodes/{code}                     finds a class from its join code
+    //   classes/{classId}                     the class (instructor, code, name...)
+    //     members/{uid}                       students in it
+    //     posts/{postId}, .../comments/{id}   stream: announcements, materials, lab activities
+    //     threads/{studentUid}, .../messages  private instructor <-> student conversations
+    //   userClasses/{uid}/classes/{classId}   each student's own list of classes
+
+    // A code can be read one at a time (to join), never listed, and only points at your own class.
+    match /classCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isInstructor()
+        && request.resource.data.instructorUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.instructorUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.instructorUid == request.auth.uid;
+    }
+
+    match /classes/{classId} {
+      function classDoc() {
+        return get(/databases/$(database)/documents/classes/$(classId)).data;
+      }
+      function teaches() {
+        return signedIn() && (classDoc().instructorUid == request.auth.uid || isAdmin());
+      }
+      function memberPath(uid) {
+        return /databases/$(database)/documents/classes/$(classId)/members/$(uid);
+      }
+      function member() {
+        return signedIn() && exists(memberPath(request.auth.uid));
+      }
+      // the instructor, or the student whose conversation this is (while still in the class)
+      function inThread(studentUid) {
+        return teaches() || (isOwner(studentUid) && member());
+      }
+      // the head count moves by one, in the same write as the student joining or leaving
+      function joiningOrLeaving() {
+        return onlyChanges(['studentCount'])
+          && ((request.resource.data.studentCount == resource.data.studentCount + 1
+                && !exists(memberPath(request.auth.uid)) && existsAfter(memberPath(request.auth.uid)))
+            || (request.resource.data.studentCount == resource.data.studentCount - 1
+                && exists(memberPath(request.auth.uid)) && !existsAfter(memberPath(request.auth.uid))));
+      }
+
+      // name and code are shown to a student joining with the code
+      allow get: if signedIn();
+      allow list: if signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin());
+      allow create: if isInstructor()
+        && request.resource.data.instructorUid == request.auth.uid
+        && request.resource.data.studentCount == 0;
+      allow update: if (signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin())
+                        && request.resource.data.instructorUid == resource.data.instructorUid)
+        || (signedIn() && joiningOrLeaving());
+      allow delete: if signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin());
+
+      match /members/{uid} {
+        allow get: if isOwner(uid) || teaches();
+        allow list: if teaches();
+        // join yourself, as yourself (name, ID, section and email from your own profile), while
+        // the class takes new students
+        allow create: if isOwner(uid)
+          && classDoc().get('joinOpen', true) != false
+          && classDoc().get('archived', false) != true
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'studentId', 'section', 'joinedAt', 'seenStreamAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.name == (profileOf(uid).get('firstName', '') + ' ' + profileOf(uid).get('lastName', '')).trim()
+          && request.resource.data.studentId == profileOf(uid).get('studentId', '')
+          && request.resource.data.section == profileOf(uid).get('section', '')
+          && request.resource.data.joinedAt == request.time;
+        allow update: if isOwner(uid) && onlyChanges(['seenStreamAt']) && request.resource.data.seenStreamAt == request.time;
+        allow delete: if teaches() || isOwner(uid);
+      }
+
+      // the instructor posts; everyone in the class reads and comments
+      match /posts/{postId} {
+        allow read: if teaches() || member();
+        allow create, delete: if teaches();
+        allow update: if teaches()
+          || (member() && onlyChanges(['commentCount'])
+              && (request.resource.data.commentCount == resource.data.commentCount + 1
+                  || request.resource.data.commentCount == resource.data.commentCount - 1));
+
+        match /comments/{commentId} {
+          allow read: if teaches() || member();
+          // as yourself; only the instructor's comments carry the Instructor badge
+          allow create: if (teaches() || member())
+            && request.resource.data.keys().hasOnly(['text', 'authorUid', 'authorName', 'fromInstructor', 'createdAt'])
+            && request.resource.data.authorUid == request.auth.uid
+            && text(request.resource.data.text, 2000)
+            && text(request.resource.data.authorName, 120)
+            && request.resource.data.fromInstructor == teaches()
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+          allow delete: if teaches() || (signedIn() && resource.data.authorUid == request.auth.uid);
+        }
+      }
+
+      // one private conversation per student, between that student and the instructor
+      match /threads/{studentUid} {
+        allow read: if inThread(studentUid);
+        // you mark only your own side read, and only you can be the one who sent the last message
+        allow create: if inThread(studentUid)
+          && request.resource.data.studentUid == studentUid
+          && request.resource.data.get('readAt', {}).keys().hasOnly([request.auth.uid])
+          && request.resource.data.get('lastFrom', request.auth.uid) == request.auth.uid;
+        allow update: if inThread(studentUid)
+          && request.resource.data.studentUid == studentUid
+          && request.resource.data.get('readAt', {}).diff(resource.data.get('readAt', {})).affectedKeys().hasOnly([request.auth.uid])
+          && (!changed().hasAny(['lastFrom', 'lastAt', 'lastText']) || request.resource.data.lastFrom == request.auth.uid);
+        allow delete: if teaches();
+
+        match /messages/{messageId} {
+          allow read: if inThread(studentUid);
+          allow create: if inThread(studentUid)
+            && request.resource.data.keys().hasOnly(['text', 'from', 'fromName', 'createdAt'])
+            && request.resource.data.from == request.auth.uid
+            && text(request.resource.data.text, 4000)
+            && text(request.resource.data.fromName, 120)
+            && request.resource.data.createdAt == request.time;
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    match /userClasses/{uid}/classes/{classId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ---------- everything else ----------
+    // Add your other collections (AR models, etc.) above this line. Anything not listed is denied.
+  }
+}

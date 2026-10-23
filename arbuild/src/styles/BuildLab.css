@@ -30,9 +30,9 @@
   --lab-text-soft: #334155;
   --lab-muted: #64748b;
   --lab-placeholder: #94a3b8;
-  --lab-accent: #0d9488;
-  --lab-accent-soft: rgba(13, 148, 136, 0.12);
-  --lab-accent-glow: rgba(13, 148, 136, 0.3);
+  --lab-accent: #059669;
+  --lab-accent-soft: rgba(5, 150, 105, 0.12);
+  --lab-accent-glow: rgba(5, 150, 105, 0.3);
   --lab-danger: #dc2626;
   --lab-shadow: rgba(15, 23, 42, 0.16);
   --lab-popup-bg: rgba(255, 255, 255, 0.92);
@@ -64,9 +64,9 @@
   --lab-text-soft: #d1d5db;
   --lab-muted: #9ca3af;
   --lab-placeholder: #6b7280;
-  --lab-accent: #4fd8c9;
-  --lab-accent-soft: rgba(79, 216, 201, 0.12);
-  --lab-accent-glow: rgba(79, 216, 201, 0.28);
+  --lab-accent: #34d399;
+  --lab-accent-soft: rgba(52, 211, 153, 0.12);
+  --lab-accent-glow: rgba(52, 211, 153, 0.28);
   --lab-danger: #f87171;
   --lab-shadow: rgba(0, 0, 0, 0.45);
   --lab-popup-bg: rgba(18, 20, 26, 0.88);
@@ -94,9 +94,9 @@
     --lab-text-soft: #d1d5db;
     --lab-muted: #9ca3af;
     --lab-placeholder: #6b7280;
-    --lab-accent: #4fd8c9;
-    --lab-accent-soft: rgba(79, 216, 201, 0.12);
-    --lab-accent-glow: rgba(79, 216, 201, 0.28);
+    --lab-accent: #34d399;
+    --lab-accent-soft: rgba(52, 211, 153, 0.12);
+    --lab-accent-glow: rgba(52, 211, 153, 0.28);
     --lab-danger: #f87171;
     --lab-shadow: rgba(0, 0, 0, 0.45);
     --lab-popup-bg: rgba(18, 20, 26, 0.88);
@@ -591,17 +591,12 @@
   text-align: center;
 }
 
-.lab-start__badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--lab-accent-soft);
-  border: 1px solid var(--lab-accent);
-  color: var(--lab-accent);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.lab-start__brand {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--lab-text);
+  font-size: 1.05rem;
+  text-decoration: none;
 }
 
 .lab-start__title {
@@ -767,4 +762,11 @@
   .lab-start__card {
     flex-basis: 100%;
   }
+}
+/* official score: "87/100" */
+.assemble__score-max {
+  margin-left: 2px;
+  font-size: 0.5em;
+  font-weight: 600;
+  opacity: 0.7;
 }

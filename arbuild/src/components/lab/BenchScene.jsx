@@ -1,23 +1,18 @@
 // 3D pieces shared by both modes (moved out of Assemble.jsx / Disassemble.jsx).
-import { useRef, useMemo, useLayoutEffect, useContext } from "react";
+import { useRef, useMemo, useLayoutEffect, useContext, useEffect } from "react";
 import * as THREE from "three";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Text, Billboard } from "@react-three/drei";
 import CaseModel from "../../Three/CaseModel";
-import RAMModel from "../../Three/RAMModel";
-import CPUModel from "../../Three/CPUModel";
-import PSUModel from "../../Three/PSUModel";
-import GPUModel from "../../Three/GPUModel";
-import CPUCoolerModel from "../../Three/CPUCoolerModel";
-import StorageModel from "../../Three/StorageModel";
+import PartModel from "../../Three/PartModel";
 import CaseFanModel from "../../Three/CaseFanModel";
 import { ARContext } from "../../Three/xrSetup";
 import {
   TABLE, LABEL_OFFSETS, trayPosition, LAY_ANGLE, measureLocalBox,
   FAN_CONFIG, FRONT_SIGN, FAN_GROUPS, CPU_SOCKET_ABS,
-  MOBO_LYING_ROTATION, RAM_LYING_ROTATION, RAM_SCALE, CPU_TRAY_ROTATION,
+  MOBO_LYING_ROTATION, RAM_LYING_ROTATION, CPU_TRAY_ROTATION,
   PSU_TRAY_ROTATION, GPU_TRAY_ROTATION, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z,
-  COOLER_TRAY_LIFT, COOLER_TRAY_YAW, COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z, STORAGE_DIMS,
+  COOLER_TRAY_LIFT, COOLER_TRAY_YAW, COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z,
 } from "../../lab/Constants";
 
 export function CaseWithMeasure({ onMeasure }) {
@@ -226,23 +221,71 @@ export function Workbench() {
 }
 
 // Always faces the camera and always draws on top of models.
-export function TrayLabel({ name, text, offset = LABEL_OFFSETS[name] ?? [0, 0.35, 0] }) {
+// A part's name tag on the bench. `sub` (the model, e.g. "DDR4") is a second, dimmer line.
+export function TrayLabel({ name, text, sub = null, offset = LABEL_OFFSETS[name] ?? [0, 0.3, 0] }) {
   const [x, y, z] = trayPosition(name);
-  const w = text.length * 0.075 + 0.22;
+  const w = Math.max(text.length, sub ? sub.length * 0.8 : 0) * 0.062 + 0.18;
+  const h = sub ? 0.2 : 0.13;
+  // up close a tag would fill the screen, so it hides when the camera comes near
+  const ref = useRef();
+  const inAR = useContext(ARContext); // in AR the whole bench is scaled down: keep tags on
+  useFrame(({ camera }) => {
+    if (ref.current) ref.current.visible = inAR || camera.position.distanceTo(ref.current.position) > 2.4;
+  });
   return (
-    <Billboard position={[x + offset[0], y + offset[1], z + offset[2]]}>
+    <Billboard ref={ref} position={[x + offset[0], y + offset[1], z + offset[2]]}>
       <mesh raycast={() => null} renderOrder={999}>
-        <planeGeometry args={[w, 0.17]} />
-        <meshBasicMaterial color="#0f172a" transparent opacity={0.85} depthTest={false} />
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial color="#0f172a" transparent opacity={0.8} depthTest={false} />
       </mesh>
       <Text
-        position={[0, 0, 0.001]} fontSize={0.085} color="#ffffff" anchorX="center" anchorY="middle"
+        position={[0, sub ? 0.035 : 0, 0.001]} fontSize={0.074} color="#ffffff" anchorX="center" anchorY="middle"
         renderOrder={1000} material-depthTest={false} raycast={() => null}
       >
         {text}
       </Text>
+      {sub && (
+        <Text
+          position={[0, -0.05, 0.001]} fontSize={0.05} color="#94a3b8" anchorX="center" anchorY="middle"
+          renderOrder={1000} material-depthTest={false} raycast={() => null}
+        >
+          {sub}
+        </Text>
+      )}
     </Billboard>
   );
+}
+
+/**
+ * Glides the camera to `focus` ({ key, target, position }, world space) whenever its key changes,
+ * then hands the view back to the student. Used to show where a cable goes.
+ */
+export function CameraFocus({ focus }) {
+  const { camera, controls } = useThree();
+  const anim = useRef(null);
+  const key = focus?.key;
+  useEffect(() => {
+    if (!focus || !controls) return;
+    anim.current = {
+      t: 0,
+      fromP: camera.position.clone(),
+      fromT: controls.target.clone(),
+      toP: new THREE.Vector3(...focus.position),
+      toT: new THREE.Vector3(...focus.target),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, controls]);
+  useFrame((_, dt) => {
+    const a = anim.current;
+    if (!a || !controls) return;
+    a.t = Math.min(1, a.t + dt / 0.8);
+    const k = a.t * a.t * (3 - 2 * a.t);
+    camera.position.lerpVectors(a.fromP, a.toP, k);
+    controls.target.lerpVectors(a.fromT, a.toT, k);
+    controls.update();
+    if (a.t >= 1) anim.current = null;
+  });
+  return null;
 }
 
 export function BenchLoadingFallback() {
@@ -250,7 +293,7 @@ export function BenchLoadingFallback() {
     <group position={[0, 0.4, 0]}>
       <mesh>
         <torusGeometry args={[0.4, 0.05, 16, 48]} />
-        <meshStandardMaterial color="#4fd8c9" emissive="#4fd8c9" emissiveIntensity={0.4} />
+        <meshStandardMaterial color="#34d399" emissive="#34d399" emissiveIntensity={0.4} />
       </mesh>
     </group>
   );
@@ -290,49 +333,51 @@ export function TargetMarker({ name, pose, onPlace, radius = 0.22 }) {
 }
 
 // What each non-motherboard part looks like lying on the bench tray.
-// `item` is the picked catalog entry; parts with several models (CPU) use its file.
-export function TrayModel({ name, item }) {
+// `item` is the picked catalog entry; its `variant` picks the component (CPUModel, CPUModel1...).
+// `extra` is drawn in the part's own frame (the PSU's socket panel, for one).
+export function TrayModel({ name, item, extra = null }) {
   switch (name) {
     case "cpu":
       return (
         <group rotation={CPU_TRAY_ROTATION}>
-          <CPUModel path={item?.model} />
+          <PartModel category="cpu" variant={item?.variant} />
         </group>
       );
     case "storage":
-      return <StorageModel {...STORAGE_DIMS} />;
+      return <PartModel category="storage" variant={item?.variant} />;
     case "cpu_cooler":
       return (
         <group position={[0, COOLER_TRAY_LIFT, 0]} rotation={[0, COOLER_TRAY_YAW, 0]}>
           <group rotation={MOBO_LYING_ROTATION}>
             <group rotation={[COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z]}>
-              <CPUCoolerModel />
+              <PartModel category="cpu_cooler" variant={item?.variant} />
             </group>
           </group>
         </group>
       );
     case "ram1":
       return (
-        <group rotation={RAM_LYING_ROTATION} scale={RAM_SCALE}>
-          <RAMModel accentColor="#4fd8c9" />
+        <group rotation={RAM_LYING_ROTATION}>
+          <PartModel category="ram" variant={item?.variant} accentColor="#34d399" />
         </group>
       );
     case "ram2":
       return (
-        <group rotation={RAM_LYING_ROTATION} scale={RAM_SCALE}>
-          <RAMModel accentColor="#e8a33d" />
+        <group rotation={RAM_LYING_ROTATION}>
+          <PartModel category="ram" variant={item?.variant} accentColor="#e8a33d" />
         </group>
       );
     case "psu":
       return (
         <group rotation={PSU_TRAY_ROTATION}>
-          <PSUModel />
+          <PartModel category="psu" variant={item?.variant} />
+          {extra}
         </group>
       );
     case "gpu":
       return (
         <group rotation={GPU_TRAY_ROTATION}>
-          <GPUModel spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />
+          <PartModel category="gpu" variant={item?.variant} spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />
         </group>
       );
     default:

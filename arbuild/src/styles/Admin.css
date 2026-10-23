@@ -81,10 +81,7 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: var(--em-500);
-  color: var(--forest);
-  font-weight: 800;
-  font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .admin-brand h1 {

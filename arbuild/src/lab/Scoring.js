@@ -22,6 +22,15 @@ export const POINTS = {
   // safety steps (disassemble)
   shutdown: 10,
   unplug: 10,
+  discharge: 10,
+  // cables and screws
+  cable_atx24: 15,
+  cable_eps8: 15,
+  cable_pcie: 10,
+  psu_atx24: 10, // a cable's PSU end (modular PSU)
+  psu_eps8: 10,
+  psu_pcie: 10,
+  screws: 20,
   // shared multipliers
   perfectBonus: 0.1,
   missPenalty: 0.15,
@@ -41,6 +50,14 @@ export const REMOVE_POINTS = {
   paste: 20,
   shutdown: 10,
   unplug: 10,
+  discharge: 10,
+  cable_atx24: 10,
+  cable_eps8: 10,
+  cable_pcie: 10,
+  psu_atx24: 5,
+  psu_eps8: 5,
+  psu_pcie: 5,
+  screws: 15,
 };
 
 export const basePoints = (mode, name) =>
@@ -128,3 +145,91 @@ export function revertPenalty({ base, flawed, count, level = "light" }) {
   const raw = base * share * (1 + (count - 1) * REVERT.escalate);
   return Math.max(REVERT.floor, Math.round(raw));
 }
+
+/* ---------- the official score (class work) ---------- */
+
+// Class work gets one official score, out of the task's points (the instructor sets them, up to
+// 100): what the student earned on the task (after the time factor and penalties) against what a
+// perfect, on-time run of that task earns. Only what the task asks for counts. This is the score
+// the instructor reads.
+export const OFFICIAL_MAX = 100;
+
+const perfect = (base) => actionPoints(base, 0);
+
+/**
+ * What a task asks for, for grading. task: the instructor's task (lab/Tasks); modular: whether the
+ * student's PSU takes cables. A teardown takes apart a full PC, so it always has a GPU and 2 sticks.
+ */
+export function taskRequirements(task, modular) {
+  const build = task.mode !== "disassemble";
+  const gpu = build ? task.requireGpu !== false : true;
+  const dualRam = build ? Number(task.ramSticks) !== 1 : true;
+  const slots = ["motherboard", "cpu", "ram1", ...(dualRam ? ["ram2"] : []), "cpu_cooler", "storage", "psu", ...(gpu ? ["gpu"] : [])];
+  return { slots, gpu, dualRam, modular, boot: build ? task.mustBoot !== false : false };
+}
+
+/** The most boot points a task counts (booting with parts the task doesn't ask for earns no more). */
+const bootMax = ({ gpu, dualRam }) => POINTS.bootBase + (dualRam ? POINTS.bootDualRam : 0) + (gpu ? POINTS.bootGpu : 0);
+
+/**
+ * The points that count for a task: work the task didn't ask for (a GPU it doesn't need, a second
+ * stick, booting when it needn't) is left out, so extras can't make up for what's missing.
+ */
+export function taskLedger(ledger, req) {
+  const out = {};
+  for (const [k, v] of Object.entries(ledger)) {
+    const name = k.slice(k.indexOf(":") + 1);
+    if (!req.gpu && (name === "gpu" || name === "cable_pcie" || name === "psu_pcie")) continue;
+    if (!req.dualRam && name === "ram2") continue;
+    if (k === "assemble:boot") {
+      if (!req.boot) continue;
+      out[k] = Math.min(v, bootMax(req));
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/** The most points a perfect run of a task can earn (what full marks means). req: taskRequirements(). */
+export function maxPoints(mode, { slots, gpu, dualRam, modular, boot = true }) {
+  const T = mode === "disassemble" ? REMOVE_POINTS : POINTS;
+  let max = slots.reduce((s, slot) => s + perfect(T[slot] ?? 0), 0);
+  // cables: the board's two, the graphics card's one; their PSU ends on a modular PSU; the screws
+  const cables = ["atx24", "eps8", ...(gpu ? ["pcie"] : [])];
+  max += cables.reduce((s, c) => s + perfect(T[`cable_${c}`] ?? 0), 0);
+  if (modular) max += cables.reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
+  max += perfect(T.screws ?? 0);
+  if (mode === "disassemble") {
+    max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(POINTS.paste);
+  } else {
+    max += POINTS.paste + (boot ? bootMax({ gpu, dualRam }) : 0);
+  }
+  return max;
+}
+
+/** The score card -> the official score (a whole number from 0 to outOf, the task's points). */
+export function officialScore(card, mode, max, outOf = OFFICIAL_MAX) {
+  if (!(max > 0)) return 0;
+  const earned = (mode === "disassemble" ? card.disassemble : card.assemble) - card.penalty;
+  return Math.max(0, Math.min(outOf, Math.round((earned / max) * outOf)));
+}
+
+/** Points -> how much of the official score they are worth ("+2.5", "+12"). */
+export function officialDelta(points, max, outOf = OFFICIAL_MAX) {
+  if (!(max > 0)) return "0";
+  const v = (points / max) * outOf;
+  return v < 10 ? v.toFixed(1).replace(/\.0$/, "") : String(Math.round(v));
+}
+
+/**
+ * How a saved score reads: "43/50" (out of the task's points, never more than them), or "412 pts"
+ * for a lab saved before scores were official.
+ */
+export function scoreText(row, outOf = OFFICIAL_MAX) {
+  if (!row?.scoreScale) return `${row?.score ?? 0} pts`;
+  return `${Math.min(row.score ?? 0, outOf)}/${outOf}`;
+}
+
+/** A saved official score, capped at the task's points (0 for an older, unofficial one). */
+export const cappedScore = (row, outOf = OFFICIAL_MAX) => (row?.scoreScale ? Math.min(row.score ?? 0, outOf) : 0);

@@ -541,3 +541,159 @@
     animation: none;
   }
 }
+
+/* Picker: one section per slot (RAM stick 1 / stick 2) */
+.picker__slot + .picker__slot {
+  margin-top: 14px;
+}
+
+.picker__slot-head {
+  margin: 0 0 6px;
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Teardown has seven controls: let the row wrap instead of running off the left edge */
+.assemble__control-panel {
+  left: 24px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* .assemble prefix: Assemble.css (loaded globally) also styles .assemble__toast and would win */
+@media (min-width: 721px) {
+  .assemble .assemble__toast {
+    bottom: 128px; /* clears two rows of controls */
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Cables (components/lab/CableDrawer.jsx) and the connect banner (BuildLab)
+   -------------------------------------------------------------------------- */
+.cable-drawer {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 31;
+  max-height: calc(100% - 110px);
+  display: flex;
+}
+
+.cable-drawer.is-beside-picker,
+.cable-task.is-beside-picker {
+  left: 100px;
+}
+
+.cable-drawer__swatch {
+  display: flex;
+  gap: 2px;
+  margin: 4px 0 2px;
+}
+
+.cable-drawer__swatch i {
+  width: 10px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.cable-task {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 32;
+  width: min(300px, calc(100% - 32px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--lab-panel);
+  border: 1px solid var(--lab-accent);
+  box-shadow: 0 10px 28px var(--lab-shadow);
+  backdrop-filter: blur(10px);
+  color: var(--lab-text);
+  font-size: 0.82rem;
+  animation: labToast 0.15s ease-out;
+}
+
+.cable-task__step {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--lab-accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cable-task p {
+  margin: 0 0 8px;
+  line-height: 1.4;
+  min-height: 4.2em; /* keeps the buttons in place as the text changes */
+}
+
+.cable-task__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cable-task__actions button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--lab-line-strong);
+  background: var(--lab-surface-hover);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cable-task__actions button.is-primary {
+  background: var(--lab-accent);
+  border-color: var(--lab-accent);
+  color: #0b1220;
+}
+
+.cable-task__actions button:focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .cable-drawer,
+  .cable-drawer.is-beside-picker,
+  .cable-task,
+  .cable-task.is-beside-picker {
+    width: auto;
+    left: 16px;
+    right: 16px;
+  }
+  .cable-drawer .picker__drawer {
+    width: 100%;
+  }
+}
+
+.cable-drawer__ends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 4px;
+}
+
+.cable-drawer__ends em {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px dashed var(--lab-line-strong);
+  color: var(--lab-muted);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.cable-drawer__ends em.is-done {
+  border-style: solid;
+  border-color: var(--lab-accent);
+  color: var(--lab-accent);
+}

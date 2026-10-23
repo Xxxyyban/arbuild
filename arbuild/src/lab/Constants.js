@@ -26,19 +26,21 @@ export const TABLE = {
   matColor: "#2e1408",
 };
 
+// Where each part waits on the bench: PSU and SSD on the left, the board in the middle, the
+// small parts in a column on the right, the graphics card behind them.
 export const TRAY_OFFSETS = {
-  motherboard: [-0.05, 0.15, 3],
-  cpu: [0.8, 0.01, 2.4],
-  ram1: [1.2, 0.15, 2.9],
-  ram2: [1.4, 0.15, 2.9],
-  psu: [-1.6, 0.05, 2.7],
-  gpu: [1.2, 0.15, 1.5],
-  cpu_cooler: [0.8, 0.01, 2.8],
-  storage: [-1.2, 0.05, 1.9],
+  motherboard: [-0.2, 0.15, 2.9],
+  cpu: [0.95, 0.01, 2.2],
+  ram1: [1.95, 0.02, 2.3],
+  ram2: [1.95, 0.02, 2.75],
+  psu: [-1.75, 0.05, 2.0],
+  gpu: [1.55, 0.15, 1.35],
+  cpu_cooler: [0.95, 0.01, 3.1],
+  storage: [-1.75, 0.03, 3.15],
 };
 
-// [x, y, z] added on top of the tray position. Default is [0, 0.35, 0].
-export const LABEL_OFFSETS = { psu: [0, 1.0, 0] };
+// [x, y, z] added on top of the tray position for the part's name tag. Default is [0, 0.3, 0].
+export const LABEL_OFFSETS = { psu: [0, 0.62, 0], motherboard: [0, 0.3, -0.75], gpu: [0, 0.5, 0], cpu_cooler: [0, 0.4, 0] };
 
 export function trayPosition(name) {
   const o = TRAY_OFFSETS[name];
@@ -49,11 +51,10 @@ export function trayPosition(name) {
 export const MOBO_LYING_ROTATION = [-Math.PI / 2, Math.PI, 0];
 export const MOBO_MOUNTED_ROTATION = [0, Math.PI, 0];
 export const MOBO_SCALE = [0.9999999, 1.12, 1.25];
-export const RAM_LYING_ROTATION = [-Math.PI / 2, Math.PI, 0];
+export const RAM_LYING_ROTATION = [0, 0, Math.PI / 2]; // flat on the bench, label up
 export const CPU_TRAY_ROTATION = [0, Math.PI, 0];
-export const PSU_TRAY_ROTATION = [0, 0, 0];
+export const PSU_TRAY_ROTATION = [0, Math.PI, 0]; // modular sockets facing the student
 export const GPU_TRAY_ROTATION = [0, Math.PI, 0];
-export const RAM_SCALE = [0.85, 0.959, 0.85];
 
 export const COOLER_TRAY_YAW = 0;
 export const COOLER_TRAY_LIFT = 0;
@@ -101,13 +102,69 @@ export const COOLER_OFFSET = [
 export const CPU_LOCAL = [-CPU_OFFSET[0], CPU_OFFSET[1], -CPU_OFFSET[2]];
 
 export const STORAGE_LOCAL = [0.14, 0.625, 0.075];
-export const STORAGE_MOUNT_ROTATION = [Math.PI / 2, (90 * Math.PI) / 180, 0];
-export const STORAGE_FLIP_ROTATION = [Math.PI, 0, 0];
-export const STORAGE_DIMS = { length: 0.85, width: 1, thickness: 1 };
+// Every SSD component draws its drive the same way: lying flat (chips up, +Y), its gold pins at the
+// origin and the drive running along -X. This turns that onto the board: pins toward the board's
+// right, chips facing out.
+export const STORAGE_MOUNT_ROTATION = [Math.PI / 2, 0, Math.PI];
 export const STORAGE_OFFSET = [-STORAGE_LOCAL[0], STORAGE_LOCAL[1], -STORAGE_LOCAL[2]];
 
 export const PASTE_LIFT = 0.02;
 export const PASTE_LOCAL = [CPU_LOCAL[0], CPU_LOCAL[1], CPU_LOCAL[2] + PASTE_LIFT];
+
+/* ---------- per-board layout ---------- */
+// Every board model has its own size and its own socket / slot positions, so each board
+// component exports MOUNTS (Three/MotherboardModel.jsx, MotherboardModel1.jsx...).
+// These are the AM4 board's, tuned on motherboard.glb. All points are in board space
+// (the space the board model is drawn in, before `scale`).
+export const BASE_MOUNTS = {
+  scale: MOBO_SCALE, // stretch applied to the board and everything on it
+  cpu: CPU_LOCAL, // centre of the socket, where the CPU's underside sits
+  cooler: null, // centre of the CPU's top face, where a cooler's base plate sits (null: worked out from cpu)
+  ram: RAM_SLOTS_LOCAL, // the 4 DIMM slots, slot 1 first
+  storage: STORAGE_LOCAL, // the M.2 connector, where a drive's gold pins go
+  gpu: GPU_TARGET.position, // where the graphics card sits in the case (case space), lined up with this board's x16 slot
+  // Cables and screws, in case space (only used while the board is in the case), measured on motherboard.glb:
+  pcbFront: -0.405, // depth of the board's front surface
+  holes: [
+    [-0.686, 1.995], [-0.114, 1.987], [0.188, 1.981],
+    [-0.788, 1.22], [-0.122, 1.222], [0.193, 1.223],
+    [-0.783, 0.622], [-0.122, 0.619], [0.19, 0.62],
+  ], // the 9 ATX screw holes, measured on the hole rings in close-up
+  atx24: [0.204, 1.515], // centre of the 24-pin header (vertical, on the right edge): the model's Cube014_22
+  eps8: [-0.593, 1.986], // centre of the 8-pin CPU power header (top-left): the model's Cube081_89
+};
+
+/** Everything the lab needs to place parts on one board, from that board's MOUNTS. */
+export function boardLayout(m = BASE_MOUNTS) {
+  const cpuOffset = [-m.cpu[0], m.cpu[1], -m.cpu[2]];
+  const coolerOffset = m.cooler
+    ? [-m.cooler[0], m.cooler[1], -m.cooler[2]]
+    : [
+        cpuOffset[0] + COOLER_POSITION_OFFSET[0],
+        cpuOffset[1] + COOLER_HEIGHT + COOLER_POSITION_OFFSET[1],
+        cpuOffset[2] + COOLER_POSITION_OFFSET[2],
+      ];
+  const coolerLocal = [-coolerOffset[0], coolerOffset[1], -coolerOffset[2]];
+  return {
+    scale: m.scale,
+    cpuLocal: m.cpu,
+    cpuOffset,
+    // a pea of paste on the CPU's top face (board space: out of the board is -Z)
+    pasteLocal: m.cooler
+      ? [m.cooler[0], m.cooler[1], m.cooler[2] - 0.003 / m.scale[2]]
+      : [m.cpu[0], m.cpu[1], m.cpu[2] + PASTE_LIFT],
+    coolerLocal,
+    coolerOffset,
+    storageLocal: m.storage,
+    storageOffset: [-m.storage[0], m.storage[1], -m.storage[2]],
+    ramSlots: m.ram,
+    gpu: m.gpu || GPU_TARGET.position,
+    pcbFront: m.pcbFront ?? BASE_MOUNTS.pcbFront,
+    holes: m.holes || BASE_MOUNTS.holes,
+    atx24: m.atx24 || BASE_MOUNTS.atx24,
+    eps8: m.eps8 || BASE_MOUNTS.eps8,
+  };
+}
 
 /* ---------- case laid down on the bench ---------- */
 export const LAY_ANGLE = -Math.PI / 2;
@@ -128,9 +185,9 @@ export const FAN_CONFIG = {
 };
 export const FRONT_SIGN = 1;
 export const FAN_GROUPS = {
-  top: { count: 2, size: null, dims: null, nudge: [0, -5.29, 0.12], flip: false },
-  front: { count: 3, size: null, dims: null, nudge: [-0.03, -2.54, 0.03], flip: false },
-  rear: { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.14], flip: false },
+  top: { count: 2, size: null, dims: null, nudge: [0, -0.041, 0.125], flip: false },
+  front: { count: 3, size: null, dims: null, nudge: [-0.03, 0.084, 0.035], flip: false },
+  rear: { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.145], flip: false },
 };
 
 /* ---------- monitor ---------- */
@@ -149,12 +206,8 @@ export function addRotatedOffset(base, offset, rotationY = Math.PI) {
   return [base[0] + rx, base[1] + offset[1], base[2] + rz];
 }
 
-export function moboLocalToWorld(base, local, rotation) {
-  const v = new THREE.Vector3(
-    local[0] * MOBO_SCALE[0],
-    local[1] * MOBO_SCALE[1],
-    local[2] * MOBO_SCALE[2]
-  );
+export function moboLocalToWorld(base, local, rotation, scale = MOBO_SCALE) {
+  const v = new THREE.Vector3(local[0] * scale[0], local[1] * scale[1], local[2] * scale[2]);
   v.applyEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
   return [base[0] + v.x, base[1] + v.y, base[2] + v.z];
 }

@@ -1,0 +1,1205 @@
+/* ==========================================================================
+   The shared look of every signed-in page (components/AppShell.jsx): the
+   sidebar and header from Main.css, plus the parts pages are made of:
+   buttons, cards, tabs, chips, forms and class cards.
+   One brand colour, ARBuild emerald. Light and dark follow <html data-theme>.
+   ========================================================================== */
+
+:root {
+  --primary-strong: #047857; /* emerald text and icons on light surfaces */
+  --primary-btn: #059669;
+  --primary-btn-hover: #047857;
+  --surface-2: #f1f5f9;
+  --border-strong: #cbd5e1;
+  --text-soft: #334155;
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.08);
+  --warn: #b45309;
+  --warn-soft: rgba(245, 158, 11, 0.14);
+  --ring: 0 0 0 3px rgba(16, 185, 129, 0.28);
+}
+
+[data-theme="dark"] {
+  --primary-strong: #34d399;
+  --primary-btn: #059669;
+  --primary-btn-hover: #10b981;
+  --surface-2: #1e293b;
+  --border-strong: #334155;
+  --text-soft: #cbd5e1;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.12);
+}
+
+/* The class components are styled with the --lab-* variables (BuildLab.css);
+   on these pages they take the app's colours instead. */
+.app-page {
+  --lab-bg: var(--bg-main);
+  --lab-bg-soft: var(--card-bg);
+  --lab-panel: var(--card-bg);
+  --lab-card: var(--card-bg);
+  --lab-surface: var(--surface-2);
+  --lab-surface-hover: var(--primary-light);
+  --lab-line: var(--border-color);
+  --lab-line-strong: var(--border-strong);
+  --lab-text: var(--text-main);
+  --lab-text-soft: var(--text-soft);
+  --lab-muted: var(--text-muted);
+  --lab-placeholder: #94a3b8;
+  --lab-accent: var(--primary-strong);
+  --lab-accent-soft: var(--primary-light);
+  --lab-accent-glow: rgba(16, 185, 129, 0.25);
+  --lab-danger: var(--danger);
+  --lab-shadow: rgba(15, 23, 42, 0.06);
+
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--text-main);
+}
+
+.app-page > * {
+  min-width: 0;
+}
+
+/* 100vw counts the scrollbar, which made every page scroll sideways a little */
+.app-shell {
+  width: 100%;
+}
+
+.app-shell > .app-main {
+  max-width: none;
+  min-width: 0;
+}
+
+/* pages of cards and lists (not the 3D studio) stay a readable width */
+.app-page--content > * {
+  width: 100%;
+  max-width: 1120px;
+}
+
+/* ---------- sidebar additions ---------- */
+.sidebar__brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.logo svg {
+  display: block;
+}
+
+.logo__name {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sidebar__link--quiet {
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__footer .sidebar__link--quiet + .sidebar__link--quiet {
+  margin-top: -8px;
+}
+
+.sidebar__link:focus-visible,
+.sidebar__brand-link:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* the theme switch matches the sidebar (it uses the older tokens elsewhere) */
+.sidebar__footer .theme-toggle {
+  width: 34px;
+  height: 34px;
+  background: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-muted);
+}
+
+.sidebar__footer .theme-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+/* ---------- page header ---------- */
+.main__header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-bottom: 2px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page-back:hover {
+  color: var(--primary-strong);
+}
+
+.app-page .main__greeting {
+  overflow-wrap: anywhere;
+}
+
+/* the bell, sized like the menu button */
+.main__header-tools .nbell__btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+}
+
+.main__header-tools .nbell__btn:hover {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn .icon {
+  flex-shrink: 0;
+}
+
+.btn--primary {
+  background: var(--primary-btn);
+  border-color: var(--primary-btn);
+  color: #fff;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--primary-btn-hover);
+  border-color: var(--primary-btn-hover);
+  color: #fff;
+}
+
+.btn--soft {
+  background: var(--primary-light);
+  border-color: transparent;
+  color: var(--primary-strong);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text-main);
+}
+
+.btn--danger {
+  background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn--sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.8rem;
+}
+
+.btn--icon {
+  width: 38px;
+  padding: 0;
+}
+
+.btn--sm.btn--icon {
+  width: 32px;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary-strong);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- cards, headings, chips ---------- */
+.app-page .ins-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-subtle);
+}
+
+.app-page .ins-panel > h2,
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.panel-title .icon {
+  color: var(--primary-strong);
+}
+
+.panel-head {
+  display: grid;
+  gap: 4px;
+}
+
+.app-page .ins-head {
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.app-page .ins-head .ins-row {
+  flex-wrap: wrap;
+}
+
+.app-page .ins-muted {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.app-page .ins-small {
+  font-size: 0.84rem;
+}
+
+.page-section {
+  display: grid;
+  gap: 12px;
+}
+
+.section-label {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.section-toggle:hover {
+  color: var(--text-main);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip--alert {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip--live {
+  background: var(--primary-light);
+  color: var(--primary-strong);
+}
+
+.chip--live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: app-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes app-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.app-page .ins-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.app-page .ins-badge--live {
+  background: var(--primary-light);
+  color: var(--primary-strong);
+}
+
+.app-page .ins-badge--done {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.app-page .ins-badge--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.app-page .ins-alert {
+  padding: 12px 14px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.88rem;
+}
+
+.app-page .cls-banner {
+  padding: 12px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--text-main);
+  font-size: 0.88rem;
+}
+
+.app-page .cls-empty {
+  padding: 32px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+}
+
+.app-page .ins-code-sm {
+  border-radius: 6px;
+  background: var(--primary-light);
+  color: var(--primary-strong);
+}
+
+/* ---------- inputs ---------- */
+.app-page .cls-input,
+.app-page .ins-select,
+.app-page .ins-field input,
+.app-page .ins-field select,
+.app-page .ins-field textarea,
+.cform__field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.app-page .ins-select {
+  width: auto;
+  max-width: 100%;
+  padding-right: 28px;
+}
+
+.app-page .cls-input:focus,
+.app-page .ins-select:focus,
+.app-page .ins-field input:focus,
+.app-page .ins-field select:focus,
+.app-page .ins-field textarea:focus,
+.cform__field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+.app-page .cls-input--sm {
+  width: 220px;
+  min-height: 38px;
+}
+
+.search-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.search-field .icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.app-page .search-field .cls-input {
+  padding-left: 34px;
+}
+
+/* ---------- the class's tabs ---------- */
+.ctabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-color);
+  scrollbar-width: none;
+}
+
+.ctabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ctabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ctabs button:hover {
+  color: var(--text-main);
+}
+
+.ctabs button.is-on {
+  border-bottom-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+.ctabs button:focus-visible {
+  outline: none;
+  box-shadow: inset var(--ring);
+}
+
+/* ---------- under the class name: schedule, room, join code ---------- */
+.class-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: -8px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.class-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.class-meta__item .icon {
+  color: var(--primary-strong);
+}
+
+.join-code {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.join-code__label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.join-code code {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+/* the "new post" and "new lab activity" openers */
+.app-page .cls-compose-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.app-page .cls-compose-open:hover {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+
+/* ---------- class cards ---------- */
+.cgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ccard {
+  --class-color: #059669;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-subtle);
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.ccard:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.ccard:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.ccard--static,
+.ccard--static:hover {
+  cursor: default;
+  transform: none;
+  box-shadow: var(--shadow-subtle);
+  border-color: var(--border-color);
+}
+
+.ccard__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ccard__avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--class-color) 14%, transparent);
+  color: var(--class-color);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="dark"] .ccard__avatar {
+  background: color-mix(in srgb, var(--class-color) 24%, transparent);
+  color: color-mix(in srgb, var(--class-color) 55%, #fff);
+}
+
+.ccard__titles {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ccard__name {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ccard__line {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ccard__next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.ccard__next.is-now {
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.ccard__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.ccard__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.ccard__who code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.ccard--skeleton {
+  min-height: 150px;
+  cursor: default;
+  background: linear-gradient(90deg, var(--card-bg) 0%, var(--surface-2) 50%, var(--card-bg) 100%);
+  background-size: 200% 100%;
+  animation: app-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes app-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- today (instructor) ---------- */
+.today__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today__list button {
+  --class-color: #059669;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--class-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today__list button:hover {
+  border-color: var(--primary);
+  border-left-color: var(--class-color);
+}
+
+.today__time {
+  color: var(--text-main);
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.today__name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today__meta {
+  grid-column: 2;
+  grid-row: 2;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.today__go {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  color: var(--text-muted);
+}
+
+/* ---------- the class form ---------- */
+.cform {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px 24px;
+}
+
+.cform__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.cform__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cform__field--wide {
+  grid-column: 1 / -1;
+}
+
+.cform__field > span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cform__field em {
+  color: var(--text-muted);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.cform__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cform__days button {
+  min-width: 50px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cform__days button:hover {
+  border-color: var(--primary);
+}
+
+.cform__days button.is-on {
+  border-color: var(--primary-btn);
+  background: var(--primary-btn);
+  color: #fff;
+}
+
+.cform__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cform__colors button {
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--card-bg);
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+
+.cform__colors button.is-on {
+  box-shadow: 0 0 0 2px var(--swatch);
+}
+
+.cform__colors button:focus-visible,
+.cform__days button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.cform__preview {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.cform__preview-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cform__error,
+.cform__actions {
+  grid-column: 1 / -1;
+}
+
+.cform__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ---------- lists of labs ---------- */
+.app-page .ins-sessions li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-main);
+}
+
+.app-page .ins-sessions li > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/* ---------- tables ---------- */
+.app-page .ins-table-wrap {
+  max-width: 100%;
+  margin-top: 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-page .ins-table th {
+  background: var(--bg-main);
+  border-bottom-color: var(--border-color);
+  letter-spacing: 0.04em;
+}
+
+.app-page .ins-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.app-page .cls-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ---------- messages: one conversation at a time on a phone ---------- */
+.cls-inbox__back {
+  display: none;
+}
+
+/* ---------- the lab monitor ---------- */
+.lab-monitor .ins-hero {
+  box-shadow: var(--shadow-subtle);
+}
+
+.lab-monitor .ins-code {
+  color: var(--primary-strong);
+}
+
+/* ---------- touch screens: bigger targets ---------- */
+@media (pointer: coarse) {
+  .btn,
+  .ctabs button {
+    min-height: 44px;
+  }
+  .btn--icon {
+    width: 44px;
+  }
+  .btn--sm {
+    min-height: 40px;
+  }
+  .app-page .cls-input,
+  .app-page .ins-select,
+  .cform__field input {
+    min-height: 44px;
+  }
+}
+
+/* ---------- tablets ---------- */
+@media (max-width: 900px) {
+  .ctabs button {
+    padding: 0 10px;
+  }
+  .cform {
+    grid-template-columns: 1fr;
+  }
+  .cform__preview {
+    max-width: 340px;
+  }
+}
+
+/* ---------- phones ---------- */
+@media (max-width: 640px) {
+  /* header buttons keep their icon; the words stay for screen readers */
+  .main__header-tools .btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .main__header-tools .btn {
+    width: 38px;
+    padding: 0;
+  }
+  .app-page .ins-panel {
+    padding: 16px;
+  }
+  .cgrid {
+    grid-template-columns: 1fr;
+  }
+  .class-meta {
+    gap: 8px 14px;
+    margin-top: -4px;
+  }
+  .ctabs {
+    margin: 0 -16px;
+    padding: 0 8px;
+  }
+  .ctabs button {
+    padding: 0 10px;
+  }
+  .today__list button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .today__time {
+    grid-column: 1;
+  }
+  .today__name {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .today__meta {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .today__go {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+  .cform__fields {
+    grid-template-columns: 1fr;
+  }
+  .cform__actions .btn {
+    flex: 1;
+  }
+  .app-page .ins-head .ins-row,
+  .app-page .ins-head .search-field,
+  .app-page .ins-head .cls-input--sm {
+    width: 100%;
+  }
+  .cls-inbox.is-chatting .cls-inbox__list {
+    display: none;
+  }
+  .cls-inbox:not(.is-chatting) > .cls-empty {
+    display: none;
+  }
+  .cls-inbox__back {
+    display: inline-flex;
+    justify-self: start;
+  }
+  .cls-chat {
+    height: calc(100dvh - 260px);
+    min-height: 380px;
+  }
+  .cls-join {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* the live lab monitor on a phone */
+@media (max-width: 720px) {
+  .lab-monitor .ins-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .lab-monitor .ins-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lab-monitor .ins-assignbar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ccard,
+  .ccard--skeleton,
+  .chip--live::before {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---------- the profile page inside the shell ---------- */
+.profile-page .profile-container {
+  height: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.profile-page .profile-form-body {
+  overflow: visible;
+}
+
+@media (min-width: 900px), (min-width: 560px) and (max-height: 520px) {
+  .profile-page .profile-container {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "head form"
+      "tabs form";
+    align-items: start;
+  }
+}
+
+/* ---------- credits ---------- */
+.credits-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.credits-list .ins-panel {
+  gap: 6px;
+}

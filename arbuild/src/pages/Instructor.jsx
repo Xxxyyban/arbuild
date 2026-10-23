@@ -1,613 +1,686 @@
-// Instructor page: create a class, give the code, assign who does what on which platform, watch live.
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// Instructor pages.
+//   /instructor                         your classes: make one (it gets a join code), open one
+//   /instructor/c/:classId?tab=...      one class: stream, materials, lab activities, students, messages, settings
+//   /instructor/c/:classId/lab/:code    a lab activity, live (LabMonitor)
+//   /instructor/lab/:code               an older lab session made before classes existed
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { normalizeSetup } from "../lab/Setup";
-import { summarizeEvents } from "../lab/reportEvent";
-import { PLATFORMS, PLATFORM_LABEL } from "../lab/Catalog";
 import {
-  MAX_MINUTES,
-  createSession,
-  listMySessions,
-  subscribeSession,
-  subscribeStudents,
-  subscribeEvents,
-  startSession,
-  reopenSession,
-  closeSession,
-  updateSetup,
-  assignStudent,
-  assignMany,
-  sessionPhase,
-  parseMinutes,
-  formatMinutes,
-  formatClock,
-  formatMs,
-  resultsToCsv,
-} from "../lab/Sessions";
+  createClass,
+  subscribeMyClasses,
+  subscribeClass,
+  subscribeMembers,
+  subscribeThreads,
+  subscribeClassLabs,
+  updateClass,
+  newClassCode,
+  removeMember,
+  createPost,
+  threadUnread,
+  inviteLink,
+  attachLab,
+  personName,
+  when,
+  toMs,
+} from "../lab/Classes";
+import { createSession, listMySessions, sessionPhase, formatClock } from "../lab/Sessions";
+import { sessionTasks, taskSummary } from "../lab/Tasks";
+import LabMonitor, { useNow } from "../components/instructor/LabMonitor";
+import LabActivityForm from "../components/class/LabActivityForm";
+import Stream from "../components/class/Stream";
+import Chat from "../components/class/Chat";
+import Progress from "../components/class/Progress";
+import { TeachingClassCard } from "../components/class/ClassCards";
+import ClassForm from "../components/class/ClassForm";
+import { ClassMeta, CopyButton, Tabs } from "../components/class/ClassBits";
+import AppShell from "../components/AppShell";
+import Icon from "../components/Icon";
+import { nextMeeting, formatRange, CLASS_COLORS } from "../lab/Schedule";
 import "../styles/BuildLab.css";
 import "../styles/Instructor.css";
+import "../styles/InstructorClass.css";
+import "../styles/Classes.css";
 
-/* ---------- small helpers ---------- */
-
-function useNow(ms = 1000) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), ms);
-    return () => clearInterval(id);
-  }, [ms]);
-  return now;
+function useMe() {
+  const { user, profile } = useAuth();
+  return useMemo(() => ({ uid: user?.uid, name: personName(profile, user, true) }), [user, profile]);
 }
 
-function ago(iso, now) {
-  const t = Date.parse(iso || "");
-  if (!t) return "—";
-  const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.round(s / 60)}m ago`;
-  return `${Math.round(s / 3600)}h ago`;
-}
+/* ====================================================================== */
+/*  /instructor: your classes                                              */
+/* ====================================================================== */
 
-function studentState(s, phase, now) {
-  if (phase === "waiting") return ["live", "Joined"];
-  if (s.phaseDone) return ["done", "Phase done"];
-  const last = Date.parse(s.lastActive || "") || 0;
-  return now - last < 90000 ? ["live", "Working"] : ["idle", "Idle"];
-}
-
-const MODE_LABEL = { assemble: "Assemble", disassemble: "Disassemble" };
-
-function downloadCsv(session, students) {
-  const blob = new Blob([resultsToCsv(students, session.setup)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${session.code}-results.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** A number box the instructor types minutes into. */
-function MinutesInput({ value, onChange, label }) {
-  return (
-    <div className="ins-time">
-      <input
-        type="number"
-        min="1"
-        max={MAX_MINUTES}
-        step="1"
-        inputMode="numeric"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-      />
-      <span>minutes</span>
-    </div>
-  );
-}
-
-/* ---------- one class: roster, assignments, timer, live results ---------- */
-
-function Monitor({ code, onBack }) {
-  const now = useNow();
-  const [session, setSession] = useState(null);
-  const [students, setStudents] = useState([]);
-  const [picked, setPicked] = useState(null);
-  const [events, setEvents] = useState([]);
-  const [parDraft, setParDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const fail = (err) => setError(err.code || err.message);
-
-  useEffect(() => subscribeSession(code, setSession, fail), [code]);
-  useEffect(() => subscribeStudents(code, setStudents, fail), [code]);
-  useEffect(() => {
-    if (!picked) {
-      setEvents([]);
-      return undefined;
-    }
-    return subscribeEvents(code, picked, setEvents, fail);
-  }, [code, picked]);
-
-  // fill the target-time box once, from the value saved with the class
-  useEffect(() => {
-    if (session && parDraft === "") setParDraft(String(normalizeSetup(session.setup).parMin));
-  }, [session, parDraft]);
-
-  async function run(fn) {
-    setBusy(true);
-    setError("");
-    try {
-      await fn();
-    } catch (err) {
-      fail(err);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyCode() {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard not available */
-    }
-  }
-
-  if (!session) {
-    return (
-      <div className="instructor">
-        <main className="instructor__main">
-          <p className="ins-muted">Loading class…</p>
-          {error && <div className="ins-alert">{error}</div>}
-          <button className="flow-btn" onClick={onBack}>Back</button>
-        </main>
-      </div>
-    );
-  }
-
-  const phase = sessionPhase(session, now);
-  const runningFor = Math.max(0, now - (session.startedAt?.toMillis?.() ?? now));
-  const setup = normalizeSetup(session.setup);
-  const change = (patch) => run(() => updateSetup(code, patch));
-
-  const sorted = [...students].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  const avg = students.length ? Math.round(students.reduce((n, s) => n + (s.score || 0), 0) / students.length) : 0;
-  const mistakes = students.reduce((n, s) => n + (s.mistakes || 0), 0);
-  const modeOf = (s) => s.assignedMode || setup.startMode;
-  const platformOf = (s) => s.assignedPlatform || setup.platform;
-  const countAssemble = students.filter((s) => modeOf(s) === "assemble").length;
-  const countDisassemble = students.length - countAssemble;
-  const countAm5 = students.filter((s) => platformOf(s) === "am5").length;
-  const pickedStudent = students.find((s) => s.id === picked);
-  const summary = summarizeEvents(events);
-  const everyone = students.map((s) => s.id);
-
-  function savePar() {
-    const m = parseMinutes(parDraft);
-    if (!m) return setError(`Type the target time in minutes (1 to ${MAX_MINUTES}).`);
-    if (m !== setup.parMin) change({ parMin: m });
-  }
-
-  return (
-    <div className="instructor">
-      <header className="instructor__bar">
-        <button className="flow-btn" onClick={onBack}>← All classes</button>
-        <div className="instructor__title">
-          <span className="instructor__badge">
-            {phase === "waiting" ? "Waiting to start" : phase === "running" ? "Class running" : "Class ended"}
-          </span>
-          <h1>{session.title}</h1>
-        </div>
-      </header>
-
-      <main className="instructor__main">
-        {error && <div className="ins-alert" role="alert">{error}</div>}
-
-        <section className="ins-panel ins-hero">
-          <div>
-            <span className="ins-label">Class code</span>
-            <div className="ins-code">{code}</div>
-            <button className="flow-btn flow-btn--tool" onClick={copyCode}>{copied ? "Copied" : "Copy code"}</button>
-          </div>
-
-          {phase === "waiting" && (
-            <div>
-              <span className="ins-label">Not started</span>
-              <p className="ins-muted ins-small">
-                Students who join now wait. Assign each one a task and a platform below, then start.
-                Each student's clock starts here and counts up: finishing a phase within {setup.parMin} min keeps every
-                point, slower work keeps fewer (down to half at {setup.parMin * 3} min).
-              </p>
-              <button className="flow-btn flow-btn--accent" disabled={busy} onClick={() => run(() => startSession(code))}>Start class</button>
-            </div>
-          )}
-
-          {phase === "running" && (
-            <div>
-              <span className="ins-label">Running for</span>
-              <div className="ins-clock">{formatClock(runningFor)}</div>
-              <button
-                className="flow-btn flow-btn--danger"
-                disabled={busy}
-                onClick={() => window.confirm("Close the class for everyone? Results are kept.") && run(() => closeSession(code))}
-              >
-                Close class
-              </button>
-            </div>
-          )}
-
-          {phase === "ended" && (
-            <div>
-              <span className="ins-label">Class ended</span>
-              <div className="ins-clock is-ended">Closed</div>
-              <button className="flow-btn" disabled={busy} onClick={() => run(() => reopenSession(code, session))}>Reopen</button>
-            </div>
-          )}
-
-          <div className="ins-stats">
-            <div><b>{students.length}</b><span>Joined</span></div>
-            <div><b>{avg}</b><span>Avg score</span></div>
-            <div><b>{mistakes}</b><span>Mistakes</span></div>
-          </div>
-        </section>
-
-        <section className="ins-panel">
-          <h2>Class rules</h2>
-          <div className="ins-settings">
-            <label className="ins-field">
-              <span>Default start{phase !== "waiting" ? " (locked once started)" : ""}</span>
-              <select
-                value={setup.startMode}
-                disabled={busy || phase !== "waiting"}
-                onChange={(e) =>
-                  change({ startMode: e.target.value, startState: e.target.value === "disassemble" ? "full" : "empty" })
-                }
-              >
-                <option value="assemble">Assemble (empty bench)</option>
-                <option value="disassemble">Disassemble (running PC)</option>
-              </select>
-            </label>
-
-            <label className="ins-field">
-              <span>Default platform{phase !== "waiting" ? " (locked once started)" : ""}</span>
-              <select value={setup.platform} disabled={busy || phase !== "waiting"} onChange={(e) => change({ platform: e.target.value })}>
-                {PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_LABEL[p]}</option>)}
-              </select>
-            </label>
-
-            <div className="ins-field">
-              <span>Target time per phase</span>
-              <div className="ins-row">
-                <MinutesInput value={parDraft} onChange={setParDraft} label="Target minutes per phase" />
-                <button className="flow-btn" disabled={busy || parseMinutes(parDraft) === setup.parMin} onClick={savePar}>Save</button>
-              </div>
-            </div>
-
-            <label className="ins-field">
-              <span>Who switches modes</span>
-              <select value={setup.modeControl} disabled={busy} onChange={(e) => change({ modeControl: e.target.value })}>
-                <option value="student">Students</option>
-                <option value="instructor">Instructor only</option>
-              </select>
-            </label>
-
-            {setup.modeControl === "student" && (
-              <label className="ins-field">
-                <span>Students may switch</span>
-                <select value={setup.toggle} disabled={busy} onChange={(e) => change({ toggle: e.target.value })}>
-                  <option value="free">Any time</option>
-                  <option value="afterComplete">After finishing the phase</option>
-                  <option value="locked">Never</option>
-                </select>
-              </label>
-            )}
-
-            <label className="ins-field">
-              <span>Penalty for undoing work</span>
-              <select value={setup.revertPenalty} disabled={busy} onChange={(e) => change({ revertPenalty: e.target.value })}>
-                <option value="off">Off</option>
-                <option value="light">Light</option>
-                <option value="strict">Strict</option>
-              </select>
-            </label>
-
-            <label className="ins-check">
-              <input
-                type="checkbox"
-                checked={setup.partPicking === "student"}
-                disabled={busy}
-                onChange={(e) => change({ partPicking: e.target.checked ? "student" : "auto" })}
-              />
-              <span>Students pick their own parts (off: the right parts are laid out for them)</span>
-            </label>
-
-            <label className="ins-check">
-              <input type="checkbox" checked={setup.partInfo} disabled={busy} onChange={(e) => change({ partInfo: e.target.checked })} />
-              <span>Show part information (off: no info panel and no socket / memory labels when picking)</span>
-            </label>
-
-            <label className="ins-check">
-              <input type="checkbox" checked={setup.hints} disabled={busy} onChange={(e) => change({ hints: e.target.checked })} />
-              <span>Show hints and fixes (turn off so students troubleshoot alone)</span>
-            </label>
-
-            <label className="ins-check">
-              <input type="checkbox" checked={setup.autoPrompt} disabled={busy} onChange={(e) => change({ autoPrompt: e.target.checked })} />
-              <span>Offer the next phase when a student finishes</span>
-            </label>
-          </div>
-        </section>
-
-        <section className="ins-panel">
-          <div className="ins-head">
-            <h2>Class list</h2>
-            <button className="flow-btn flow-btn--tool" disabled={students.length === 0} onClick={() => downloadCsv(session, students)}>
-              Export results (CSV)
-            </button>
-          </div>
-
-          {sorted.length === 0 ? (
-            <p className="ins-muted">Nobody has joined yet. Give students the code above.</p>
-          ) : (
-            <>
-              <div className="ins-row ins-row--wrap ins-assignbar">
-                <span className="ins-muted">
-                  {countAssemble} assemble · {countDisassemble} take apart · {students.length - countAm5} AM4 · {countAm5} AM5
-                </span>
-                <span className="ins-spacer" />
-                <span className="ins-muted">Set everyone to</span>
-                <button className="flow-btn" disabled={busy} onClick={() => run(() => assignMany(code, everyone, { assignedMode: "assemble" }))}>Assemble</button>
-                <button className="flow-btn" disabled={busy} onClick={() => run(() => assignMany(code, everyone, { assignedMode: "disassemble" }))}>Disassemble</button>
-                {PLATFORMS.map((p) => (
-                  <button key={p} className="flow-btn" disabled={busy} onClick={() => run(() => assignMany(code, everyone, { assignedPlatform: p }))}>
-                    {PLATFORM_LABEL[p]}
-                  </button>
-                ))}
-                <button
-                  className="flow-btn flow-btn--tool"
-                  disabled={busy}
-                  onClick={() => run(() => assignMany(code, everyone, { assignedMode: null, assignedPlatform: null }))}
-                >
-                  Class default
-                </button>
-              </div>
-
-              <div className="ins-table-wrap">
-                <table className="ins-table">
-                  <thead>
-                    <tr>
-                      <th>Student</th><th>Starts with</th><th>Platform</th><th>Now in</th><th>Score</th>
-                      <th>Time</th><th>Parts left</th><th>Mistakes</th><th>Status</th><th>Last seen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((s) => {
-                      const [tone, label] = studentState(s, phase, now);
-                      return (
-                        <tr key={s.id} className={picked === s.id ? "is-picked" : ""} onClick={() => setPicked(picked === s.id ? null : s.id)}>
-                          <td>
-                            <strong>{s.name}</strong>
-                            <small>{[s.studentId, s.section].filter(Boolean).join(" · ")}</small>
-                          </td>
-                          <td onClick={(e) => e.stopPropagation()}>
-                            <select
-                              className="ins-select"
-                              value={s.assignedMode || ""}
-                              disabled={busy}
-                              aria-label={`Start mode for ${s.name}`}
-                              onChange={(e) => run(() => assignStudent(code, s.id, { assignedMode: e.target.value || null }))}
-                            >
-                              <option value="">Class default ({MODE_LABEL[setup.startMode]})</option>
-                              <option value="assemble">Assemble</option>
-                              <option value="disassemble">Disassemble</option>
-                            </select>
-                          </td>
-                          <td onClick={(e) => e.stopPropagation()}>
-                            <select
-                              className="ins-select"
-                              value={s.assignedPlatform || ""}
-                              disabled={busy}
-                              aria-label={`Platform for ${s.name}`}
-                              onChange={(e) => run(() => assignStudent(code, s.id, { assignedPlatform: e.target.value || null }))}
-                            >
-                              <option value="">Default ({PLATFORM_LABEL[setup.platform]})</option>
-                              {PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_LABEL[p]}</option>)}
-                            </select>
-                          </td>
-                          <td>{MODE_LABEL[s.mode] || "—"}</td>
-                          <td className="ins-num">{s.score ?? 0}</td>
-                          <td className="ins-num" title={`Assemble ${formatMs(s.assembleMs) || "0:00"} · Disassemble ${formatMs(s.disassembleMs) || "0:00"}`}>
-                            {formatMs(s.mode === "disassemble" ? s.disassembleMs : s.assembleMs) || "—"}
-                          </td>
-                          <td className="ins-num">{s.partsLeft ?? 0}</td>
-                          <td className="ins-num">{s.mistakes ?? 0}</td>
-                          <td><span className={`ins-badge ins-badge--${tone}`}>{label}</span></td>
-                          <td>{ago(s.lastActive, now)}{(s.joins || 1) > 1 ? ` · rejoined ${s.joins - 1}×` : ""}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="ins-muted ins-hint">
-                Changing "Starts with" or "Platform" for a student sends them back to that start. Click a row to see their mistakes.
-              </p>
-            </>
-          )}
-        </section>
-
-        {pickedStudent && (
-          <section className="ins-panel">
-            <h2>{pickedStudent.name}: mistake log</h2>
-            <div className="ins-chips">
-              <span>{summary.total} mistakes</span>
-              <span>{summary.safety} safety</span>
-              <span>{summary.reverts} reverts</span>
-              <span>-{summary.pointsLost} pts</span>
-            </div>
-            {events.length === 0 ? (
-              <p className="ins-muted">No mistakes recorded. Clean work so far.</p>
-            ) : (
-              <ul className="ins-log">
-                {events.map((e) => (
-                  <li key={e.id}>
-                    <time>{new Date(e.ts).toLocaleTimeString()}</time>
-                    <span className={`ins-badge ins-badge--${e.type === "safety" || e.type === "penalty" ? "danger" : "idle"}`}>{e.type}</span>
-                    <b>{e.part}</b>
-                    <span>{e.detail}</span>
-                    {e.points ? <em>{e.points}</em> : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-      </main>
-    </div>
-  );
-}
-
-/* ---------- main page: create a class, list your classes ---------- */
-
-export default function Instructor() {
-  const { user, profile, logout } = useAuth();
+function Dashboard() {
+  const { user } = useAuth();
+  const me = useMe();
   const navigate = useNavigate();
-  const now = useNow();
-
-  const [openCode, setOpenCode] = useState(null);
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [classes, setClasses] = useState(null);
+  const [legacy, setLegacy] = useState([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [making, setMaking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const [title, setTitle] = useState("");
-  const [minutes, setMinutes] = useState("10");
-
-  const instructorName =
-    [profile?.facultyTitle, profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || user?.email || "Instructor";
-
-  async function reload() {
-    if (!user?.uid) return;
-    setLoading(true);
-    try {
-      setList(await listMySessions(user.uid));
-    } catch (err) {
-      console.error(err);
-      setError(`Couldn't load your classes (${err.code || err.message}). Check the Firestore rules.`);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const now = useNow(30000);
 
   useEffect(() => {
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!user?.uid) return undefined;
+    return subscribeMyClasses(user.uid, setClasses, (err) => {
+      setClasses([]); // stop "Loading…"; the error explains why
+      setError(
+        err.code === "permission-denied"
+          ? "Couldn't load your classes: the Firestore rules don't allow classes yet. Publish firestore.rules in the Firebase console (Firestore Database > Rules)."
+          : `Couldn't load your classes (${err.code || err.message}).`
+      );
+    });
   }, [user?.uid]);
 
-  async function create(e) {
-    e.preventDefault();
-    setError("");
-    const parMin = parseMinutes(minutes);
-    if (!parMin) return setError(`Type the target time in minutes (1 to ${MAX_MINUTES}).`);
+  // lab sessions made before classes existed (still openable for their results)
+  useEffect(() => {
+    if (!user?.uid) return;
+    listMySessions(user.uid)
+      .then((list) => setLegacy(list.filter((s) => !s.classId)))
+      .catch(() => {});
+  }, [user?.uid]);
 
+  async function create(values) {
+    setError("");
     setCreating(true);
     try {
-      const code = await createSession({
-        instructor: { uid: user.uid, name: instructorName },
-        title,
-        parMin,
-      });
-      setTitle("");
-      setOpenCode(code);
+      const id = await createClass({ instructor: me, ...values });
+      navigate(`/instructor/c/${id}`);
     } catch (err) {
       console.error(err);
-      setError(err.code ? `Couldn't create the class (${err.code}).` : err.message);
+      setError(err.code ? `Couldn't create the class (${err.code}). Check the Firestore rules.` : err.message);
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate("/", { replace: true });
-  }
+  const active = (classes || []).filter((c) => !c.archived);
+  const archived = (classes || []).filter((c) => c.archived);
+  const today = active
+    .map((c) => ({ c, next: nextMeeting(c.schedule, new Date(now)) }))
+    .filter(({ next }) => next && (next.now || next.label.startsWith("Today")))
+    .sort((x, y) => (x.c.schedule?.start || "").localeCompare(y.c.schedule?.start || ""));
+  const showForm = making || (classes !== null && active.length === 0);
+  const hour = new Date(now).getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const summary = active.length
+    ? `${greeting}, ${me.name}. You teach ${active.length} ${active.length === 1 ? "class" : "classes"}${today.length ? `, ${today.length} today` : ""}.`
+    : `${greeting}, ${me.name}. Make a class, give your students its code, and teach from here.`;
 
-  if (openCode) {
+  return (
+    <AppShell
+      className="app-page--content"
+      eyebrow="Teaching"
+      title="Your classes"
+      subtitle={summary}
+      tools={
+        !showForm && (
+          <button type="button" className="btn btn--primary" onClick={() => setMaking(true)}>
+            <Icon name="plus" size={16} />
+            <span>New class</span>
+          </button>
+        )
+      }
+    >
+      {error && <div className="ins-alert" role="alert">{error}</div>}
+
+      {today.length > 0 && (
+        <section className="ins-panel today">
+          <h2 className="panel-title">
+            <Icon name="calendar" />
+            Today
+          </h2>
+          <ul className="today__list">
+            {today.map(({ c, next }) => (
+              <li key={c.id}>
+                <button type="button" style={{ "--class-color": c.color || CLASS_COLORS[0] }} onClick={() => navigate(`/instructor/c/${c.id}`)}>
+                  <span className="today__time">{formatRange(c.schedule.start, c.schedule.end)}</span>
+                  <span className="today__name">{c.name}</span>
+                  <span className="today__meta">{[c.section, c.schedule.room].filter(Boolean).join(" · ")}</span>
+                  {next.now && <span className="chip chip--live">In class now</span>}
+                  <Icon name="forward" size={16} className="today__go" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {showForm && (
+        <section className="ins-panel">
+          <div className="panel-head">
+            <h2 className="panel-title">New class</h2>
+            <p className="ins-muted ins-small">It gets a join code: students enter it once and stay in the class.</p>
+          </div>
+          <ClassForm submitLabel="Create class" busy={creating} onSubmit={create} onCancel={active.length ? () => setMaking(false) : null} />
+        </section>
+      )}
+
+      {classes === null ? (
+        <div className="cgrid">
+          {[0, 1, 2].map((i) => <div key={i} className="ccard ccard--skeleton" aria-hidden="true" />)}
+        </div>
+      ) : (
+        active.length > 0 && (
+          <section className="page-section" aria-label="Your classes">
+            <h2 className="section-label">Classes</h2>
+            <div className="cgrid">
+              {active.map((c) => (
+                <TeachingClassCard key={c.id} cls={c} uid={me.uid} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
+              ))}
+            </div>
+          </section>
+        )
+      )}
+
+      {archived.length > 0 && (
+        <section className="page-section">
+          <button type="button" className="section-toggle" aria-expanded={showArchived} onClick={() => setShowArchived((v) => !v)}>
+            <Icon name="archive" size={16} />
+            Archived classes ({archived.length})
+            <Icon name={showArchived ? "up" : "down"} size={16} />
+          </button>
+          {showArchived && (
+            <div className="cgrid">
+              {archived.map((c) => (
+                <TeachingClassCard key={c.id} cls={c} uid={me.uid} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {legacy.length > 0 && (
+        <section className="ins-panel">
+          <h2 className="panel-title">Older lab sessions</h2>
+          <p className="ins-muted ins-small">
+            Made before classes existed. Open one to see its results, or add it to a class so it shows in that class's stream
+            and progress.
+          </p>
+          <ul className="ins-sessions">
+            {legacy.map((s) => {
+              const phase = sessionPhase(s, now);
+              return (
+                <li key={s.id}>
+                  <div>
+                    <strong>{s.title}</strong>
+                    <small>{s.createdAt?.toDate?.().toLocaleString() || ""}</small>
+                  </div>
+                  <code className="ins-code-sm">{s.code}</code>
+                  <span className={`ins-badge ins-badge--${phase === "ended" ? "idle" : "live"}`}>
+                    {phase === "ended" ? "Ended" : phase === "running" ? "Running" : "Waiting"}
+                  </span>
+                  {active.length > 0 && (
+                    <select
+                      className="ins-select"
+                      value=""
+                      aria-label={`Add ${s.title} to a class`}
+                      onChange={async (e) => {
+                        const cls = active.find((c) => c.id === e.target.value);
+                        if (!cls) return;
+                        try {
+                          await attachLab(s, cls, me);
+                          setLegacy((l) => l.filter((x) => x.code !== s.code));
+                        } catch (err) {
+                          setError(`Couldn't add it to ${cls.name} (${err.code || err.message}).`);
+                        }
+                      }}
+                    >
+                      <option value="">Add to class…</option>
+                      {active.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  )}
+                  <button className="btn" onClick={() => navigate(`/instructor/lab/${s.code}`)}>Open</button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </AppShell>
+  );
+}
+
+/* ====================================================================== */
+/*  /instructor/c/:classId: one class                                      */
+/* ====================================================================== */
+
+const TABS = [
+  { id: "stream", label: "Stream", icon: "megaphone" },
+  { id: "materials", label: "Materials", icon: "book" },
+  { id: "labs", label: "Lab activities", icon: "wrench" },
+  { id: "progress", label: "Progress", icon: "chart" },
+  { id: "students", label: "Students", icon: "users" },
+  { id: "messages", label: "Messages", icon: "chat" },
+  { id: "settings", label: "Settings", icon: "settings" },
+];
+
+const BACK = { to: "/instructor", label: "All classes" };
+
+function ClassPage() {
+  const { classId } = useParams();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const me = useMe();
+  const now = useNow(30000);
+  const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "stream";
+  const setTab = (t, extra = {}) => setParams({ tab: t, ...extra }, { replace: true });
+
+  const [cls, setCls] = useState(undefined);
+  const [members, setMembers] = useState([]);
+  const [threads, setThreads] = useState([]);
+  const [error, setError] = useState("");
+  const fail = (err) => setError(err.code || err.message);
+
+  useEffect(() => subscribeClass(classId, setCls, fail), [classId]);
+  useEffect(() => subscribeMembers(classId, setMembers, fail), [classId]);
+  useEffect(() => subscribeThreads(classId, setThreads, fail), [classId]);
+
+  if (cls === undefined) {
     return (
-      <Monitor
-        code={openCode}
-        onBack={() => {
-          setOpenCode(null);
-          reload();
-        }}
-      />
+      <AppShell className="app-page--content" back={BACK} title="Loading class…">
+        <div className="ins-panel ccard--skeleton" aria-hidden="true" />
+      </AppShell>
+    );
+  }
+  if (cls === null || cls.instructorUid !== me.uid) {
+    return (
+      <AppShell className="app-page--content" back={BACK} title="Class not found">
+        <div className="ins-alert">This class doesn't exist or isn't yours.</div>
+      </AppShell>
     );
   }
 
+  const unread = threads.filter((t) => threadUnread(t, me.uid)).length;
+  const openLab = (code) => navigate(`/instructor/c/${classId}/lab/${code}`);
+  const tabs = TABS.map((t) => ({
+    ...t,
+    badge:
+      t.id === "messages" && unread > 0 ? (
+        <span className="cls-dot">{unread}</span>
+      ) : t.id === "students" ? (
+        <span className="cls-count">{cls.studentCount || 0}</span>
+      ) : null,
+  }));
+
   return (
-    <div className="instructor">
-      <header className="instructor__bar">
-        <div className="instructor__title">
-          <span className="instructor__badge">ARBuild</span>
-          <h1>Instructor</h1>
-        </div>
+    <AppShell
+      className="app-page--content"
+      back={BACK}
+      eyebrow={cls.section || "Class"}
+      title={cls.name}
+      subtitle={cls.archived ? "Archived: students can still read it, but nobody new can join." : null}
+    >
+      <ClassMeta cls={cls}>
+        <span className="class-meta__item">
+          <Icon name="users" size={16} />
+          {cls.studentCount || 0} {cls.studentCount === 1 ? "student" : "students"}
+        </span>
+        <span className="join-code">
+          <span className="join-code__label">Join code</span>
+          <code>{cls.code}</code>
+          <CopyButton text={cls.code} label="Copy join code" iconOnly className="btn btn--ghost" />
+          <CopyButton text={inviteLink(cls.code)} label="Invite link" className="btn btn--soft btn--sm" />
+        </span>
+      </ClassMeta>
+
+      <Tabs tabs={tabs} current={tab} onChange={(t) => setTab(t)} />
+
+      {error && <div className="ins-alert" role="alert">{error}</div>}
+
+      {tab === "stream" && <Stream classId={classId} me={me} isInstructor onOpenLab={openLab} now={now} />}
+      {tab === "materials" && <Stream classId={classId} me={me} isInstructor filter="material" onOpenLab={openLab} now={now} />}
+      {tab === "labs" && <LabsTab cls={cls} me={me} onOpenLab={openLab} now={now} />}
+      {tab === "progress" && <Progress cls={cls} members={members} onOpenLab={openLab} />}
+      {tab === "students" && (
+        <StudentsTab cls={cls} members={members} threads={threads} me={me} now={now} onMessage={(uid) => setTab("messages", { student: uid })} />
+      )}
+      {tab === "messages" && <MessagesTab cls={cls} members={members} threads={threads} me={me} now={now} />}
+      {tab === "settings" && <SettingsTab cls={cls} me={me} />}
+    </AppShell>
+  );
+}
+
+/* ---------- lab activities ---------- */
+
+function LabsTab({ cls, me, onOpenLab, now }) {
+  const [labs, setLabs] = useState(null);
+  const [making, setMaking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => subscribeClassLabs(cls.id, cls.instructorUid, setLabs, (err) => setError(err.code || err.message)), [cls.id, cls.instructorUid]);
+
+  async function create({ title, task }) {
+    setBusy(true);
+    setError("");
+    try {
+      const code = await createSession({ instructor: me, title, classId: cls.id, className: cls.name, task, parMin: task.parMin });
+      await createPost(cls.id, { kind: "lab", title, body: task.instructions, sessionCode: code, author: me });
+      setMaking(false);
+      onOpenLab(code);
+    } catch (err) {
+      console.error(err);
+      setError(`Couldn't create the lab (${err.code || err.message}).`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {making ? (
+        <LabActivityForm busy={busy} onCreate={create} onCancel={() => setMaking(false)} />
+      ) : (
+        <button type="button" className="cls-compose-open" onClick={() => setMaking(true)}>
+          <Icon name="plus" />
+          New lab activity: build or take apart a PC in the Build Lab
+        </button>
+      )}
+      {error && <div className="ins-alert" role="alert">{error}</div>}
+
+      <section className="ins-panel">
+        <h2 className="panel-title">Lab activities</h2>
+        {labs === null ? (
+          <p className="ins-muted">Loading…</p>
+        ) : labs.length === 0 ? (
+          <p className="ins-muted">None yet. A lab activity is a timed, scored Build Lab task your students open from this class.</p>
+        ) : (
+          <ul className="ins-sessions">
+            {labs.map((s) => {
+              const phase = sessionPhase(s, now);
+              const ran = Math.max(0, now - (s.startedAt?.toMillis?.() ?? now));
+              const { tasks } = sessionTasks(s);
+              return (
+                <li key={s.id}>
+                  <div>
+                    <strong>{s.title}</strong>
+                    <small>{taskSummary(tasks[0])}{tasks.length > 1 ? ` · +${tasks.length - 1} more tasks` : ""}</small>
+                  </div>
+                  <span className={`ins-badge ins-badge--${phase === "ended" ? "idle" : phase === "running" ? "live" : "done"}`}>
+                    {phase === "waiting" ? "Waiting to start" : phase === "running" ? `Running ${formatClock(ran)}` : "Closed"}
+                  </span>
+                  <button className="btn btn--primary" onClick={() => onOpenLab(s.code)}>
+                    {phase === "ended" ? "Results" : "Open monitor"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
+/* ---------- students ---------- */
+
+function StudentsTab({ cls, members, threads, me, now, onMessage }) {
+  const [filter, setFilter] = useState("");
+  const [busy, setBusy] = useState(false);
+  const sorted = [...members]
+    .filter((m) => !filter || `${m.name} ${m.studentId} ${m.section} ${m.email}`.toLowerCase().includes(filter.toLowerCase()))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const byUid = Object.fromEntries(threads.map((t) => [t.id, t]));
+
+  function exportCsv() {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [["Name", "Student ID", "Section", "Email", "Joined"], ...members.map((m) => [m.name, m.studentId, m.section, m.email, new Date(toMs(m.joinedAt)).toLocaleString()])]
+      .map((r) => r.map(esc).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${cls.name.replace(/\W+/g, "_")}-students.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <section className="ins-panel">
+      <div className="ins-head">
+        <h2 className="panel-title">Students ({members.length})</h2>
         <div className="ins-row">
-          <Link to="/main" className="flow-btn flow-btn--tool">Rig Studio</Link>
-          <Link to="/profile" className="flow-btn flow-btn--tool">Profile</Link>
-          <button className="flow-btn" onClick={handleLogout}>Log out</button>
-        </div>
-      </header>
-
-      <main className="instructor__main">
-        {error && <div className="ins-alert" role="alert">{error}</div>}
-
-        <form className="ins-panel" onSubmit={create}>
-          <h2>Create a class</h2>
-          <p className="ins-muted">
-            Students join with the code. Then you choose what each student starts with, on AM4 or AM5, and press Start.
-          </p>
-
-          <div className="ins-grid">
-            <label className="ins-field ins-field--wide">
-              <span>Class name</span>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="BSIT 3A · PC assembly" maxLength={60} required />
-            </label>
-
-            <div className="ins-field">
-              <span>Target time per phase</span>
-              <MinutesInput value={minutes} onChange={setMinutes} label="Target minutes per phase" />
-              <small className="ins-muted">
-                {parseMinutes(minutes)
-                  ? `Full points within ${formatMinutes(parseMinutes(minutes))}, fewer the longer it takes.`
-                  : "Type the minutes"}
-              </small>
-            </div>
-          </div>
-
-          <button type="submit" className="flow-btn flow-btn--accent" disabled={creating}>
-            {creating ? "Creating…" : "Create class and get code"}
+          <label className="search-field">
+            <Icon name="search" size={16} />
+            <input className="cls-input cls-input--sm" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search name, ID, section…" aria-label="Search students" />
+          </label>
+          <button className="btn" disabled={!members.length} onClick={exportCsv}>
+            <Icon name="download" size={16} />
+            Export CSV
           </button>
-        </form>
+        </div>
+      </div>
 
-        <section className="ins-panel">
-          <div className="ins-head">
-            <h2>Your classes</h2>
-            <button className="flow-btn flow-btn--tool" onClick={reload} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
-          </div>
-
-          {list.length === 0 ? (
-            <p className="ins-muted">{loading ? "Loading…" : "No classes yet. Create one above."}</p>
-          ) : (
-            <ul className="ins-sessions">
-              {list.map((s) => {
-                const phase = sessionPhase(s, now);
-                const ran = Math.max(0, now - (s.startedAt?.toMillis?.() ?? now));
+      {members.length === 0 ? (
+        <div className="cls-empty">
+          <strong>Nobody has joined yet</strong>
+          <span>
+            Give your students the code <code className="ins-code-sm">{cls.code}</code> or the invite link. They enter the code once,
+            in <b>Classes</b>; the link joins them straight away after they sign in.
+          </span>
+        </div>
+      ) : (
+        <div className="ins-table-wrap">
+          <table className="ins-table">
+            <thead>
+              <tr><th>Student</th><th>Section</th><th>Joined</th><th>Last message</th><th /></tr>
+            </thead>
+            <tbody>
+              {sorted.map((m) => {
+                const t = byUid[m.id];
                 return (
-                  <li key={s.id}>
-                    <div>
-                      <strong>{s.title}</strong>
-                      <small>
-                        {s.createdAt?.toDate?.().toLocaleString() || ""} · target {formatMinutes(normalizeSetup(s.setup).parMin)} per phase
-                      </small>
-                    </div>
-                    <code className="ins-code-sm">{s.code}</code>
-                    <span className={`ins-badge ins-badge--${phase === "ended" ? "idle" : "live"}`}>
-                      {phase === "waiting" ? "Waiting" : phase === "running" ? `Running ${formatClock(ran)}` : "Ended"}
-                    </span>
-                    <button className="flow-btn" onClick={() => setOpenCode(s.code)}>
-                      {phase === "ended" ? "View results" : "Open"}
-                    </button>
-                  </li>
+                  <tr key={m.id}>
+                    <td>
+                      <strong>{m.name}</strong>
+                      <small>{[m.studentId, m.email].filter(Boolean).join(" · ")}</small>
+                    </td>
+                    <td>{m.section || "—"}</td>
+                    <td>{when(m.joinedAt, now)}</td>
+                    <td>
+                      {t ? (
+                        <span className={threadUnread(t, me.uid) ? "cls-unread" : ""}>{t.lastText}</span>
+                      ) : (
+                        <span className="ins-muted">—</span>
+                      )}
+                    </td>
+                    <td className="cls-actions">
+                      <button className="btn btn--soft btn--sm" onClick={() => onMessage(m.id)}>
+                        <Icon name="chat" size={15} />
+                        Message
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (!window.confirm(`Remove ${m.name} from ${cls.name}? Their lab results are kept.`)) return;
+                          setBusy(true);
+                          try {
+                            await removeMember(cls.id, m.id);
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
-            </ul>
-          )}
-        </section>
-      </main>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- messages: one inbox for the class ---------- */
+
+function MessagesTab({ cls, members, threads, me, now }) {
+  const [params, setParams] = useSearchParams();
+  const picked = params.get("student");
+  const byUid = Object.fromEntries(threads.map((t) => [t.id, t]));
+  // everyone in the class, people who wrote most recently first, then the rest by name
+  const people = members
+    .map((m) => ({ uid: m.id, name: m.name, thread: byUid[m.id] }))
+    .sort((a, b) => toMs(b.thread?.lastAt) - toMs(a.thread?.lastAt) || (a.name || "").localeCompare(b.name || ""));
+  const current = people.find((p) => p.uid === picked);
+
+  return (
+    <div className={`cls-inbox ${current ? "is-chatting" : ""}`}>
+      <aside className="ins-panel cls-inbox__list" aria-label="Students">
+        <h2 className="panel-title">Messages</h2>
+        {people.length === 0 && <p className="ins-muted ins-small">Students appear here once they join.</p>}
+        <ul>
+          {people.map((p) => {
+            const unread = threadUnread(p.thread, me.uid);
+            return (
+              <li key={p.uid}>
+                <button
+                  type="button"
+                  className={`${picked === p.uid ? "is-on" : ""} ${unread ? "is-unread" : ""}`}
+                  onClick={() => setParams({ tab: "messages", student: p.uid }, { replace: true })}
+                >
+                  <span className="cls-inbox__name">{p.name}{unread && <span className="cls-dot" aria-label="unread" />}</span>
+                  <span className="cls-inbox__last">
+                    {p.thread ? `${p.thread.lastFrom === me.uid ? "You: " : ""}${p.thread.lastText}` : "No messages yet"}
+                  </span>
+                  {p.thread && <span className="cls-inbox__when">{when(p.thread.lastAt, now)}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </aside>
+      {current && (
+        <button type="button" className="btn btn--ghost cls-inbox__back" onClick={() => setParams({ tab: "messages" }, { replace: true })}>
+          <Icon name="back" size={16} />
+          All students
+        </button>
+      )}
+      {current ? (
+        <Chat
+          key={current.uid}
+          classId={cls.id}
+          studentUid={current.uid}
+          studentName={current.name}
+          me={me}
+          otherName={current.name}
+          isInstructor
+          now={now}
+        />
+      ) : (
+        <div className="ins-panel cls-empty">
+          <strong>Pick a student</strong>
+          <span>Private messages between you and one student. Use the stream for things the whole class should see.</span>
+        </div>
+      )}
     </div>
   );
+}
+
+/* ---------- settings ---------- */
+
+function SettingsTab({ cls, me }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  async function run(fn, done) {
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      await fn();
+      if (done) setMsg(done);
+    } catch (err) {
+      setError(err.code || err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="ins-panel">
+        <h2 className="panel-title">Class details</h2>
+        <ClassForm
+          initial={cls}
+          submitLabel="Save changes"
+          busy={busy}
+          onSubmit={(values) => run(() => updateClass(cls.id, values), "Saved.")}
+        />
+      </section>
+
+      <section className="ins-panel">
+        <h2 className="panel-title">Joining</h2>
+        <div className="cls-row cls-row--wrap">
+          <span className="join-code">
+            <span className="join-code__label">Join code</span>
+            <code>{cls.code}</code>
+          </span>
+          <CopyButton text={cls.code} label="Copy code" />
+          <CopyButton text={inviteLink(cls.code)} label="Copy invite link" />
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              window.confirm("Make a new code? The old one stops working; students already in the class stay in.") &&
+              run(() => newClassCode(cls.id, cls.code, me.uid), "New code made.")
+            }
+          >
+            <Icon name="refresh" size={16} />
+            New code
+          </button>
+        </div>
+        <label className="ins-check">
+          <input type="checkbox" checked={cls.joinOpen !== false} disabled={busy} onChange={(e) => run(() => updateClass(cls.id, { joinOpen: e.target.checked }))} />
+          <span>Let new students join with the code (turn off once everyone is in)</span>
+        </label>
+      </section>
+
+      <section className="ins-panel">
+        <h2 className="panel-title">Archive</h2>
+        <p className="ins-muted ins-small">
+          An archived class moves off your main list. Students can still read it; nobody new can join. You can bring it back any time.
+        </p>
+        <div>
+          <button className="btn" disabled={busy} onClick={() => run(() => updateClass(cls.id, { archived: !cls.archived }), cls.archived ? "Restored." : "Archived.")}>
+            <Icon name="archive" size={16} />
+            {cls.archived ? "Restore class" : "Archive class"}
+          </button>
+        </div>
+      </section>
+
+      {msg && <div className="cls-banner" role="status">{msg}</div>}
+      {error && <div className="ins-alert" role="alert">{error}</div>}
+    </>
+  );
+}
+
+/* ====================================================================== */
+/*  lab monitor routes                                                     */
+/* ====================================================================== */
+
+function ClassLab() {
+  const { classId, code } = useParams();
+  return <LabMonitor code={code} back={{ to: `/instructor/c/${classId}?tab=labs`, label: "Back to class" }} />;
+}
+
+function OldLab() {
+  const { code } = useParams();
+  return <LabMonitor code={code} back={{ to: "/instructor", label: "Your classes" }} />;
+}
+
+/** Which instructor page the URL asks for (see the routes in App.jsx). */
+export default function Instructor({ page = "dashboard" }) {
+  if (page === "class") return <ClassPage />;
+  if (page === "classLab") return <ClassLab />;
+  if (page === "oldLab") return <OldLab />;
+  return <Dashboard />;
 }
