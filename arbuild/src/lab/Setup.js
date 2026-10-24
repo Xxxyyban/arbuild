@@ -1,6 +1,7 @@
 // Session setup (what the instructor controls) and join codes.
 import { ALL_PARTS } from "./Constants";
 import { correctPicks, normalizePlatform } from "./Catalog";
+import { m2Start, socketStart } from "./Rules";
 
 export const DEFAULT_SETUP = {
   startMode: "disassemble", // "assemble" | "disassemble"
@@ -49,6 +50,10 @@ export function buildStart(setup) {
     // a PSU in the case has its modular cables on it already (only the ones this build uses)
     psuCables: { atx24: !!installed.psu, eps8: !!installed.psu, pcie: !!installed.psu && !!picks.gpu },
     screws: Array.from({ length: 9 }, () => !!installed.motherboard),
+    // the board's M.2 cover is on and screwed down; an SSD already in is screwed in under it
+    m2: m2Start(installed.storage),
+    // the CPU socket's lever is down (and AM5's cover frame shut); its plastic cap is on while it's empty
+    socket: socketStart(installed.cpu),
   };
 }
 

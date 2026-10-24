@@ -31,6 +31,9 @@ export const POINTS = {
   psu_eps8: 10,
   psu_pcie: 10,
   screws: 20,
+  m2screw: 5, // the SSD's own screw
+  m2cover: 10, // the M.2 cover back on and screwed down
+  socket: 10, // the CPU locked in: the socket lever down (over the shut cover frame, on AM5)
   // shared multipliers
   perfectBonus: 0.1,
   missPenalty: 0.15,
@@ -58,6 +61,9 @@ export const REMOVE_POINTS = {
   psu_eps8: 5,
   psu_pcie: 5,
   screws: 15,
+  m2screw: 5, // the SSD's screw out
+  m2cover: 5, // the M.2 cover off
+  socket: 5, // the CPU socket opened with the CPU in it
 };
 
 export const basePoints = (mode, name) =>
@@ -203,6 +209,10 @@ export function maxPoints(mode, { slots, gpu, dualRam, psuEnds = [], boot = true
   max += cables.reduce((s, c) => s + perfect(T[`cable_${c}`] ?? 0), 0);
   max += cables.filter((c) => psuEnds.includes(c)).reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
   max += perfect(T.screws ?? 0);
+  // the M.2 slot: the SSD's screw and its cover (every build has an SSD)
+  if (slots.includes("storage")) max += perfect(T.m2screw ?? 0) + perfect(T.m2cover ?? 0);
+  // the CPU socket: locking the CPU in, or opening the socket to take it out
+  if (slots.includes("cpu")) max += perfect(T.socket ?? 0);
   if (mode === "disassemble") {
     max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(POINTS.paste);
   } else {

@@ -37,6 +37,7 @@ export const TRAY_OFFSETS = {
   gpu: [1.55, 0.15, 1.35],
   cpu_cooler: [0.95, 0.01, 3.1],
   storage: [-1.75, 0.03, 3.15],
+  m2cover: [-1.74, 0.01, 3.42], // the board's M.2 cover, once it is lifted off (its middle)
 };
 
 // [x, y, z] added on top of the tray position for the part's name tag. Default is [0, 0.3, 0].

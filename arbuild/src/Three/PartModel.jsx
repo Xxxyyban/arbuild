@@ -1,8 +1,8 @@
 // Which component draws each catalog option. Every option has a `variant` number in
 // lab/Catalog.js: 0 is the base component (MotherboardModel), 1 the next one (MotherboardModel1)...
 // To add a third board: make MotherboardModel2.jsx, add it to the list, give the option variant: 2.
-import MotherboardModel, { MOUNTS as MOUNTS_0 } from "./MotherboardModel";
-import MotherboardModel1, { MOUNTS as MOUNTS_1 } from "./MotherboardModel1";
+import MotherboardModel, { MOUNTS as MOUNTS_0, M2_COVER as M2_COVER_0, SOCKET as SOCKET_0 } from "./MotherboardModel";
+import MotherboardModel1, { MOUNTS as MOUNTS_1, SOCKET as SOCKET_1 } from "./MotherboardModel1";
 import CPUModel from "./CPUModel";
 import CPUModel1 from "./CPUModel1";
 import RAMModel from "./RAMModel";
@@ -29,6 +29,10 @@ const MODELS = {
 
 // Where the CPU, RAM and SSD sit on each board, by board variant.
 export const BOARD_MOUNTS = [MOUNTS_0, MOUNTS_1];
+// Each board's M.2 cover, by board variant (null: the lab's built one, Hardware.jsx BUILT_M2_COVER).
+export const BOARD_M2_COVERS = [M2_COVER_0, null];
+// Each board's CPU socket lever, its hook, and (AM5) its cover frame, by board variant.
+export const BOARD_SOCKETS = [SOCKET_0, SOCKET_1];
 
 // Each PSU's modular sockets, by PSU variant (null: its cables are fixed to it).
 export const PSU_PANELS = [PSU_PANEL_0, PSU_PANEL_1, PSU_PANEL_2];

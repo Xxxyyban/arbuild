@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { BASE_MOUNTS } from "../lab/Constants";
+import { BASE_MOUNTS, STORAGE_MOUNT_ROTATION } from "../lab/Constants";
+import { MM } from "./cableStubs";
+import { SSD_TOP, restingOffset } from "./m2Cover";
+import { BUILT_M2_COVER, BuiltZifLever } from "./Hardware";
+import { useFileExists } from "./useFileExists";
 
 // AM4 board (B550). The AM5 board has its own component: MotherboardModel1.jsx.
 const MODEL_PATH = "/models/motherboard.glb";
@@ -12,7 +16,10 @@ const TARGET_HEIGHT = 1.5;
 // it a real 244 × 305 mm ATX board: its 9 screw holes then land on the case's standoffs, the same
 // spots as the AM5 board's (which is true to size). PLACE is where the file sits inside that stretch.
 const PLACE = [-0.1945, 1.434, 0.1059];
-const M2_HEATSINK = "Object_25";
+// The first M.2 slot's heatsink, its red trim and the dark plate under it, then its 2 screws. They are
+// left off the board: the lab draws them as the M.2 cover students unscrew and lift off (M2_COVER).
+const M2_COVER_PARTS = ["Object_25", "Object_224", "Object_23"];
+const M2_COVER_SCREW_PARTS = "Object_213";
 
 // ---- MOUNTS: where parts sit on this board (board space, see BASE_MOUNTS in lab/Constants) ----
 // Measured on the mounted board by ray-casting its surface (case space), then converted to board
@@ -118,27 +125,19 @@ function RealMotherboard({ spinY = 0, ...props }) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
-      // the first M.2 slot's heatsink: left off, so students can see the drive go in
-      if (child.name === M2_HEATSINK) child.visible = false;
+      // the M.2 cover and its screws are drawn by the lab instead (M2_COVER). Hidden pieces still
+      // catch clicks, so these take none: clicks go to the lab's cover and the SSD under it.
+      if (M2_COVER_PARTS.includes(child.name) || child.name === M2_COVER_SCREW_PARTS) {
+        child.visible = false;
+        child.raycast = () => {};
+      }
     });
   }, [cloned]);
 
   const { scale, offset } = useMemo(() => {
     cloned.rotation.set(0, 0, 0);
     cloned.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(cloned);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-
-    const maxDimension = Math.max(size.x, size.y, size.z) || 1;
-    const s = TARGET_HEIGHT / maxDimension;
-
-    return {
-      scale: s,
-      offset: [-center.x * s, -box.min.y * s, -box.min.z * s],
-    };
+    return fitOf(cloned);
   }, [cloned]);
 
   return (
@@ -157,5 +156,89 @@ function RealMotherboard({ spinY = 0, ...props }) {
     </group>
   );
 }
+
+/** The file's fit: its longest side TARGET_HEIGHT long, centred across, resting on y = 0. */
+function fitOf(object) {
+  const box = new THREE.Box3().setFromObject(object);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const s = TARGET_HEIGHT / (Math.max(size.x, size.y, size.z) || 1);
+  return { scale: s, offset: [-center.x * s, -box.min.y * s, -box.min.z * s] };
+}
+
+/* ---------- the board's own M.2 heatsink, as the lab's M.2 cover ---------- */
+// Hardware.jsx M2Cover draws a cover in the SSD's frame raised to SSD_TOP (x = 0 the drive's pins,
+// the drive along -X, +Y out of the board). This board's heatsink is moved there from where the file
+// has it, so on the board it sits exactly where the model put it.
+function bakeM2Cover(scene) {
+  scene.updateMatrixWorld(true);
+  const { scale, offset } = fitOf(scene);
+  const place = (pos, turn, s = 1) =>
+    new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...turn)), new THREE.Vector3(s, s, s));
+  // file -> board space: RealMotherboard's groups, outermost first
+  const toBoard = place(PLACE, [0, Math.PI, 0]).multiply(place([0, 0, 0], [Math.PI / 2, 0, 0])).multiply(place(offset, [0, 0, 0], scale));
+  // board space -> the cover's frame: undo the M.2 slot's group, its true-size wrapper and the drive's turn
+  const toCover = new THREE.Matrix4()
+    .makeTranslation(0, -SSD_TOP, 0)
+    .multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...STORAGE_MOUNT_ROTATION)).invert())
+    .multiply(new THREE.Matrix4().makeScale(...MOUNTS.scale))
+    .multiply(new THREE.Matrix4().makeTranslation(-MOUNTS.storage[0], -MOUNTS.storage[1], -MOUNTS.storage[2]));
+  const frame = toCover.multiply(toBoard).multiply(scene.matrixWorld.clone().invert());
+
+  const cover = new THREE.Group();
+  M2_COVER_PARTS.forEach((name) => {
+    const part = scene.getObjectByName(name);
+    const copy = part.clone();
+    copy.matrixAutoUpdate = false;
+    copy.matrix.multiplyMatrices(frame, part.matrixWorld);
+    copy.matrixWorldNeedsUpdate = true; // a fixed matrix: its world matrix follows only when flagged
+    copy.visible = true;
+    copy.castShadow = true;
+    copy.receiveShadow = true;
+    cover.add(copy);
+  });
+  return cover;
+}
+
+function OwnM2Cover({ resting }) {
+  const { scene } = useGLTF(MODEL_PATH);
+  const cover = useMemo(() => bakeM2Cover(scene), [scene]);
+  const lie = useMemo(() => restingOffset(cover), [cover]);
+  return (
+    <group position={resting ? lie : [0, 0, 0]}>
+      <primitive object={cover} />
+    </group>
+  );
+}
+
+/** The heatsink as the M.2 cover; the lab's built one if the board file is missing. */
+function M2CoverBody(props) {
+  const ok = useFileExists(MODEL_PATH);
+  if (ok === false) return <BUILT_M2_COVER.Body {...props} />;
+  return ok ? <OwnM2Cover {...props} /> : null;
+}
+
+// The cover's 2 screws, in the cover's frame: on top of the heatsink (6.25 mm up the SSD's frame),
+// over the screws the file has under it, at its connector end and 120 mm along.
+const COVER_TOP = 6.25 * MM - SSD_TOP;
+export const M2_COVER = {
+  Body: M2CoverBody,
+  screws: [
+    [-3.6 * MM, COVER_TOP, 0.7 * MM],
+    [-120 * MM, COVER_TOP, 0.8 * MM],
+  ],
+};
+
+/* ---------- the CPU socket's lever (Three/cpuSocket.js) ---------- */
+// The file's AM4 socket has no lever: its body (raised along the right side, where the cam is) ends at
+// x 30.4 mm. The lab draws the lever beside it, pivoting at the top corner, and its hook near the
+// bottom. In mm in the socket's frame (x right, y up the board, z out; 0 = the CPU's seat).
+export const SOCKET = {
+  kind: "zif",
+  lever: { Body: BuiltZifLever, pivot: [31.6 * MM, 20.5 * MM, 0.2 * MM], length: 42 * MM },
+  hook: { at: [30.3 * MM, -18 * MM, -2 * MM], height: 3.7, reach: 1.6 },
+};
 
 // No preload: the AM4 board file is large, so each board loads only once it is picked.

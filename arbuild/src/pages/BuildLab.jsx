@@ -4,8 +4,8 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { useAuth } from "../context/AuthContext";
-import PartModel, { BOARD_MOUNTS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
-import { CablePlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, PLUG_REACH } from "../Three/Hardware";
+import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
+import { CablePlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, LeverHook, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
 import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
@@ -30,6 +30,8 @@ import {
 import {
   installBlock, removeBlock, evaluateBoot, isFullyBuilt, isFullyStripped, expertSteps,
   CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
+  M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done,
+  socketKind, socketStart, leverBlock, plateBlock, socketDone,
 } from "../lab/Rules";
 import {
   POINTS, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
@@ -65,6 +67,7 @@ function TrueSize({ unstretch, rotation, children }) {
 }
 
 const HEADER_HEIGHT = 0.045; // a power header stands about 9 mm off the board
+const SOCKET_ROTATION = [0, Math.PI, 0]; // board space -> the socket's frame (Three/cpuSocket.js)
 
 // Cables, case space. Every plug goes in along -Z (into the board or card); its wires leave along +Z.
 const CABLE_IDS = ["atx24", "eps8", "pcie"];
@@ -156,6 +159,10 @@ export default function BuildLab() {
   const [cables, setCables] = useState(init.cables ?? NO_CABLES); // cables' part ends plugged in
   const [psuCables, setPsuCables] = useState(init.psuCables ?? NO_CABLES); // their PSU ends (modular PSU)
   const [screws, setScrews] = useState(init.screws ?? NO_SCREWS); // motherboard screws driven in
+  // the board's M.2 slot: its cover (on the board or the bench), the cover's 2 screws, the SSD's screw
+  const [m2, setM2] = useState(init.m2 ?? m2Start(init.installed.storage));
+  // the CPU socket: its lever, AM5's cover frame and the plastic cap on it
+  const [socket, setSocket] = useState(init.socket ?? socketStart(init.installed.cpu));
   const [cableTask, setCableTask] = useState(null); // connecting one end of a cable: { cable, end: "psu" | "part", port, flipped }
   const [cableDrawer, setCableDrawer] = useState(false);
   const [power, setPower] = useState(init.power);
@@ -252,6 +259,9 @@ export default function BuildLab() {
   // Each board has its own scale and socket / slot positions (MOUNTS in its model file).
   const boardVariant = CATALOG[picks.motherboard]?.variant ?? 0;
   const L = useMemo(() => boardLayout(BOARD_MOUNTS[boardVariant] || BOARD_MOUNTS[0]), [boardVariant]);
+  const m2Look = BOARD_M2_COVERS[boardVariant] || undefined; // the board's own M.2 cover, if it has one
+  const sockLook = BOARD_SOCKETS[boardVariant] || BOARD_SOCKETS[0]; // where the board's socket lever (and frame) go
+  const sockKind = socketKind(picks); // "zif" (AM4: lever only) or "lga" (AM5: lever and cover frame)
   const UPRIGHT = [0, Math.PI, 0];
   const boardMounted = !!installed.motherboard;
   const moboTarget = useMemo(() => toWorldPose(MOTHERBOARD_TARGET.position, MOTHERBOARD_TARGET.rotation, rig), [rig]);
@@ -419,6 +429,7 @@ export default function BuildLab() {
       setRamSlot((p) => ({ ...p, [name]: s }));
     }
 
+    if (name === "storage") setM2((p) => ({ ...p, ssdScrew: false }));
     setInstalled((p) => ({ ...p, [name]: true }));
     setFlights((p) => {
       const n = { ...p };
@@ -458,7 +469,7 @@ export default function BuildLab() {
     if (!installed[name]) return;
     if (gestures.consumeSuppress()) return; // a drag/pinch/twist just happened, not a real tap
 
-    const b = removeBlock(name, installed, power, { cables, screws });
+    const b = removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind });
     if (b) {
       miss(b.key, b.msg, blockType(b.key));
       return;
@@ -496,7 +507,7 @@ export default function BuildLab() {
   }
 
   function reportBlocked(name) {
-    const b = removeBlock(name, installed, power, { cables, screws });
+    const b = removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind });
     if (b) miss(b.key, b.msg, blockType(b.key));
   }
 
@@ -699,6 +710,118 @@ export default function BuildLab() {
     if (s) return miss(s.key, s.msg, "safety");
     setPsuCables((p) => ({ ...p, [c]: false }));
     award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${label} unplugged from the PSU.`, key);
+  }
+
+  /* ---------- the M.2 cover and the SSD's screw ---------- */
+  // Every board's M.2 slot has a cover held by 2 screws, and the SSD has its own screw under it.
+  // Building: cover screws out, cover off, SSD in, SSD screw in, cover back on, cover screws in.
+  // Taking apart: the same in reverse. A screw turns with one click, either way.
+  function unsafe() {
+    const s = safetyBlock(power);
+    if (s) miss(s.key, s.msg, "safety");
+    return !!s;
+  }
+
+  function clickCoverScrew(i) {
+    if (exploding || m2.cover !== "on") return;
+    if (mode === "disassemble" && unsafe()) return;
+    const coverScrews = m2.coverScrews.map((d, j) => (j === i ? !d : d));
+    const next = { ...m2, coverScrews };
+    setM2(next);
+    const n = coverScrews.filter(Boolean).length;
+    if (coverScrews[i]) {
+      if (mode === "assemble" && installed.storage && m2Done(next, installed)) {
+        const k = ledgerKey(mode, "m2cover");
+        return award(k, actionPoints(basePoints(mode, "m2cover"), misses.current[k] || 0), "M.2 cover screwed down over the SSD.", "m2cover");
+      }
+      return showHint(`M.2 cover screw in: ${n} of ${M2_COVER_SCREWS}.`, "success");
+    }
+    showHint(n === 0 ? "Both cover screws out. Lift the cover off." : `M.2 cover screw out: ${n} still in.`, "success");
+  }
+
+  function clickM2Cover() {
+    if (exploding) return;
+    if (m2.cover === "on") {
+      if (mode === "disassemble" && unsafe()) return;
+      const b = m2LiftBlock(m2);
+      if (b) return miss(b.key, b.msg, "blocked");
+      setM2((p) => ({ ...p, cover: "off" }));
+      if (mode === "disassemble") {
+        const k = ledgerKey(mode, "m2cover");
+        return award(k, actionPoints(basePoints(mode, "m2cover"), misses.current[k] || 0), "M.2 cover off. Now unscrew the SSD.", "m2cover");
+      }
+      return showHint(installed.storage ? "M.2 cover off." : "M.2 cover off. Now the SSD can go into the slot.", "success");
+    }
+    // on the bench: back onto the board, its screws still to go in
+    const b = m2RefitBlock(m2, installed);
+    if (b) return miss(b.key, b.msg, "blocked");
+    setM2((p) => ({ ...p, cover: "on", coverScrews: [false, false] }));
+    showHint("M.2 cover back on. Now screw it down (2 screws).", "success");
+  }
+
+  function clickSsdScrew() {
+    if (exploding || !installed.storage) return;
+    if (m2.cover === "on") return showHint("The SSD's screw is under the M.2 cover. Take the cover off first.");
+    if (mode === "disassemble" && unsafe()) return;
+    const k = ledgerKey(mode, "m2screw");
+    if (!m2.ssdScrew) {
+      setM2((p) => ({ ...p, ssdScrew: true }));
+      if (mode === "assemble") {
+        return award(k, actionPoints(basePoints(mode, "m2screw"), misses.current[k] || 0), "SSD screwed down. Now put the M.2 cover back over it.", "m2screw");
+      }
+      return showHint("SSD screw back in.", "success");
+    }
+    setM2((p) => ({ ...p, ssdScrew: false }));
+    if (mode === "disassemble") {
+      return award(k, actionPoints(basePoints(mode, "m2screw"), misses.current[k] || 0), "SSD unscrewed. Its end lifts up, then it slides out of the slot.", "m2screw");
+    }
+    showHint("SSD screw out.", "success");
+  }
+
+  /* ---------- the CPU socket's lever (and AM5's cover frame) ---------- */
+  // AM4: lever up, CPU in, lever down. AM5: lever up, cover frame up, CPU in, frame down, lever down
+  // (the plastic cap pops off). Taking apart is the reverse, once the cooler is off.
+  function socketOpened() {
+    const k = ledgerKey(mode, "socket");
+    award(k, actionPoints(basePoints(mode, "socket"), misses.current[k] || 0), "Socket open: the CPU lifts straight out now.", "socket");
+  }
+
+  function clickLever() {
+    if (exploding) return;
+    if (mode === "disassemble" && unsafe()) return;
+    const b = leverBlock(socket, sockKind, installed);
+    if (b) return miss(b.key, b.msg, "blocked");
+    const cpuIn = !!installed.cpu;
+    if (socket.lever === "down") {
+      setSocket((p) => ({ ...p, lever: "up" }));
+      if (mode === "disassemble" && cpuIn && sockKind === "zif") return socketOpened();
+      if (sockKind === "lga") return showHint("Lever up. Now lift the cover frame.", "success");
+      return showHint(cpuIn ? "Lever up: the CPU is free." : "Lever up. Line the CPU's gold triangle up with the socket's and drop it in.", "success");
+    }
+    const popCap = sockKind === "lga" && cpuIn && socket.cap;
+    setSocket((p) => ({ ...p, lever: "down", cap: popCap ? false : p.cap }));
+    if (mode === "assemble" && cpuIn) {
+      const k = ledgerKey(mode, "socket");
+      const msg = popCap
+        ? "CPU locked in. The plastic cap pops off: keep it, it goes back on if the CPU ever comes out."
+        : "CPU locked in: the lever is down and hooked.";
+      return award(k, actionPoints(basePoints(mode, "socket"), misses.current[k] || 0), msg, "socket");
+    }
+    showHint("Lever down and hooked.", "success");
+  }
+
+  function clickPlate() {
+    if (exploding || sockKind !== "lga") return;
+    if (mode === "disassemble" && unsafe()) return;
+    const b = plateBlock(socket);
+    if (b) return miss(b.key, b.msg, "blocked");
+    if (socket.plate === "closed") {
+      setSocket((p) => ({ ...p, plate: "open" }));
+      if (mode === "disassemble" && installed.cpu) return socketOpened();
+      return showHint(installed.cpu ? "Cover frame up." : "Cover frame up. Line the CPU's gold triangle up with the socket's and set it in.", "success");
+    }
+    setSocket((p) => ({ ...p, plate: "closed" }));
+    showHint(installed.cpu ? "Cover frame down. Now push the lever down into its hook." : "Cover frame down.", "success");
   }
 
   // Clicking a plug: push it in while connecting, unplug it when taking apart (after the safety steps).
@@ -945,6 +1068,8 @@ export default function BuildLab() {
     setCables(s.cables ?? NO_CABLES);
     setPsuCables(s.psuCables ?? NO_CABLES);
     setScrews(s.screws ?? NO_SCREWS);
+    setM2(s.m2 ?? m2Start(s.installed.storage));
+    setSocket(s.socket ?? socketStart(s.installed.cpu));
     setCableTask(null);
     setCableDrawer(false);
     setPower(pm.power);
@@ -1087,7 +1212,7 @@ export default function BuildLab() {
   /* ---------- phase status ---------- */
   const phaseDone =
     phaseActions > 0 &&
-    (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && booted);
+    (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && m2Done(m2, installed) && socketDone(socket, installed) && booted);
   const canToggle =
     cfg.modeControl === "student" && (cfg.toggle === "free" || (cfg.toggle === "afterComplete" && phaseDone));
   // a build is the required parts plus any optional ones picked (second RAM stick, graphics card)
@@ -1147,7 +1272,7 @@ export default function BuildLab() {
   function trySelect(name) {
     if (gestures.consumeSuppress()) return;
     inspect(name);
-    const b = installBlock(name, installed, picks, psuCables);
+    const b = installBlock(name, installed, picks, psuCables, m2, socket);
     if (b) {
       reportEvent("blocked", name, b.msg);
       showHint(b.msg);
@@ -1274,6 +1399,11 @@ export default function BuildLab() {
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
+      else if (id === "m2cover") clickM2Cover();
+      else if (id === "socketlever") clickLever();
+      else if (id === "socketplate") clickPlate();
+      else if (id.startsWith("m2coverscrew:")) clickCoverScrew(Number(id.slice(13)));
+      else if (id === "m2screw") clickSsdScrew();
       else if (id.startsWith("port:")) choosePort(id.slice(5));
       else if (id.startsWith("screw:")) clickScrew(Number(id.slice(6)));
       else if (mode === "disassemble") uninstall(id);
@@ -1314,7 +1444,7 @@ export default function BuildLab() {
 
   const pull = (name) => ({
     partId: name,
-    locked: !!removeBlock(name, installed, power, { cables, screws }),
+    locked: !!removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind }),
     onBlocked: () => reportBlocked(name),
     onPull: (worldPos) => uninstall(name, worldPos),
     onTap: () => {
@@ -1332,6 +1462,36 @@ export default function BuildLab() {
 
   // each picked option has its own model component (see Three/PartModel.jsx)
   const variantOf = (slot) => itemFor(slot, picks)?.variant ?? 0;
+
+  // The M.2 slot's next step bobs: the cover's screws, the cover, the SSD's screw, the cover on the bench.
+  const handsOn = mode === "assemble" || power.discharged;
+  const m2Wait = (() => {
+    const screwsIn = m2.coverScrews.filter(Boolean).length;
+    const ssdIn = !!installed.storage;
+    if (!handsOn || m2.cover === "off") {
+      return {
+        ssdScrew: handsOn && ssdIn && (mode === "assemble" ? !m2.ssdScrew : m2.ssdScrew),
+        bench: handsOn && mode === "assemble" && ssdIn && m2.ssdScrew,
+      };
+    }
+    // the cover is on: building, it comes off for a new SSD and goes back down over a screwed one
+    const coverOff = mode === "assemble" ? !ssdIn : ssdIn;
+    return {
+      coverScrews: coverOff ? screwsIn > 0 : ssdIn && m2.ssdScrew && screwsIn < M2_COVER_SCREWS,
+      cover: coverOff && screwsIn === 0,
+    };
+  })();
+
+  // The socket's next move nudges: open it for a CPU (or, taking apart, to free one once the cooler
+  // is off), then close the frame and lock the lever over a new CPU.
+  const socketWait = (() => {
+    if (!handsOn) return {};
+    const lga = sockKind === "lga";
+    const opening = mode === "assemble" ? !installed.cpu : installed.cpu && !installed.cpu_cooler;
+    if (opening) return { lever: socket.lever === "down", plate: lga && socket.lever === "up" && socket.plate === "closed" };
+    if (mode !== "assemble") return {};
+    return { plate: lga && socket.plate === "open", lever: socket.lever === "up" && (!lga || socket.plate === "closed") };
+  })();
 
   // The board group is stretched by the board's own fit (L.scale); the parts on it are wrapped in
   // <TrueSize unstretch={unstretch}> so they keep their real proportions instead of stretching with it.
@@ -1368,6 +1528,46 @@ export default function BuildLab() {
             </TrueSize>
           )}
         </Blast>
+      )}
+
+      {/* the CPU socket's lever and its hook, and AM5's cover frame (x right, y up the board, z out) */}
+      {!exploding && (
+        <group position={L.cpuLocal}>
+          <TrueSize unstretch={unstretch} rotation={SOCKET_ROTATION}>
+            <LeverHook hook={sockLook.hook} />
+            <SocketLever lever={sockLook.lever} up={socket.lever === "up"} waiting={socketWait.lever} onClick={clickLever} />
+            {sockLook.plate && (
+              <SocketPlate
+                plate={sockLook.plate}
+                open={socket.plate === "open"}
+                cap={socket.cap}
+                waiting={socketWait.plate}
+                onClick={clickPlate}
+              />
+            )}
+          </TrueSize>
+        </group>
+      )}
+
+      {/* the M.2 slot: the SSD's own screw, and the cover over it while the cover is on the board */}
+      {!exploding && (
+        <group position={L.storageLocal}>
+          <TrueSize unstretch={unstretch} rotation={STORAGE_MOUNT_ROTATION}>
+            {installed.storage && (
+              <SsdScrew driven={m2.ssdScrew} waiting={m2Wait.ssdScrew} onClick={clickSsdScrew} />
+            )}
+            {m2.cover === "on" && (
+              <M2Cover
+                look={m2Look}
+                screws={m2.coverScrews}
+                coverWaiting={m2Wait.cover}
+                screwsWaiting={m2Wait.coverScrews}
+                onCover={clickM2Cover}
+                onScrew={clickCoverScrew}
+              />
+            )}
+          </TrueSize>
+        </group>
       )}
 
       {installed.cpu_cooler && (
@@ -1450,7 +1650,7 @@ export default function BuildLab() {
         markerRadius={c.markerRadius}
         onPositionChange={c.onPositionChange}
         isClickToPlace={arLike}
-        locked={!!installBlock(name, installed, picks, psuCables)}
+        locked={!!installBlock(name, installed, picks, psuCables, m2, socket)}
         isSelected={selectedPart === name}
         onClick={() => trySelect(name)}
         onCorrect={(k) => install(name, isRam ? free[k ?? 0].slot : undefined)}
@@ -1545,7 +1745,7 @@ export default function BuildLab() {
   }
 
   const classLocked = inClass && classPhase !== "running"; // waiting for the instructor, or class over
-  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables });
+  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables, m2, socket });
   // only steps that must happen in order get a "next" highlight (a teardown's parts can go in any order)
   const nextStep = steps.findIndex((s) => !s.done && !s.anyOrder);
   const orderedSteps = steps.filter((s) => !s.anyOrder);
@@ -1741,6 +1941,15 @@ export default function BuildLab() {
                         </CaseRig>
 
                         {benchParts.map(renderTrayPart)}
+                        {m2.cover === "off" && !exploding && (
+                          <M2CoverOnBench
+                            look={m2Look}
+                            position={trayPosition("m2cover")}
+                            label={hintsOn ? "M.2 cover" : null}
+                            waiting={m2Wait.bench}
+                            onClick={clickM2Cover}
+                          />
+                        )}
 
                         {showMarkers &&
                           (selectedPart === "ram1" || selectedPart === "ram2") &&

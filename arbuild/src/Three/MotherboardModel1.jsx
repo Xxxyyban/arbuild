@@ -5,6 +5,9 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import MotherboardModel from "./MotherboardModel";
 import { useFileExists } from "./useFileExists";
+import { MM } from "./cableStubs";
+import { splitTriangles } from "./cpuSocket";
+import { BuiltZifLever } from "./Hardware";
 
 const MODEL_PATH = "/models/motherboard1.glb";
 
@@ -66,18 +69,12 @@ function RealBoard({ spinY = 0, ...props }) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
+      // the socket lever swings on its own (SOCKET): the board keeps the rest of its silver parts
+      if (child.isMesh && child.name === LEVER_MESH) child.geometry = leverSplit(scene).rest;
     });
-  }, [cloned]);
+  }, [cloned, scene]);
 
-  const { scale, offset } = useMemo(() => {
-    cloned.rotation.set(FIT.turn[0], FIT.turn[1], FIT.turn[2]);
-    cloned.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(cloned);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const s = FIT.length / (Math.max(size.x, size.y, size.z) || 1);
-    return { scale: s, offset: [-center.x * s, -box.min.y * s, -box.min.z * s] };
-  }, [cloned]);
+  const { scale, offset } = useMemo(() => fitOf(cloned), [cloned]);
 
   return (
     <group {...props} rotation={[0, spinY, 0]}>
@@ -94,3 +91,78 @@ function RealBoard({ spinY = 0, ...props }) {
     </group>
   );
 }
+
+/** The file's fit: its longest side FIT.length long, centred across, resting on y = 0. */
+function fitOf(object) {
+  object.rotation.set(FIT.turn[0], FIT.turn[1], FIT.turn[2]);
+  object.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const s = FIT.length / (Math.max(size.x, size.y, size.z) || 1);
+  return { scale: s, offset: [-center.x * s, -box.min.y * s, -box.min.z * s] };
+}
+
+/* ---------- the CPU socket (Three/cpuSocket.js) ---------- */
+// The file's lever is a silver rod down the socket's right side, bent out at its top into a pivot
+// post. It is cut out of the board's silver mesh so it can swing; the lab adds the hook it sits under
+// and the cover frame with its plastic cap, which the file doesn't have. In mm in the socket's frame
+// (x right, y up the board, z out; 0 = the CPU's seat).
+const LEVER_MESH = "silver";
+const LEVER_PIVOT = [30.01, 26.9, 3.41]; // where the rod meets the arm bent out to the post
+// a triangle of the lever: right of the socket, above the board, short of the pivot post beside it
+const onLever = ([x, y, z]) => x >= 28.9 && x <= 34.45 && y >= -33.5 && y <= 28.2 && z >= 2.45;
+
+/** File -> the socket's frame: RealBoard's groups, then BuildLab's socket group undone. */
+function socketFrame(scene) {
+  const { scale, offset } = fitOf(scene);
+  const place = (pos, turn, s = 1) =>
+    new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...turn)), new THREE.Vector3(s, s, s));
+  return place([0, 0, 0], [0, Math.PI, 0])
+    .multiply(new THREE.Matrix4().makeScale(...MOUNTS.scale))
+    .multiply(new THREE.Matrix4().makeTranslation(-MOUNTS.cpu[0], -MOUNTS.cpu[1], -MOUNTS.cpu[2]))
+    .multiply(place(FIT.place, [0, Math.PI, 0]))
+    .multiply(place([0, 0, 0], [Math.PI / 2, 0, 0]))
+    .multiply(place(offset, [0, 0, 0], scale))
+    .multiply(scene.matrixWorld.clone().invert());
+}
+
+const splits = new WeakMap(); // the file's silver geometry -> its lever and the rest, worked out once
+function leverSplit(scene) {
+  const mesh = scene.getObjectByName(LEVER_MESH);
+  if (!splits.has(mesh.geometry)) {
+    const frame = socketFrame(scene).multiply(mesh.matrixWorld);
+    const [lever, rest] = splitTriangles(mesh.geometry, frame, onLever);
+    splits.set(mesh.geometry, { lever, rest, frame, material: mesh.material });
+  }
+  return splits.get(mesh.geometry);
+}
+
+function OwnLever() {
+  const { scene } = useGLTF(MODEL_PATH);
+  const lever = useMemo(() => {
+    const { lever: geometry, frame, material } = leverSplit(scene);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.makeTranslation(...LEVER_PIVOT.map((v) => -v * MM)).multiply(frame);
+    mesh.matrixWorldNeedsUpdate = true; // a fixed matrix: its world matrix follows only when flagged
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }, [scene]);
+  return <primitive object={lever} />;
+}
+
+/** The file's own lever; the lab's built one if the file is missing (the AM4 board shows then). */
+function LeverBody() {
+  const ok = useFileExists(MODEL_PATH);
+  if (ok === false) return <BuiltZifLever />;
+  return ok ? <OwnLever /> : null;
+}
+
+export const SOCKET = {
+  kind: "lga",
+  lever: { Body: LeverBody, pivot: LEVER_PIVOT.map((v) => v * MM), length: 60 * MM },
+  hook: { at: [28.3 * MM, -30 * MM, -0.5 * MM], height: 5.4, reach: 2 },
+  plate: { hinge: [-25.5 * MM, 0, 2.0 * MM] }, // the cover frame's hinge, on the socket's left side
+};

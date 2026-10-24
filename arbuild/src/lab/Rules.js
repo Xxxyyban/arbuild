@@ -56,8 +56,16 @@ const ON_BOARD = ["cpu", "ram1", "ram2", "storage"];
 const NO_BOARD_MSG = "Pick a motherboard first. This part goes onto the board.";
 
 /** Returns null if the part can be installed, else { key, msg }. `picks` = what is on the bench. */
-export function installBlock(name, installed, picks = null, psuCables = null) {
+export function installBlock(name, installed, picks = null, psuCables = null, m2 = null, socket = null) {
   if (picks && ON_BOARD.includes(name) && !picks.motherboard) return { key: name, msg: NO_BOARD_MSG };
+  if (name === "cpu" && socket && !socketOpen(socket, socketKind(picks))) return socketShutBlock(socket, socketKind(picks));
+  if (name === "cpu_cooler" && socket && installed.cpu && !socketLocked(socket)) {
+    const frame = socketKind(picks) === "lga" && socket.plate === "open";
+    return { key: "socket", msg: `Lock the CPU in first: ${frame ? "close the cover frame, then " : ""}push the socket lever down into its hook.` };
+  }
+  if (name === "storage" && m2?.cover === "on") {
+    return { key: "m2cover", msg: "Take the M.2 cover off first: unscrew its 2 screws, then lift it off the slot." };
+  }
   // a PSU's cables are sorted on the bench: a modular one's sockets, or a fixed one's tangled
   // bundle, are hard to reach once it is in the case
   if (name === "psu" && picks && psuCables) {
@@ -156,7 +164,13 @@ export function removeBlock(name, installed, power, links = null) {
   const safety = safetyBlock(power);
   if (safety) return safety;
   if (links) {
-    const { cables = {}, screws = [] } = links;
+    const { cables = {}, screws = [], m2 = null } = links;
+    if (name === "storage" && m2?.cover === "on") {
+      return { key: "m2cover", msg: "Take the M.2 cover off first: unscrew its 2 screws, then lift it off the SSD." };
+    }
+    if (name === "storage" && m2?.ssdScrew) {
+      return { key: "m2screw", msg: "Unscrew the SSD first: the small screw at its end holds it down." };
+    }
     if (name === "gpu" && cables.pcie) {
       return { key: name, msg: "Unplug the PCIe power cable from the graphics card first." };
     }
@@ -176,6 +190,8 @@ export function removeBlock(name, installed, power, links = null) {
   if (missing.length > 0) {
     return { key: name, msg: REMOVE_MSG[name] || `Remove the ${PART_LABEL[missing[0]]} first.` };
   }
+  const socket = links?.socket;
+  if (name === "cpu" && socket && !socketOpen(socket, links.socketKind)) return socketShutBlock(socket, links.socketKind, true);
   return null;
 }
 
@@ -258,6 +274,89 @@ export function evaluateBoot(state, { hints = true } = {}) {
   return { status: "hello", lowRes, ramCount, note: hints ? notes[0] ?? null : null };
 }
 
+/* ---------- the M.2 cover over the SSD slot ---------- */
+// m2 = { cover: "on" | "off" (on the board, or on the bench), coverScrews: [bool, bool], ssdScrew }
+// Every board's M.2 slot has a cover held by 2 screws; the SSD is held by its own screw under it.
+export const M2_COVER_SCREWS = 2;
+
+/** How a board starts: its cover on and screwed down, the SSD (if any) screwed in under it. */
+export const m2Start = (storageIn) => ({ cover: "on", coverScrews: [true, true], ssdScrew: !!storageIn });
+
+/** Can the cover be lifted off now? null, or { key, msg }. */
+export function m2LiftBlock(m2) {
+  const left = m2.coverScrews.filter(Boolean).length;
+  if (left > 0) return { key: "m2cover", msg: `Unscrew the M.2 cover first: ${left} of ${M2_COVER_SCREWS} screws are still in.` };
+  return null;
+}
+
+/** Can the cover go back on now? An SSD under it must be screwed down first. */
+export function m2RefitBlock(m2, installed) {
+  if (installed.storage && !m2.ssdScrew) {
+    return { key: "m2cover", msg: "Screw the SSD down first (the small screw at its end), then put the cover back over it." };
+  }
+  return null;
+}
+
+/** The SSD slot is finished: SSD screwed in (if there is one), cover back on with both screws in. */
+export const m2Done = (m2, installed) =>
+  m2.cover === "on" && m2.coverScrews.every(Boolean) && (!installed.storage || m2.ssdScrew);
+
+/* ---------- the CPU socket: its lever, and on AM5 its cover frame ---------- */
+// socket = { lever: "down" | "up", plate: "closed" | "open", cap: bool }
+// An AM4 socket (ZIF: the pins are on the CPU) has only a lever: up to drop the CPU in, down to clamp
+// its pins. An AM5 socket (LGA: the pins are in the socket) also has a hinged metal cover frame (the
+// load plate) that the lever holds shut, with a plastic cap on it that pops off once a CPU is locked
+// in. On AM4 `plate` is ignored. The lever only moves with no cooler on the CPU, so a CPU under a
+// cooler is always locked in.
+export const socketKind = (picks) => (itemFor("motherboard", picks)?.socket === "am5" ? "lga" : "zif");
+
+/** How a board starts: lever down, frame shut, the cap on while there is no CPU in it. */
+export const socketStart = (cpuIn) => ({ lever: "down", plate: "closed", cap: !cpuIn });
+
+/** A CPU can go in or come out: lever up (and on AM5, the frame lifted). */
+export const socketOpen = (s, kind) => s.lever === "up" && (kind === "zif" || s.plate === "open");
+
+/** A CPU in it is clamped: the lever is down (on AM5 it only goes down over a shut frame). */
+export const socketLocked = (s) => s.lever === "down";
+
+/** Why a CPU can't go in (or come out) of a socket that isn't open. */
+function socketShutBlock(s, kind, removing = false) {
+  if (kind === "zif") {
+    return {
+      key: "socket",
+      msg: removing
+        ? "Lift the socket lever first: while it's down it clamps the CPU's pins."
+        : "Lift the socket lever first: unhook it and raise it all the way up. The CPU only drops in with the lever up.",
+    };
+  }
+  if (s.lever === "down") {
+    return { key: "socket", msg: "Open the socket first: push the lever down and out of its hook, lift it, then lift the cover frame." };
+  }
+  return { key: "socket", msg: `Lift the cover frame on its hinge first: it ${removing ? "holds the CPU down" : "covers the socket"}.` };
+}
+
+/** Can the lever move now (up, or back down)? null, or { key, msg }. */
+export function leverBlock(s, kind, installed) {
+  if (s.lever === "down" && installed.cpu_cooler) {
+    return { key: "socket", msg: "Take the CPU cooler off first. The lever stays locked while a cooler sits on the CPU." };
+  }
+  if (s.lever === "up" && kind === "lga" && s.plate === "open") {
+    return { key: "socket", msg: "Close the cover frame first. The lever goes down over it and holds it shut." };
+  }
+  return null;
+}
+
+/** Can the AM5 cover frame move now? The lever holds it shut. */
+export function plateBlock(s) {
+  if (s.lever === "down") {
+    return { key: "socket", msg: "Unhook the lever first (push it down and out, then lift it). It holds the cover frame shut." };
+  }
+  return null;
+}
+
+/** The socket is finished: a CPU in it is locked in. */
+export const socketDone = (s, installed) => !installed.cpu || socketLocked(s);
+
 /** True if the PC is fully built (every part in). */
 export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) => installed[p]);
 
@@ -267,7 +366,11 @@ export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) =>
  * then every part can come out in any order (anyOrder: true).
  * state = { installed, picks, pasteApplied, booted, power }
  */
-export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {} }) {
+export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {}, m2 = null, socket = null }) {
+  const slot = m2 || m2Start(installed.storage);
+  const sock = socket || socketStart(installed.cpu);
+  const lga = socketKind(picks) === "lga";
+  const sockOpen = socketOpen(sock, socketKind(picks));
   const driven = screws.filter(Boolean).length;
   const has = (slot) => !!picks?.[slot];
   const modular = psuModular(picks);
@@ -291,17 +394,26 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       any("Motherboard out (graphics card, cables and screws out first)", out("motherboard")),
       any("CPU cooler off", out("cpu_cooler")),
       any("Old thermal paste wiped (before the CPU comes out)", !pasteApplied),
+      any(lga ? "CPU socket opened (lever up, then the cover frame)" : "CPU socket lever up", sockOpen || out("cpu")),
       any("CPU out (the cooler must be off)", out("cpu")),
       any("RAM stick(s) out", out("ram1") && out("ram2")),
-      any("M.2 SSD out", out("storage")),
+      any("M.2 cover off (unscrew it, lift it off)", slot.cover === "off" || out("storage")),
+      any("M.2 SSD unscrewed and out", out("storage")),
     ];
   }
   const ramDone = installed.ram1 && (!has("ram2") || installed.ram2);
   return [
     { label: "Pick parts that work together", done: buildSlots(picks).every(has) },
+    { label: lga ? "Open the CPU socket: unhook the lever, lift it, lift the cover frame" : "Lift the CPU socket's lever", done: !!installed.cpu || sockOpen },
     { label: "Seat the CPU in the socket (board on the bench)", done: !!installed.cpu },
+    {
+      label: lga ? "Close the cover frame and hook the lever down (the cap pops off)" : "Push the socket lever down to lock the CPU",
+      done: !!installed.cpu && socketLocked(sock),
+    },
     { label: has("ram2") ? "Click both RAM sticks into slots 1 and 3" : "Click the RAM stick into its slot", done: !!ramDone },
-    { label: "Screw the M.2 SSD into its slot", done: !!installed.storage },
+    { label: "Unscrew and lift off the M.2 cover", done: slot.cover === "off" || !!installed.storage },
+    { label: "Screw the M.2 SSD into its slot", done: !!installed.storage && slot.ssdScrew },
+    { label: "Put the M.2 cover back and screw it down", done: !!installed.storage && m2Done(slot, installed) },
     { label: "Add a pea-sized dot of thermal paste", done: pasteApplied || !!installed.cpu_cooler },
     { label: "Mount the CPU cooler", done: !!installed.cpu_cooler },
     { label: "Set the motherboard in the case", done: !!installed.motherboard },

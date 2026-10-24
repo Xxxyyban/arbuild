@@ -1,4 +1,5 @@
-// Cable plugs, cable runs, header markers and motherboard screws in the lab.
+// Cable plugs, cable runs, header markers, motherboard screws, the M.2 cover and the CPU socket's
+// lever and cover frame in the lab.
 //
 // A plug sits on its header when plugged in; otherwise it hovers a little way out along its wires.
 // A screw sits flush in its hole when driven in; loose, it hovers above the hole.
@@ -7,7 +8,9 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
-import { buildCableStub, buildScrew } from "./cableStubs";
+import { buildCableStub, buildScrew, MM } from "./cableStubs";
+import { buildM2Cover, restingOffset, M2_COVER_SCREWS, SSD_SCREW, SSD_TOP } from "./m2Cover";
+import { buildZifLever, buildLeverHook, buildLoadPlate, buildSocketCap, LEVER_LIFT, LEVER_OUT, PLATE_OPEN } from "./cpuSocket";
 
 const PLUG_OUT = 0.11; // how far an unplugged plug hovers out from its socket (scene units)
 const SCREW_OUT = 0.035; // how far a loose screw hovers above its hole
@@ -304,6 +307,148 @@ export function BoardScrew({ position, rotation, driven, waiting, onClick, partI
           <sphereGeometry args={[0.03, 10, 8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
+      </group>
+    </group>
+  );
+}
+
+const M2_SCREW_SIZE = 0.7; // M.2 screws are smaller than the board's 6-32 screws
+
+/** The cover the lab builds itself (Three/m2Cover.js). resting: lying on the bench at the origin. */
+function BuiltM2Cover({ resting }) {
+  const object = useMemo(() => buildM2Cover(), []);
+  const lie = useMemo(() => restingOffset(object), [object]);
+  return (
+    <group position={resting ? lie : [0, 0, 0]}>
+      <primitive object={object} />
+    </group>
+  );
+}
+
+// An M.2 cover's look and its 2 screw spots, in the cover's frame (the SSD's frame raised to SSD_TOP).
+// This one is for boards whose file has no M.2 heatsink of its own (see PartModel BOARD_M2_COVERS).
+export const BUILT_M2_COVER = { Body: BuiltM2Cover, screws: M2_COVER_SCREWS };
+
+/**
+ * The M.2 cover over the SSD slot, with its two screws, in the SSD's frame. look: the board's cover
+ * (BUILT_M2_COVER or the board's own). screws: [bool, bool] driven in. waiting: which of the cover
+ * and its screws can be used now. Clicking the cover lifts it off (or tells the student why not);
+ * clicking a screw turns it.
+ */
+export function M2Cover({ look = BUILT_M2_COVER, screws, coverWaiting, screwsWaiting, onCover, onScrew }) {
+  const lift = useRef();
+  useSlide(lift, SSD_TOP, coverWaiting);
+  return (
+    <group>
+      <group ref={lift} position={[0, SSD_TOP, 0]}>
+        <group userData={{ partId: "m2cover" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onCover)} {...pointer}>
+          <look.Body />
+        </group>
+        {look.screws.map((p, i) => (
+          <group key={i} position={p} scale={M2_SCREW_SIZE}>
+            <BoardScrew partId={`m2coverscrew:${i}`} driven={screws[i]} waiting={screwsWaiting} onClick={() => onScrew?.(i)} />
+          </group>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/** The M.2 cover lying on the bench, pad down, centred on position; clicking it puts it back on the board. */
+export function M2CoverOnBench({ look = BUILT_M2_COVER, position, label, waiting, onClick }) {
+  const lift = useRef();
+  useSlide(lift, 0, waiting);
+  return (
+    <group position={position}>
+      <group ref={lift} userData={{ partId: "m2cover" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
+        <look.Body resting />
+      </group>
+      {label && (
+        <Billboard position={[0, 0.09, 0]}>
+          <Text fontSize={0.05} color="#e5e7eb" outlineWidth={0.004} outlineColor="#111827" anchorX="center">
+            {label}
+          </Text>
+        </Billboard>
+      )}
+    </group>
+  );
+}
+
+/** The small screw that holds an M.2 SSD down at its far end, in the SSD's frame. */
+export function SsdScrew({ driven, waiting, onClick }) {
+  return (
+    <group position={[SSD_SCREW[0], SSD_TOP, SSD_SCREW[2]]} scale={M2_SCREW_SIZE}>
+      <BoardScrew partId="m2screw" driven={driven} waiting={waiting} onClick={onClick} />
+    </group>
+  );
+}
+
+/* ---------- the CPU socket's lever, its hook, and AM5's cover frame (Three/cpuSocket.js) ---------- */
+// All in the socket's frame: x to the right, y up the board, z out of it. A waiting lever or frame
+// nudges the way it is about to move instead of bobbing.
+
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const nudge = (state, waiting, size) => (waiting ? ((Math.sin(state.clock.elapsedTime * 4) + 1) / 2) * size : 0);
+const ease = (ref, target, dt, speed = 6) => {
+  ref.current += (target - ref.current) * (1 - Math.exp(-Math.min(dt, 0.05) * speed));
+  return ref.current;
+};
+
+/** An AM4 socket lever the lab builds (for a board file without one), its pivot at the origin. */
+export function BuiltZifLever() {
+  const object = useMemo(() => buildZifLever(), []);
+  return <primitive object={object} />;
+}
+
+/**
+ * A socket lever. lever = { Body, pivot, length }: Body draws it with its pivot at the origin and its
+ * arm down -Y. up: lifted. Going up it swings out from under its hook first, then lifts.
+ */
+export function SocketLever({ lever, up, waiting, onClick }) {
+  const turn = useRef();
+  const a = useRef(up ? 1 : 0);
+  useFrame((state, dt) => {
+    if (!turn.current) return;
+    const w = nudge(state, waiting, 0.08);
+    const t = ease(a, up ? 1 - w : w, dt);
+    turn.current.rotation.set(LEVER_LIFT * clamp01((t - 0.15) / 0.85), 0, LEVER_OUT * clamp01(t / 0.15), "ZXY");
+  });
+  return (
+    <group position={lever.pivot}>
+      <group ref={turn} userData={{ partId: "socketlever" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
+        <lever.Body />
+        {/* bigger invisible target: the lever is only 2 mm thick */}
+        <mesh position={[0, -lever.length / 2, 0]}>
+          <boxGeometry args={[7 * MM, lever.length, 7 * MM]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/** The hook a lever sits under when it's down. hook = { at, height, reach } (mm for the last two). */
+export function LeverHook({ hook }) {
+  const object = useMemo(() => buildLeverHook(hook.height, hook.reach), [hook]);
+  return <primitive object={object} position={hook.at} />;
+}
+
+/** AM5's cover frame on its hinge (plate = { hinge }), with the plastic cap on it while `cap`. */
+export function SocketPlate({ plate, open, cap, waiting, onClick }) {
+  const frame = useMemo(() => buildLoadPlate(), []);
+  const capObject = useMemo(() => buildSocketCap(), []);
+  const turn = useRef();
+  const b = useRef(open ? 1 : 0);
+  useFrame((state, dt) => {
+    if (!turn.current) return;
+    const w = nudge(state, waiting, 0.05);
+    turn.current.rotation.y = PLATE_OPEN * ease(b, open ? 1 - w : w, dt);
+  });
+  return (
+    <group position={plate.hinge}>
+      <group ref={turn} userData={{ partId: "socketplate" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
+        <primitive object={frame} />
+        {cap && <primitive object={capObject} />}
       </group>
     </group>
   );
