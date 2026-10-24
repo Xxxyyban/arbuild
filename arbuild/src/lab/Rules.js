@@ -58,13 +58,21 @@ const NO_BOARD_MSG = "Pick a motherboard first. This part goes onto the board.";
 /** Returns null if the part can be installed, else { key, msg }. `picks` = what is on the bench. */
 export function installBlock(name, installed, picks = null, psuCables = null) {
   if (picks && ON_BOARD.includes(name) && !picks.motherboard) return { key: name, msg: NO_BOARD_MSG };
-  // a modular PSU gets its cables on the bench: once it is in the case its sockets are hard to reach
+  // a PSU's cables are sorted on the bench: a modular one's sockets, or a fixed one's tangled
+  // bundle, are hard to reach once it is in the case
   if (name === "psu" && picks && psuCables) {
     const loose = psuCablesNeeded(picks).filter((c) => !psuEndDone(c, picks, psuCables));
     if (loose.length > 0) {
+      const list = loose.map((c) => CABLES[c].label).join(", ");
+      const fixed = loose.filter((c) => psuCableFixed(c, picks)).length;
       return {
         key: "psu",
-        msg: `Plug the cables into the PSU first, while it's on the bench: ${loose.map((c) => CABLES[c].label).join(", ")}. Its sockets are hard to reach once it's in the case.`,
+        msg:
+          fixed === 0
+            ? `Plug the cables into the PSU first, while it's on the bench: ${list}. Its sockets are hard to reach once it's in the case.`
+            : fixed === loose.length
+            ? `Route the PSU's fixed cables out of their bundle first, while it's on the bench: ${list}. They're hard to sort out once it's in the case.`
+            : `Get the PSU's cables ready first, while it's on the bench: ${list}. Route the fixed ones out of the bundle and plug the others into their sockets.`,
       };
     }
   }
@@ -79,19 +87,29 @@ export function installBlock(name, installed, picks = null, psuCables = null) {
 /* ---------- cables and screws ---------- */
 
 // PSU cables: what each one plugs into. links = { cables: { atx24, eps8, pcie }, screws: [9 × bool] }
-// A cable has two ends: `cables` says the part end is in, `psuCables` the PSU end (modular PSUs only).
-// psuSocket: the labelled socket its PSU end goes into.
+// A cable has two ends: `cables` says the part end is in, `psuCables` the PSU end. On a modular PSU
+// the PSU end is plugged into a labelled socket (psuSocket); on a PSU with fixed cables it is already
+// attached, and the PSU-end step is routing the cable out of its bundle on the bench.
 export const CABLES = {
   atx24: { label: "24-pin cable", needs: ["motherboard", "psu"], psuSocket: "mb" },
   eps8: { label: "8-pin CPU cable", needs: ["motherboard", "psu"], psuSocket: "cpu" },
   pcie: { label: "PCIe power cable", needs: ["gpu", "psu"], psuSocket: "pcie" },
 };
 
-/** Does the picked PSU take its cables in sockets (modular), or are they fixed to it? */
+/** Does the picked PSU take any cables in sockets (modular or semi-modular)? */
 export const psuModular = (picks) => !!itemFor("psu", picks)?.modular;
 
-/** Is this cable's PSU end done? Always true for a PSU with fixed cables. */
-export const psuEndDone = (cable, picks, psuCables) => !psuModular(picks) || !!psuCables?.[cable];
+/** Is this cable fixed to the picked PSU (a non-modular PSU's, or a semi-modular one's fixed cables)? */
+export function psuCableFixed(cable, picks) {
+  const psu = itemFor("psu", picks);
+  return !!psu && (!psu.modular || (psu.fixedCables || []).includes(cable));
+}
+
+/** The cables that plug into the picked PSU's sockets (and so come off it when taking apart). */
+export const psuSocketed = (picks) => Object.keys(CABLES).filter((c) => !psuCableFixed(c, picks));
+
+/** Is this cable's PSU end done: plugged into a modular PSU, or routed out of a fixed PSU's bundle? */
+export const psuEndDone = (cable, picks, psuCables) => !!psuCables?.[cable];
 
 /** The cables this build needs on its PSU: the board's two, and the PCIe one if there's a graphics card. */
 export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => c !== "pcie" || !!picks?.gpu);
@@ -99,7 +117,6 @@ export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => c !=
 /** Can this cable's PSU end be plugged in now? null, or { key, msg }. */
 export function psuPlugBlock(cable, picks) {
   if (!picks?.psu) return { key: `psu_${cable}`, msg: "Pick a PSU first." };
-  if (!psuModular(picks)) return { key: `psu_${cable}`, msg: "This PSU's cables are fixed to it, so its end is already attached." };
   if (cable === "pcie" && !picks.gpu) return { key: "psu_pcie", msg: "This build has no graphics card, so it needs no PCIe power cable." };
   return null;
 }
@@ -255,6 +272,9 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
   const has = (slot) => !!picks?.[slot];
   const modular = psuModular(picks);
   const psuEndsIn = psuCablesNeeded(picks).every((c) => psuEndDone(c, picks, psuCables));
+  // the cables in the PSU's sockets (the fixed ones stay on it)
+  const socketed = psuCablesNeeded(picks).filter((c) => !psuCableFixed(c, picks));
+  const anyFixed = psuCablesNeeded(picks).some((c) => psuCableFixed(c, picks));
   if (mode === "disassemble") {
     const out = (slot) => !installed[slot];
     const any = (label, done) => ({ label, done, anyOrder: true });
@@ -267,7 +287,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       any("24-pin and 8-pin CPU cables unplugged (before the board comes out)", !cables.atx24 && !cables.eps8),
       any(`Motherboard screws out (${SCREW_COUNT - driven} of ${SCREW_COUNT})`, out("motherboard") || driven === 0),
       any("PSU out (its cables unplugged from the parts)", out("psu")),
-      ...(modular ? [any("Cables off the PSU (once it's out)", !Object.values(psuCables).some(Boolean))] : []),
+      ...(socketed.length ? [any("Cables off the PSU (once it's out)", socketed.every((c) => !psuCables[c]))] : []),
       any("Motherboard out (graphics card, cables and screws out first)", out("motherboard")),
       any("CPU cooler off", out("cpu_cooler")),
       any("Old thermal paste wiped (before the CPU comes out)", !pasteApplied),
@@ -286,7 +306,14 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     { label: "Mount the CPU cooler", done: !!installed.cpu_cooler },
     { label: "Set the motherboard in the case", done: !!installed.motherboard },
     { label: `Drive in the motherboard screws (${driven} of ${SCREW_COUNT})`, done: driven === SCREW_COUNT },
-    ...(modular ? [{ label: "Plug the cables into the PSU (still on the bench)", done: psuEndsIn }] : []),
+    {
+      label: !anyFixed
+        ? "Plug the cables into the PSU (still on the bench)"
+        : modular
+        ? "Route the fixed cables out, plug PCI-E into the PSU (on the bench)"
+        : "Route the PSU's fixed cables out (still on the bench)",
+      done: psuEndsIn,
+    },
     { label: "Install the PSU", done: !!installed.psu },
     { label: "Plug the 24-pin cable into the board", done: !!cables.atx24 },
     { label: "Plug the 8-pin CPU cable in (top-left)", done: !!cables.eps8 },
@@ -299,6 +326,6 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     { label: "Power on and check it boots", done: !!booted },
   ];
 }
-/** True if every part is out (and, for a modular PSU, its cables are off it). */
+/** True if every part is out (and the cables in the PSU's sockets are off it: pass only those). */
 export const isFullyStripped = (installed, psuCables = {}) =>
   Object.keys(INSTALL_NEEDS).every((p) => !installed[p]) && !Object.values(psuCables).some(Boolean);

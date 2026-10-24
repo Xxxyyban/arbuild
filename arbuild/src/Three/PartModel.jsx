@@ -14,7 +14,7 @@ import StorageModel1 from "./StorageModel1";
 import GPUModel from "./GPUModel";
 import GPUModel1 from "./GPUModel1";
 import PSUModel, { MODULAR as PSU_PANEL_0 } from "./PSUModel";
-import PSUModel1 from "./PSUModel1";
+import PSUModel1, { MODULAR as PSU_PANEL_1, FIXED as PSU_FIXED_1 } from "./PSUModel1";
 import PSUModel2, { MODULAR as PSU_PANEL_2 } from "./PSUModel2";
 
 const MODELS = {
@@ -31,7 +31,9 @@ const MODELS = {
 export const BOARD_MOUNTS = [MOUNTS_0, MOUNTS_1];
 
 // Each PSU's modular sockets, by PSU variant (null: its cables are fixed to it).
-export const PSU_PANELS = [PSU_PANEL_0, null, PSU_PANEL_2];
+export const PSU_PANELS = [PSU_PANEL_0, PSU_PANEL_1, PSU_PANEL_2];
+// where a PSU with fixed cables has them (by variant): the Aerocool's grommet and coils
+export const PSU_FIXED = [null, PSU_FIXED_1, null];
 
 /** <PartModel category="cpu" variant={1} /> draws CPUModel1. Other props go to that component. */
 export default function PartModel({ category, variant = 0, ...props }) {

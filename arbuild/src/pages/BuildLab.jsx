@@ -4,8 +4,8 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { useAuth } from "../context/AuthContext";
-import PartModel, { BOARD_MOUNTS, PSU_PANELS } from "../Three/PartModel";
-import { CablePlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, PLUG_REACH } from "../Three/Hardware";
+import PartModel, { BOARD_MOUNTS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
+import { CablePlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
 import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
@@ -29,7 +29,7 @@ import {
 } from "../lab/Constants";
 import {
   installBlock, removeBlock, evaluateBoot, isFullyBuilt, isFullyStripped, expertSteps,
-  CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock,
+  CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
 } from "../lab/Rules";
 import {
   POINTS, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
@@ -73,6 +73,13 @@ const PORT_ROT = { atx24: [Math.PI / 2, Math.PI / 2, 0], eps8: [Math.PI / 2, 0, 
 const PORT_LATCH = { atx24: [1, 0, 0], eps8: [0, -1, 0], pcie: [0, -1, 0] }; // which side the clip hooks over
 const GHOST_COLOR = { atx24: "#f2a33a", eps8: "#f2d24a", pcie: "#f2d24a" }; // see-through guide wires
 const PORT_LABEL = { atx24: "24-pin header", eps8: "8-pin CPU header", pcie: "GPU power socket" };
+// a fixed PSU's cables: the marking on each plug, and how to tell them apart
+const FIXED_MARK = { atx24: "MB 24-pin", eps8: "CPU 4+4", pcie: "PCI-E 6+2" };
+const PLUG_LOOK = {
+  atx24: "widest plug, 24 pins in 2 rows of 12",
+  eps8: "8-pin plug marked CPU, which splits 4 + 4",
+  pcie: "8-pin plug marked PCI-E, which splits 6 + 2",
+};
 const PORT_WHERE = {
   atx24: "the long 24-pin header on the right edge of the board",
   eps8: "the 8-pin header at the top-left, next to the CPU",
@@ -86,6 +93,7 @@ const psuToCase = ([x, y, z]) => {
   return [PSU_TARGET.position[0] + v.x, PSU_TARGET.position[1] + v.y, PSU_TARGET.position[2] + v.z];
 };
 const PHASE_ZERO = { assemble: 0, disassemble: 0 };
+const HOME_VIEW = { position: HOME_CAM, target: HOME_TARGET }; // the whole bench, where the camera starts
 const POWER_ON = { shutdown: false, unplugged: false, discharged: false };
 
 // Power + screen state for a starting build.
@@ -171,7 +179,8 @@ export default function BuildLab() {
   const [popups, setPopups] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [buildId, setBuildId] = useState(0);
-  const [isLaidDown, setIsLaidDown] = useState(true);
+  // the case starts standing upright; LAY DOWN puts it on its side
+  const [isLaidDown, setIsLaidDown] = useState(false);
   const [casePose, setCasePose] = useState(null);
   const [caseBox, setCaseBox] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -225,7 +234,7 @@ export default function BuildLab() {
   // student's PSU takes cables.
   const taskMode = task?.mode ?? cfg.startMode;
   const outOf = task?.points ?? OFFICIAL_MAX;
-  const req = taskRequirements(task ?? { mode: taskMode }, psuModular(picks.psu ? picks : correctPicks(platform)));
+  const req = taskRequirements(task ?? { mode: taskMode }, psuSocketed(picks.psu ? picks : correctPicks(platform)));
   const maxPts = maxPoints(taskMode, req);
   const officialCard = timedScore(taskLedger(ledger.current, req), penalty.current, phaseMs.current, parMs);
   const official = officialScore(officialCard, taskMode, maxPts, outOf);
@@ -540,12 +549,17 @@ export default function BuildLab() {
   const gpuPort = itemFor("gpu", picks)?.powerPort;
   const modularPsu = psuModular(picks);
   const psuPanel = modularPsu ? PSU_PANELS[itemFor("psu", picks)?.variant ?? 0] : null;
-  // a cable carries power only with both ends in (a fixed PSU cable's PSU end always is)
+  // a PSU with fixed cables (all of them, or some on a semi-modular one): where they leave it, and
+  // where they lie coiled on the bench
+  const isFixed = (c) => psuCableFixed(c, picks);
+  const psuFixed = CABLE_IDS.some(isFixed) ? PSU_FIXED[itemFor("psu", picks)?.variant ?? 1] || PSU_FIXED[1] : null;
+  // a cable carries power only with both ends in (plugged into the PSU, or routed out of a fixed one)
   const liveCables = Object.fromEntries(CABLE_IDS.map((c) => [c, cables[c] && psuEndDone(c, picks, psuCables)]));
 
-  // Connecting a cable, Packet Tracer style. A modular PSU's end goes in first, on the bench:
+  // Connecting a cable, Packet Tracer style. The PSU end comes first, on the bench:
   //   1. pick the cable in the Cables drawer
-  //   2. click where its end goes: the labelled socket on the PSU, later the header on the part
+  //   2. click where its end goes: the labelled socket on a modular PSU (or, on a PSU with fixed
+  //      cables, the cable itself in the bundle, which routes it out), later the header on the part
   //      (a wrong one is a mistake)
   //   3. line the clip up with the yellow tab (turn the plug if needed), then push it in
   function startCable(c) {
@@ -556,7 +570,13 @@ export default function BuildLab() {
       if (b) return showHint(b.msg);
       setCableDrawer(false);
       setCableTask({ cable: c, end: "psu", port: null, flipped: false });
-      if (installed.psu) showHint("Tip: a modular PSU's cables are easier to plug in before it goes in the case.");
+      if (installed.psu) {
+        showHint(
+          isFixed(c)
+            ? "Tip: a PSU's fixed cables are easier to sort out before it goes in the case."
+            : "Tip: a PSU's sockets are easier to reach before it goes in the case."
+        );
+      }
       return;
     }
     if (cables[c]) return showHint(`The ${label} is plugged in at both ends.`, "success");
@@ -582,6 +602,42 @@ export default function BuildLab() {
       );
     }
     setCableTask({ ...cableTask, port: sock, flipped: Math.random() < 0.5 });
+  }
+
+  // a fixed PSU's cable: routing it out of the bundle is its PSU end (it is already attached)
+  function routeFixed(c) {
+    if (exploding) return;
+    const label = CABLES[c].label;
+    if (mode !== "assemble") return showHint(`The ${label} is fixed to this PSU, so it stays on it.`, "success");
+    if (psuCables[c]) return showHint(`The ${label} is already routed out.`, "success");
+    if (cableTask?.end !== "psu") return showHint("Pick a cable in CABLES first, then click it in the PSU's bundle.");
+    const want = cableTask.cable;
+    const key = `psu_${want}`;
+    if (!isFixed(want)) {
+      return miss(
+        key,
+        `That cable is fixed to the PSU. The ${CABLES[want].label} isn't: it plugs into a ${psuPanel?.sockets[CABLES[want].psuSocket]?.label || "labelled"} socket on the PSU's face.`,
+        "miss",
+        "That one is fixed to the PSU. Find the socket instead."
+      );
+    }
+    if (c !== want) {
+      return miss(
+        key,
+        `That's the ${label}. The ${CABLES[want].label} is the one with the ${PLUG_LOOK[want]}.`,
+        "miss",
+        "Wrong cable. Look at the plug on its end."
+      );
+    }
+    const k = ledgerKey(mode, key);
+    setCableTask(null);
+    setPsuCables((prev) => ({ ...prev, [c]: true }));
+    award(
+      k,
+      actionPoints(basePoints(mode, key), misses.current[k] || 0),
+      `${label} routed out of the bundle. Its plug waits for the ${c === "pcie" ? "graphics card" : "motherboard"}.`,
+      key
+    );
   }
 
   // the part end: which header
@@ -699,7 +755,8 @@ export default function BuildLab() {
 
   // Where a cable's PSU end leaves the PSU in the case: the end of its plug's wires (case space).
   function psuWireEnd(c) {
-    if (!psuPanel) return PSU_FIXED_OUT;
+    if (psuFixed && isFixed(c)) return psuToCase([psuFixed.exit[0], psuFixed.exit[1], psuFixed.face - 0.05]);
+    if (!psuPanel || !psuPanel.sockets[CABLES[c].psuSocket]) return PSU_FIXED_OUT;
     const at = psuPanel.sockets[CABLES[c].psuSocket].at;
     const x = at.reduce((s, p) => s + p[0], 0) / at.length;
     const y = at.reduce((s, p) => s + p[1], 0) / at.length;
@@ -726,7 +783,7 @@ export default function BuildLab() {
   // The PSU ends to draw in the PSU's sockets: plugged in, or on their way in.
   const psuPlugs = {};
   if (psuPanel) {
-    CABLE_IDS.forEach((c) => {
+    CABLE_IDS.filter((c) => !isFixed(c) && psuPanel.sockets[CABLES[c].psuSocket]).forEach((c) => {
       const connecting = cableTask?.cable === c && cableTask.end === "psu" && cableTask.port;
       if (psuCables[c]) {
         const unplugNow = mode === "disassemble" && !cables[c] && power.discharged;
@@ -736,7 +793,7 @@ export default function BuildLab() {
       }
     });
   }
-  const choosingSocket = cableTask?.end === "psu" && !cableTask.port;
+  const choosingSocket = cableTask?.end === "psu" && !cableTask.port && !isFixed(cableTask.cable);
   const psuPanelNode = psuPanel && !exploding && (
     <PSUPanel
       layout={psuPanel}
@@ -748,6 +805,24 @@ export default function BuildLab() {
     />
   );
 
+  const fixedCables = (onBench) =>
+    psuFixed &&
+    !exploding && (
+      <FixedCables
+        layout={psuFixed}
+        cables={CABLE_IDS.filter((c) => isFixed(c) && (c !== "pcie" || !!picks.gpu)).map((c) => ({
+          id: c,
+          type: STUB_TYPE[c],
+          color: GHOST_COLOR[c],
+          label: FIXED_MARK[c],
+          routed: !!psuCables[c],
+        }))}
+        showRouted={onBench}
+        choosing={mode === "assemble" && cableTask?.end === "psu" && isFixed(cableTask.cable)}
+        onPick={routeFixed}
+      />
+    );
+
   // the yellow tab beside a header, on the side the clip has to go
   const latchTab = (p) => {
     const [x, y, z] = portPos[p];
@@ -755,14 +830,16 @@ export default function BuildLab() {
     return [x + d[0] * 0.04, y + d[1] * 0.04, z + 0.01];
   };
 
-  // While a cable end is being connected, the camera glides to where it goes: the PSU's sockets on
-  // the bench, or the header on the board / graphics card in the case.
+  // While a cable end is being connected, the camera glides to where it goes: the PSU's sockets (or
+  // a fixed PSU's coiled cables) on the bench, or the header on the board / graphics card in the
+  // case. When the step ends it glides back to the whole bench (CameraFocus).
   const cableFocus = useMemo(() => {
-    if (!cableTask || cableTask.port) return null;
+    if (!cableTask) return null; // kept through the clip step, so the plug stays in view
     const key = `${cableTask.cable}:${cableTask.end}`;
     if (cableTask.end === "psu") {
       if (installed.psu) return null; // under the case's PSU cover: nothing better to show
       const [x, y, z] = trayPosition("psu");
+      if (isFixed(cableTask.cable)) return { key, target: [x, y + 0.05, z + 0.55], position: [x + 0.2, y + 1.0, z + 1.8] };
       return { key, target: [x, y + 0.2, z + 0.3], position: [x + 0.25, y + 0.75, z + 1.55] };
     }
     const p = portPos[cableTask.cable];
@@ -771,7 +848,7 @@ export default function BuildLab() {
     const off = rig.laidDown ? [0.2, 1.5, 0.35] : [0.3, 0.25, 1.5];
     return { key, target: at, position: [at[0] + off[0], at[1] + off[1], at[2] + off[2]] };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cableTask?.cable, cableTask?.end, !!cableTask?.port, installed.psu, rig, L]);
+  }, [cableTask?.cable, cableTask?.end, installed.psu, rig, L]);
 
   // every cable this build needs is in at both ends
   const cablesDone =
@@ -879,7 +956,7 @@ export default function BuildLab() {
     setSelectedPart(null);
     setHovered(null);
     setExploding(false);
-    setIsLaidDown(true);
+    setIsLaidDown(false);
     actionLog.current = {};
     revertCount.current = {};
     setBuildId((b) => b + 1);
@@ -1009,7 +1086,7 @@ export default function BuildLab() {
   /* ---------- phase status ---------- */
   const phaseDone =
     phaseActions > 0 &&
-    (mode === "disassemble" ? isFullyStripped(installed, modularPsu ? psuCables : {}) : isFullyBuilt(installed, picks) && booted);
+    (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && booted);
   const canToggle =
     cfg.modeControl === "student" && (cfg.toggle === "free" || (cfg.toggle === "afterComplete" && phaseDone));
   // a build is the required parts plus any optional ones picked (second RAM stick, graphics card)
@@ -1195,6 +1272,7 @@ export default function BuildLab() {
       } else if (id.startsWith("cable:")) clickCable(id.slice(6));
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
+      else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
       else if (id.startsWith("port:")) choosePort(id.slice(5));
       else if (id.startsWith("screw:")) clickScrew(Number(id.slice(6)));
       else if (mode === "disassemble") uninstall(id);
@@ -1348,7 +1426,7 @@ export default function BuildLab() {
 
   const renderTrayPart = (name) => {
     const body =
-      name === "motherboard" ? moboBody : <TrayModel name={name} item={itemFor(name, picks)} extra={name === "psu" ? psuPanelNode : null} />;
+      name === "motherboard" ? moboBody : <TrayModel name={name} item={itemFor(name, picks)} extra={name === "psu" ? <>{psuPanelNode}{fixedCables(true)}</> : null} />;
     if (mode === "disassemble") {
       // Removed parts glide from where they were let go to their tray spot.
       const to = trayPosition(name);
@@ -1466,7 +1544,7 @@ export default function BuildLab() {
   }
 
   const classLocked = inClass && classPhase !== "running"; // waiting for the instructor, or class over
-  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables: modularPsu ? psuCables : {} });
+  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables });
   // only steps that must happen in order get a "next" highlight (a teardown's parts can go in any order)
   const nextStep = steps.findIndex((s) => !s.done && !s.anyOrder);
   const orderedSteps = steps.filter((s) => !s.anyOrder);
@@ -1559,7 +1637,7 @@ export default function BuildLab() {
             >
               <ARContext.Provider value={arLike}>
                 <GLBridge glRef={glRef} />
-                {!arLike && <CameraFocus focus={cableFocus} />}
+                {!arLike && <CameraFocus focus={cableFocus} home={HOME_VIEW} />}
                 <ambientLight intensity={2.0} />
                 <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
                 <directionalLight position={[6, 8, 6]} intensity={2.4} />
@@ -1601,6 +1679,7 @@ export default function BuildLab() {
                                 <group>
                                   <PartModel category="psu" variant={variantOf("psu")} />
                                   {psuPanelNode}
+                                  {fixedCables(false)}
                                 </group>
                               )}
                             </Blast>
@@ -1757,17 +1836,24 @@ export default function BuildLab() {
           {cableTask && mode === "assemble" && !classLocked && (
             <section className={`cable-task ${showPicker ? "is-beside-picker" : ""}`} aria-live="polite" style={{ pointerEvents: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
               <span className="cable-task__step">
-                {CABLES[cableTask.cable].label} · {cableTask.end === "psu" ? "PSU end" : "part end"} · step {cableTask.port ? 2 : 1} of 2
+                {CABLES[cableTask.cable].label} ·{" "}
+                {cableTask.end === "psu" && isFixed(cableTask.cable) ? "route it out" : `${cableTask.end === "psu" ? "PSU end" : "part end"} · step ${cableTask.port ? 2 : 1} of 2`}
               </span>
               {cableTask.port ? (
                 <p>
                   Line the clip up with the yellow tab on the {cableTask.end === "psu" ? "socket" : "header"}, then push it in.
                   {hintsOn && (cableTask.flipped ? " The clip is facing away from the tab right now." : " The clip is over the tab.")}
                 </p>
+              ) : cableTask.end === "psu" && isFixed(cableTask.cable) ? (
+                <p>
+                  This cable is fixed to the PSU. {arLike ? "Tap" : "Click"} this cable in the bundle in front of the PSU to
+                  route it out. Check the plug on its end.
+                  {hintsOn && ` The ${CABLES[cableTask.cable].label} has the ${PLUG_LOOK[cableTask.cable]}.`}
+                </p>
               ) : cableTask.end === "psu" ? (
                 <p>
                   {arLike ? "Tap" : "Click"} the socket on the PSU this cable goes into. Read the labels printed on the PSU.
-                  {hintsOn && ` Look for ${psuPanel?.sockets[CABLES[cableTask.cable].psuSocket].label}.`}
+                  {hintsOn && ` Look for ${psuPanel?.sockets[CABLES[cableTask.cable].psuSocket]?.label}.`}
                 </p>
               ) : (
                 <p>

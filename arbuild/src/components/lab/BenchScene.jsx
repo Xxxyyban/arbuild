@@ -260,18 +260,24 @@ export function TrayLabel({ name, text, sub = null, offset = LABEL_OFFSETS[name]
  * Glides the camera to `focus` ({ key, target, position }, world space) whenever its key changes,
  * then hands the view back to the student. Used to show where a cable goes.
  */
-export function CameraFocus({ focus }) {
+// Glides the camera to `focus` ({ key, position, target }) when it changes; when the focus ends
+// (null again), back to `home` ({ position, target }), so the student sees the whole bench.
+export function CameraFocus({ focus, home }) {
   const { camera, controls } = useThree();
   const anim = useRef(null);
+  const focused = useRef(false);
   const key = focus?.key;
   useEffect(() => {
-    if (!focus || !controls) return;
+    if (!controls) return;
+    const to = focus || (focused.current ? home : null);
+    focused.current = !!focus;
+    if (!to) return;
     anim.current = {
       t: 0,
       fromP: camera.position.clone(),
       fromT: controls.target.clone(),
-      toP: new THREE.Vector3(...focus.position),
-      toT: new THREE.Vector3(...focus.target),
+      toP: new THREE.Vector3(...to.position),
+      toT: new THREE.Vector3(...to.target),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, controls]);

@@ -171,9 +171,10 @@ export const CATALOG = {
     short: "500 W",
     watts: 500,
     variant: 1, // psu1.glb
-    modular: false, // its cables are fixed to the unit
-    specs: [["Output", "500 W"], ["Rating", "80+ Bronze"], ["Size", "ATX"], ["Cables", "Fixed (non-modular)"]],
-    note: "Its cables are fixed to the unit, so there is nothing to plug into the PSU itself. Check the total wattage before you pick it.",
+    modular: "semi", // the 24-pin and CPU cables are fixed to the unit; PCI-E cables plug into its sockets
+    fixedCables: ["atx24", "eps8"],
+    specs: [["Output", "500 W"], ["Rating", "80+ Bronze"], ["Size", "ATX"], ["Cables", "Semi-modular (24-pin and CPU fixed)"]],
+    note: "Semi-modular: the 24-pin and CPU cables are fixed to it, so route them out of the bundle; the PCI-E cable plugs into a PCI-E socket. Do both on the bench. Check the total wattage before you pick it.",
   },
   psu_550: {
     category: "psu",

@@ -27,7 +27,7 @@ export const POINTS = {
   cable_atx24: 15,
   cable_eps8: 15,
   cable_pcie: 10,
-  psu_atx24: 10, // a cable's PSU end (modular PSU)
+  psu_atx24: 10, // a cable's PSU end: plugged into a modular PSU, or routed out of a fixed one
   psu_eps8: 10,
   psu_pcie: 10,
   screws: 20,
@@ -157,15 +157,18 @@ export const OFFICIAL_MAX = 100;
 const perfect = (base) => actionPoints(base, 0);
 
 /**
- * What a task asks for, for grading. task: the instructor's task (lab/Tasks); modular: whether the
- * student's PSU takes cables. A teardown takes apart a full PC, so it always has a GPU and 2 sticks.
+ * What a task asks for, for grading. task: the instructor's task (lab/Tasks); socketed: the cables
+ * that plug into the student's PSU (lab/Rules psuSocketed). A teardown takes apart a full PC, so it
+ * always has a GPU and 2 sticks. psuEnds: the cables whose PSU end is a step: every one when building
+ * (plugged into a socket, or a fixed one routed out of the bundle), only the socketed ones when
+ * taking apart (fixed cables stay on the PSU).
  */
-export function taskRequirements(task, modular) {
+export function taskRequirements(task, socketed = []) {
   const build = task.mode !== "disassemble";
   const gpu = build ? task.requireGpu !== false : true;
   const dualRam = build ? Number(task.ramSticks) !== 1 : true;
   const slots = ["motherboard", "cpu", "ram1", ...(dualRam ? ["ram2"] : []), "cpu_cooler", "storage", "psu", ...(gpu ? ["gpu"] : [])];
-  return { slots, gpu, dualRam, modular, boot: build ? task.mustBoot !== false : false };
+  return { slots, gpu, dualRam, psuEnds: build ? ["atx24", "eps8", "pcie"] : socketed, boot: build ? task.mustBoot !== false : false };
 }
 
 /** The most boot points a task counts (booting with parts the task doesn't ask for earns no more). */
@@ -192,13 +195,13 @@ export function taskLedger(ledger, req) {
 }
 
 /** The most points a perfect run of a task can earn (what full marks means). req: taskRequirements(). */
-export function maxPoints(mode, { slots, gpu, dualRam, modular, boot = true }) {
+export function maxPoints(mode, { slots, gpu, dualRam, psuEnds = [], boot = true }) {
   const T = mode === "disassemble" ? REMOVE_POINTS : POINTS;
   let max = slots.reduce((s, slot) => s + perfect(T[slot] ?? 0), 0);
-  // cables: the board's two, the graphics card's one; their PSU ends on a modular PSU; the screws
+  // cables: the board's two, the graphics card's one; their PSU ends (see taskRequirements); the screws
   const cables = ["atx24", "eps8", ...(gpu ? ["pcie"] : [])];
   max += cables.reduce((s, c) => s + perfect(T[`cable_${c}`] ?? 0), 0);
-  if (modular) max += cables.reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
+  max += cables.filter((c) => psuEnds.includes(c)).reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
   max += perfect(T.screws ?? 0);
   if (mode === "disassemble") {
     max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(POINTS.paste);

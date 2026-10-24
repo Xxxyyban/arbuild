@@ -167,8 +167,10 @@ export function boardLayout(m = BASE_MOUNTS) {
 }
 
 /* ---------- case laid down on the bench ---------- */
+// LAY_CENTER: where the middle of the laid-down case goes on the bench ([x, z]), just behind the
+// parts trays. It is measured from the case model itself (CaseModel.jsx, 2.2 tall).
 export const LAY_ANGLE = -Math.PI / 2;
-export const LAY_CENTER = [0, -3];
+export const LAY_CENTER = [0, -0.38];
 
 /* ---------- AR / camera ---------- */
 export const AR_SCALE = 0.07;

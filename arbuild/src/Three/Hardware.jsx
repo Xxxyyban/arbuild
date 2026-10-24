@@ -152,18 +152,21 @@ export function LatchTab({ position }) {
 export function PSUPanel({ layout, plugs, choosing, latch, onSocket, onPlug }) {
   const { face, sockets } = layout;
   const out = face - 0.001; // just in front of the face
+  // a press anywhere on the panel (a label too) stays here: it mustn't also pick up the PSU under it
   return (
-    <group>
+    <group onPointerDown={(e) => e.stopPropagation()}>
       {Object.entries(sockets).map(([id, s]) => {
         const [x, y] = s.at.length > 1 ? [s.at[0][0], (s.at[0][1] + s.at[1][1]) / 2] : s.at[0];
         return (
           <group key={id}>
-            {/* the label printed on the PSU */}
-            <Billboard position={[x, s.at[0][1] - 0.05, out - 0.01]}>
-              <Text fontSize={0.026} color="#e5e7eb" outlineWidth={0.003} outlineColor="#111827" anchorX="center">
-                {s.label}
-              </Text>
-            </Billboard>
+            {/* the label printed on the PSU (unless the model has it printed already) */}
+            {!layout.printed && (
+              <Billboard position={[x, s.at[0][1] - 0.05, out - 0.01]}>
+                <Text fontSize={0.026} color="#e5e7eb" outlineWidth={0.003} outlineColor="#111827" anchorX="center">
+                  {s.label}
+                </Text>
+              </Billboard>
+            )}
             {choosing && (
               <PortMarker
                 position={[x, y, out - 0.02]}
@@ -191,6 +194,64 @@ export function PSUPanel({ layout, plugs, choosing, latch, onSocket, onPlug }) {
         ))
       )}
       {latch && <LatchTab position={[sockets[latch].at[0][0], sockets[latch].at[0][1] + 0.034, face - 0.012]} />}
+    </group>
+  );
+}
+
+/**
+ * A PSU's fixed cables (non-modular), in the PSU's own frame. Each leaves through the grommet on its
+ * front face. Until it is routed out it lies coiled in front of the PSU with its plug on top (and
+ * the plug's marking printed beside it); once routed it runs straight out with its plug at the end.
+ * layout: FIXED from the PSU's model file. cables: [{ id, type, color, label, routed }].
+ * showRouted: draw the routed cables too (on the bench; in the case the guide wires show them).
+ * choosing: a marker on each coiled cable while the student is picking one.
+ */
+export function FixedCables({ layout, cables, showRouted = true, choosing, onPick }) {
+  const { face, exit, coils } = layout;
+  const ex = [exit[0], exit[1], face];
+  const rest = 0.03; // a cable lying on the bench
+  // a press anywhere on the cables (a label too) stays here: it mustn't also pick up the PSU under them
+  return (
+    <group onPointerDown={(e) => e.stopPropagation()}>
+      {cables.map((c) => {
+        const x = coils[c.id];
+        const thick = c.id === "atx24" ? 0.02 : 0.013;
+        if (c.routed) {
+          if (!showRouted) return null;
+          const end = [x, rest, face - 0.5];
+          return (
+            <group key={c.id}>
+              <CableRun points={[ex, [ex[0], ex[1] - 0.06, face - 0.06], [x, rest + 0.01, face - 0.22], end]} radius={thick} color={c.color} />
+              <CablePlug type={c.type} partId={`psufixed:${c.id}`} position={end} rotation={[Math.PI / 2, 0, 0]} plugged onClick={() => onPick?.(c.id)} />
+            </group>
+          );
+        }
+        const at = [x, rest, face - 0.19];
+        return (
+          <group key={c.id}>
+            <CableRun points={[ex, [ex[0], ex[1] - 0.08, face - 0.05], [(ex[0] + x) / 2, rest + 0.02, face - 0.1], [x, rest, face - 0.12]]} radius={thick} color={c.color} />
+            <mesh
+              position={at}
+              rotation={[Math.PI / 2, 0, 0]}
+              userData={{ partId: `psufixed:${c.id}` }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={click(() => onPick?.(c.id))}
+              {...pointer}
+            >
+              <torusGeometry args={[0.075, thick, 10, 40]} />
+              <meshStandardMaterial color={c.color} roughness={0.75} />
+            </mesh>
+            <CablePlug type={c.type} partId={`psufixed:${c.id}`} position={[x, rest + 0.03, at[2]]} rotation={[Math.PI / 2, 0, 0]} plugged onClick={() => onPick?.(c.id)} />
+            {/* the marking moulded on the plug, as on real cables */}
+            <Billboard position={[x, rest + 0.1, at[2] - 0.09]}>
+              <Text fontSize={0.026} color="#e5e7eb" outlineWidth={0.003} outlineColor="#111827" anchorX="center">
+                {c.label}
+              </Text>
+            </Billboard>
+            {choosing && <PortMarker position={[x, rest + 0.05, at[2]]} partId={`psufixed:${c.id}`} size={0.1} onClick={() => onPick?.(c.id)} />}
+          </group>
+        );
+      })}
     </group>
   );
 }

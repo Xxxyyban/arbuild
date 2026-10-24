@@ -1,7 +1,8 @@
 // The Cables drawer, like Packet Tracer's connections box: pick a PSU cable, then connect its ends.
-// A modular PSU's end goes in first (on the bench), then the part end. Styles: styles/BuildLabParts.css
+// The PSU end comes first, on the bench (plugged into a modular PSU, or routed out of a fixed PSU's
+// bundle), then the part end. Styles: styles/BuildLabParts.css
 // (.cable-drawer*); the option cards reuse .picker__*.
-import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock } from "../../lab/Rules";
+import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed } from "../../lab/Rules";
 
 // wire colours shown on each card, so students learn to recognise the cables
 const SWATCH = {
@@ -18,6 +19,7 @@ const PART_END = { atx24: "Motherboard", eps8: "Motherboard", pcie: "Graphics ca
 
 export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose }) {
   const modular = psuModular(picks);
+  const anyFixed = Object.keys(CABLES).some((c) => psuCableFixed(c, picks));
   return (
     <div className={`cable-drawer ${besidePicker ? "is-beside-picker" : ""}`} onPointerDown={(e) => e.stopPropagation()}>
       <div className="picker__drawer">
@@ -28,9 +30,11 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
         <p className="picker__locked">
           {!picks?.psu
             ? "Pick a PSU first."
-            : modular
+            : !anyFixed
             ? "Modular PSU: plug each cable into the PSU first (on the bench), then into its part."
-            : "This PSU's cables are fixed to it: plug their other ends into the parts."}
+            : modular
+            ? "Semi-modular PSU: the 24-pin and CPU cables are fixed to it, so route them out of the bundle; the PCI-E cable plugs into its socket. Do both on the bench, then plug the other ends into the parts."
+            : "Fixed cables: they're already attached to this PSU. Route each one out of the bundle on the bench, then plug its other end into the part."}
         </p>
         <ul className="picker__list">
           {Object.keys(CABLES).map((c) => {
@@ -52,7 +56,7 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
                     {SWATCH[c].map((col, i) => <i key={i} style={{ background: col }} />)}
                   </span>
                   <span className="cable-drawer__ends">
-                    {modular && <End label="PSU" done={psuDone} />}
+                    <End label={psuCableFixed(c, picks) ? "Routed" : "PSU"} done={psuDone} />
                     <End label={PART_END[c]} done={partDone} />
                   </span>
                   <span className="picker__state">

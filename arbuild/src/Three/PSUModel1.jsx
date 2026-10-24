@@ -17,6 +17,28 @@ const FIT = {
   nudge: [0, 0, -0.029],
 };
 
+// It is semi-modular. The front face (the side that faces into the case) is z = -0.399 in the PSU's
+// own frame: the file's front is 79 mm from its centre, times the fit scale, plus the nudge.
+// MODULAR: its four PCI-E sockets (printed on the model, so `printed` skips our labels), measured by
+// ray-casting the fitted model; like MODULAR in PSUModel.jsx. The PCI-E cable takes the top-left one.
+export const MODULAR = {
+  face: -0.399,
+  printed: true,
+  sockets: {
+    pcie: { label: "PCI-E", at: [[0.041, 0.221]], spare: [[-0.04, 0.221], [0.041, 0.168], [-0.04, 0.168]] },
+  },
+};
+
+// FIXED: the 24-pin and CPU cables are fixed. They leave through the grommet on the front face (the
+// round hole beside the PCI-E sockets, measured the same way); until
+// one is routed out it lies coiled on the bench in front of the PSU (`coils`: each cable's x).
+// See FixedCables in Hardware.jsx.
+export const FIXED = {
+  face: -0.399,
+  exit: [0.27, 0.22],
+  coils: { atx24: 0.21, eps8: 0.0, pcie: -0.21 },
+};
+
 export default function PSUModel1({ spinY = 0, ...props }) {
   const ok = useFileExists(MODEL_PATH);
   if (ok === null) return null;
