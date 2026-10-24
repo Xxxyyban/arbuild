@@ -755,7 +755,8 @@ export default function BuildLab() {
 
   // Where a cable's PSU end leaves the PSU in the case: the end of its plug's wires (case space).
   function psuWireEnd(c) {
-    if (psuFixed && isFixed(c)) return psuToCase([psuFixed.exit[0], psuFixed.exit[1], psuFixed.face - 0.05]);
+    const fixedOut = psuFixed && isFixed(c) ? psuFixed.cables[c]?.out : null;
+    if (fixedOut) return psuToCase([fixedOut[0], fixedOut[1], psuFixed.face - 0.05]);
     if (!psuPanel || !psuPanel.sockets[CABLES[c].psuSocket]) return PSU_FIXED_OUT;
     const at = psuPanel.sockets[CABLES[c].psuSocket].at;
     const x = at.reduce((s, p) => s + p[0], 0) / at.length;
@@ -839,7 +840,7 @@ export default function BuildLab() {
     if (cableTask.end === "psu") {
       if (installed.psu) return null; // under the case's PSU cover: nothing better to show
       const [x, y, z] = trayPosition("psu");
-      if (isFixed(cableTask.cable)) return { key, target: [x, y + 0.05, z + 0.55], position: [x + 0.2, y + 1.0, z + 1.8] };
+      if (isFixed(cableTask.cable)) return { key, target: [x - 0.1, y + 0.1, z + 0.5], position: [x - 0.05, y + 1.25, z + 2.05] };
       return { key, target: [x, y + 0.2, z + 0.3], position: [x + 0.25, y + 0.75, z + 1.55] };
     }
     const p = portPos[cableTask.cable];

@@ -29,14 +29,17 @@ export const MODULAR = {
   },
 };
 
-// FIXED: the 24-pin and CPU cables are fixed. They leave through the grommet on the front face (the
-// round hole beside the PCI-E sockets, measured the same way); until
-// one is routed out it lies coiled on the bench in front of the PSU (`coils`: each cable's x).
-// See FixedCables in Hardware.jsx.
+// FIXED: the 24-pin and CPU cables are fixed. They leave through the round grommet on the front face
+// (the raised ring, measured from the model's vertices), side by side: `out` is where each one
+// comes out of the hole. On the bench each lies in a loose coil in front of the PSU (`coil`: its
+// centre x and z), its plug resting on the front of the coil. See FixedCables in Hardware.jsx.
 export const FIXED = {
   face: -0.399,
-  exit: [0.27, 0.22],
-  coils: { atx24: 0.21, eps8: 0.0, pcie: -0.21 },
+  grommet: { at: [0.249, 0.167], radius: 0.048 },
+  cables: {
+    atx24: { out: [0.259, 0.162], coil: [0.29, -0.7], routed: 0.27 },
+    eps8: { out: [0.232, 0.177], coil: [-0.06, -0.7], routed: 0.08 },
+  },
 };
 
 export default function PSUModel1({ spinY = 0, ...props }) {
