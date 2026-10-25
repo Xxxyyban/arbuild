@@ -1,7 +1,7 @@
 // 2 TB NVMe SSD (ssd1.glb), true to size, drawn the same way as StorageModel.jsx.
 // Until ssd1.glb is in public/models, the 1 TB drive shows.
 import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import StorageModel, { fitDrive } from "./StorageModel";
 import { MM } from "./orient";
 import { useFileExists } from "./useFileExists";

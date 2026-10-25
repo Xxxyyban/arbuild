@@ -93,6 +93,20 @@ const PATHS = {
   ),
   download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
+  minus: <path d="M5 12h14" />,
+  zoomIn: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+    </>
+  ),
+  zoomOut: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.35-4.35M8 11h6" />
+    </>
+  ),
+  fit: <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />,
   search: (
     <>
       <circle cx="11" cy="11" r="8" />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import { MM } from "./orient";
 

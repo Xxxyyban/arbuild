@@ -3,13 +3,14 @@
 //   1 finger drag  -> spin the model around its vertical axis
 //   2 finger pinch -> resize
 //   2 finger twist -> rotate
+// The size can also be set from buttons (setScale), for anyone who finds a pinch awkward.
 // The model stays world-locked: gestures only change a scale/yaw that is
 // applied around the rig's own center, never the camera or the placement.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 4;
+export const MIN_SCALE = 0.35;
+export const MAX_SCALE = 4;
 const DRAG_YAW_SPEED = 0.012;   // radians per pixel
 const TAP_SLOP_PX = 10;         // movement under this still counts as a tap
 const SUPPRESS_MS = 350;        // ignore the XR "select" that follows a gesture
@@ -18,7 +19,10 @@ const SMOOTHING = 14;           // higher = snappier
 const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 const angle = (a, b) => Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
 
-export function useARGestures({ overlayRef, enabled }) {
+// onScale(scale) hears the new size when a pinch ends, so a size readout can follow it.
+export function useARGestures({ overlayRef, enabled, onScale }) {
+  const onScaleRef = useRef(onScale);
+  onScaleRef.current = onScale;
   // target = what the fingers ask for, shown = smoothed value actually rendered
   const state = useRef({
     target: { scale: 1, yaw: 0 },
@@ -79,6 +83,7 @@ export function useARGestures({ overlayRef, enabled }) {
     };
 
     const onEnd = (e) => {
+      if (mode === "pinch") onScaleRef.current?.(s.target.scale);
       if (e.touches.length === 0) {
         mode = null;
         start = null;
@@ -110,6 +115,12 @@ export function useARGestures({ overlayRef, enabled }) {
       reset: () => {
         state.current.target = { scale: 1, yaw: 0 };
         state.current.shown = { scale: 1, yaw: 0 };
+      },
+      // sets the size (the rig eases to it); returns it, kept between MIN_SCALE and MAX_SCALE
+      setScale: (scale) => {
+        const v = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+        state.current.target.scale = v;
+        return v;
       },
     }),
     []

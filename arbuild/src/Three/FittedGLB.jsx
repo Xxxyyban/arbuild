@@ -2,7 +2,7 @@
 // centred on X/Z and resting on Y = 0, then moved by `nudge`. Used by the variant components
 // (GPUModel1, PSUModel1...), which each pass their own FIT values.
 import { useEffect, useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 
 export default function FittedGLB({ url, length, turn = [0, 0, 0], lift = 0, nudge = [0, 0, 0] }) {

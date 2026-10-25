@@ -170,6 +170,102 @@ export const CABLE_TYPES = {
   psu_mb: { label: "PSU end, 24-pin cable (one of its two plugs)", build: () => miniFit(PSU_MB) },
 };
 
+/**
+ * The 8-pin PCIe power socket on a graphics card, sized round the pcie8 plug (6 + 2 side by side,
+ * 20.6 × 10 mm, clip on its +Z side): a black housing whose floor is at the plug's mating face
+ * (y = 0), its walls rising 6 mm round the plug, with a slot in the +Z wall for the clip. Scene units.
+ */
+export function buildPcieSocket() {
+  const g = new THREE.Group();
+  const black = mat("#2c2d31", { roughness: 0.6 }); // a shade lighter than the plug, so its edge shows
+  const inner = [10.6, 5.3]; // half the cavity: x, z
+  const wall = 1.2;
+  const top = 6;
+  const base = -3; // sunk a little into the card's edge
+  const h = top - base;
+  const ox = inner[0] + wall;
+  const oz = inner[1] + wall;
+  g.add(box(ox * 2, 1, oz * 2, black, 0, base + 0.5, 0)); // floor under the plug
+  g.add(box(wall, h, oz * 2, black, -ox + wall / 2, base + h / 2, 0));
+  g.add(box(wall, h, oz * 2, black, ox - wall / 2, base + h / 2, 0));
+  g.add(box(ox * 2, h, wall, black, 0, base + h / 2, -oz + wall / 2));
+  // the clip side: a slot over the 6-pin half (x -5..-1.4) where the clip hooks over the ramp
+  const slot = [-5, -1.4];
+  g.add(box(slot[0] + ox, h, wall, black, (-ox + slot[0]) / 2, base + h / 2, oz - wall / 2));
+  g.add(box(ox - slot[1], h, wall, black, (slot[1] + ox) / 2, base + h / 2, oz - wall / 2));
+  g.add(box(slot[1] - slot[0], 1.6, 1.4, black, (slot[0] + slot[1]) / 2, 2.4, oz + 0.2)); // the ramp
+  g.scale.setScalar(MM);
+  g.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  return g;
+}
+
+/* ---------- plugs for the board's small headers (lab/Wires.js) ---------- */
+// 2.54 mm pin headers, mating face down (-Y) at y = 0, wires up (+Y), centred on the pins they cover,
+// the header's long way along X. Each `kind` is one plug look; `colors` are its wires' colours.
+const HEADER_PLUGS = {
+  // a front-panel 2-pin plug: power switch, reset
+  pin2: { size: [5.08, 12, 2.54], wires: 2 },
+  // a front-panel LED plug: the same, with a + mark over the + pin (the -X end)
+  pin2led: { size: [5.08, 12, 2.54], wires: 2, plus: true },
+  // HD AUDIO: 2 × 5, one hole blocked (the key)
+  audio: { size: [12.7, 12, 5.08], wires: 6, label: true },
+  // USB 3.0: 2 × 10 at 2 mm in a wide blue housing with a pull tab, one thick round cable
+  usb3: { size: [21, 9.5, 9], color: "#1d4ed8", cable: 5.2, tab: true },
+  // a 4-pin fan plug with the ridge that slides behind the header's wall
+  fan4: { size: [10.2, 6.5, 5], wires: 4, ridge: true },
+  // a 3-pin 5 V lights plug: 4 places, one blocked
+  argb3: { size: [10.2, 7.5, 2.6], color: "#e5e7eb", wires: 3 },
+};
+
+/** A small header plug with a stub of its wires, in scene units (see HEADER_PLUGS). */
+export function buildHeaderPlug(kind, colors = []) {
+  const spec = HEADER_PLUGS[kind];
+  if (!spec) throw new Error(`Unknown header plug: ${kind}`);
+  const [w, h, d] = spec.size;
+  const g = new THREE.Group();
+  g.name = `plug_${kind}`;
+  const body = spec.color ? mat(spec.color, { roughness: 0.6 }) : HOUSING();
+  g.add(box(w, h, d, body, 0, h / 2, 0));
+  g.add(box(w - 0.8, 0.3, d - 0.8, HOLE(), 0, -0.1, 0)); // the holes' face
+  if (spec.plus) {
+    // a white triangle on the + end of the top, and a + printed on the side
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.4, 3), mat("#f5f5f4"));
+    tri.position.set(-w / 4, h + 0.2, 0);
+    g.add(tri);
+    g.add(box(1.6, 0.35, 0.2, mat("#f5f5f4"), -w / 4, h * 0.6, d / 2 + 0.05));
+    g.add(box(0.35, 1.6, 0.2, mat("#f5f5f4"), -w / 4, h * 0.6, d / 2 + 0.05));
+  }
+  if (spec.label) g.add(box(w * 0.7, 1.2, 0.2, mat("#d4d4d8"), 0, h * 0.62, d / 2 + 0.05)); // the printed name
+  if (spec.ridge) g.add(box(w * 0.8, h * 0.7, 0.9, body, 0, h * 0.4, d / 2 + 0.45));
+  if (spec.tab) g.add(box(w * 0.5, 4, 1.4, body, 0, h + 2, 0));
+  const stub = 22;
+  if (spec.cable) {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(spec.cable / 2, spec.cable / 2, stub, 14), mat(colors[0] || "#1e3a8a"));
+    c.position.set(w * 0.25, h + stub / 2, 0);
+    g.add(c);
+  } else {
+    for (let i = 0; i < spec.wires; i++) {
+      const x = spec.wires === 1 ? 0 : (i / (spec.wires - 1) - 0.5) * (w - 2.2);
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, stub, 8), mat(colors[i % colors.length] || C.black));
+      wire.position.set(x, h + stub / 2, 0);
+      g.add(wire);
+    }
+  }
+  g.scale.setScalar(MM);
+  g.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
+  });
+  return g;
+}
+
+/** How far a header plug's wires reach out of the board (scene units): where its run starts. */
+export const headerPlugReach = (kind) => ((HEADER_PLUGS[kind]?.size[1] ?? 10) + 22) * MM;
+
 /** A cable stub as a three.js group in scene units, plug face down at y = 0. */
 export function buildCableStub(type) {
   const spec = CABLE_TYPES[type];

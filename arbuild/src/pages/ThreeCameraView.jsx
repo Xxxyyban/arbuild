@@ -5,13 +5,13 @@ import CameraView from '../Three/CameraView';
 import CaseModel from '../Three/CaseModel';
 import MotherboardModel from '../Three/MotherboardModel';
 import Icon from '../components/Icon';
-import '../styles/Assemble.css';
+import '../styles/BuildLab.css'; // the lab's .assemble layout and theme
 
 export default function ThreeCameraView() {
   const [showCamera, setShowCamera] = useState(false);
 
   return (
-    <div className="assemble" style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div className="assemble" style={{ position: 'relative' }}>
       
       {/* Top Bar with Camera Toggle Button */}
       <header className="assemble__bar" style={{ position: 'relative', zIndex: 10 }}>

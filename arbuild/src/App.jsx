@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -16,27 +17,44 @@ import { ThemeProvider } from "./context/ThemeContext";
 // PAGES
 // ============================================================
 
+// The first screens come with the app; every other page loads when it's opened, so signing in on a
+// phone doesn't wait for three.js and the 3D models (Main and the Build Lab bring those).
 import Welcome from "./pages/Welcome";
 import ProfileSetup from "./pages/ProfileSetup";
-import MainPage from "./pages/Main";
-import Profile from "./pages/Profile";
-import BuildLab from "./pages/BuildLab"; // Build Lab: assemble + disassemble in one page
-import Credits from "./pages/Credits";
-import ThreeCameraView from "./pages/ThreeCameraView";
+const MainPage = lazy(() => import("./pages/Main"));
+const Profile = lazy(() => import("./pages/Profile"));
+const BuildLab = lazy(() => import("./pages/BuildLab")); // Build Lab: assemble + disassemble in one page
+const Credits = lazy(() => import("./pages/Credits"));
+const ThreeCameraView = lazy(() => import("./pages/ThreeCameraView"));
 
 // IMPORTANT:
-// Admin must be a DEFAULT import.
+// Admin must be a DEFAULT export.
 // Your Admin.jsx should have:
 // export default function Admin() { ... }
 
-import Admin from "./pages/Admin.jsx";
-import Instructor from "./pages/Instructor";
-import Classes from "./pages/Classes";
+const Admin = lazy(() => import("./pages/Admin.jsx"));
+const Instructor = lazy(() => import("./pages/Instructor"));
+const Classes = lazy(() => import("./pages/Classes"));
 
 // ============================================================
 // STYLES
 // ============================================================
 
+// Every page's styles load up front, in the order they always have (a later file wins a tie), so a
+// page looks the same whichever pages were opened before it. Only the pages' code loads later.
+import "./styles/ThemeToggle.css";
+import "./styles/Classes.css";
+import "./styles/Main.css";
+import "./styles/AppShell.css";
+import "./styles/ar.css";
+import "./styles/Profile.css";
+import "./styles/BuildLab.css";
+import "./styles/BuildLabParts.css";
+import "./styles/BuildLabTask.css";
+import "./styles/BuildLabPhone.css";
+import "./styles/Admin.css";
+import "./styles/Instructor.css";
+import "./styles/InstructorClass.css";
 import "./styles/tokens.css";
 
 // ============================================================
@@ -219,6 +237,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+          <Suspense fallback={<LoadingScreen />}>
           <Routes>
 
             {/* ==================================================
@@ -334,6 +353,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
 
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

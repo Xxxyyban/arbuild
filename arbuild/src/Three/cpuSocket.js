@@ -110,20 +110,22 @@ export function buildLoadPlate() {
   return finish(g);
 }
 
-/** The plastic cap that sits on the cover frame (hinge frame, like buildLoadPlate): hollow underneath. */
-export function buildSocketCap() {
+/**
+ * A socket's plastic cover (AM4's clips over the socket, AM5's cap sits on the cover frame): `w` × `d`
+ * mm, 3 mm tall, hollow underneath, centred on the origin with its underside at z = 0.
+ */
+export function buildSocketCap(w = 44, d = 44) {
   const g = new THREE.Group();
   const black = plastic("#16181c");
-  const x0 = 4.5, x1 = 48.5, half = 22, top = 3.4, wall = 1;
-  const w = x1 - x0, mid = (x0 + x1) / 2;
-  g.add(box(w, half * 2, 0.8, black, mid, 0, top - 0.4));
-  g.add(box(w, wall, top - 0.4, black, mid, half - wall / 2, (top + 0.4) / 2 - 0.2));
-  g.add(box(w, wall, top - 0.4, black, mid, -half + wall / 2, (top + 0.4) / 2 - 0.2));
-  g.add(box(wall, half * 2, top - 0.4, black, x0 + wall / 2, 0, (top + 0.4) / 2 - 0.2));
-  g.add(box(wall, half * 2, top - 0.4, black, x1 - wall / 2, 0, (top + 0.4) / 2 - 0.2));
+  const top = 3, wall = 1, sides = top - 0.8;
+  g.add(box(w, d, 0.8, black, 0, 0, top - 0.4));
+  g.add(box(w, wall, sides, black, 0, d / 2 - wall / 2, sides / 2));
+  g.add(box(w, wall, sides, black, 0, -d / 2 + wall / 2, sides / 2));
+  g.add(box(wall, d, sides, black, w / 2 - wall / 2, 0, sides / 2));
+  g.add(box(wall, d, sides, black, -w / 2 + wall / 2, 0, sides / 2));
   // a raised panel on top and the pull tab on its right edge
-  g.add(box(w - 10, half * 2 - 10, 0.4, plastic("#262a31"), mid, 0, top + 0.2));
-  g.add(box(3, 6, 1, black, x1 + 1.5, 0, top - 0.5));
+  g.add(box(w - 10, d - 10, 0.4, plastic("#262a31"), 0, 0, top + 0.2));
+  g.add(box(3, 6, 1, black, w / 2 + 1.5, 0, top - 0.5));
   return finish(g);
 }
 

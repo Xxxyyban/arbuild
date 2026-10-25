@@ -8,6 +8,8 @@ const CLICK_SLOP = 0.03; // world units the part must move before a release coun
  * isClickToPlace=true  (AR): tap the part, then tap a green marker.
  * isClickToPlace=false:      drag the part anywhere. The camera is locked while
  *                            you hold it. Release over a slot to snap it in.
+ *                            A click without moving it calls onTap (RAM: pick it
+ *                            up, then click a slot), and a selected part bobs.
  *
  * `targets` (optional) = several valid slots (e.g. 4 RAM slots). The part snaps
  * to the NEAREST one and onCorrect(index) receives that slot's index in `targets`.
@@ -21,6 +23,7 @@ export default function DraggablePart({
   targets,
   snapPx = 56, // release within this many screen pixels of a slot = correct
   missPx = 140, // released closer than this (but not on a slot) = counted as a miss
+  snapByPointer = false, // measure from the pointer, not the part's origin (a long RAM stick held by one end)
   locked = false,
   isClickToPlace = false,
   isSelected = false,
@@ -29,6 +32,8 @@ export default function DraggablePart({
   hitRadius = 0.12,
   onCorrect,
   onIncorrect,
+  onTap,
+  onDragChange, // (true) when a drag starts, (false) when it ends
   onDrag,
   onPositionChange,
   children,
@@ -83,12 +88,13 @@ export default function DraggablePart({
     const offset = g.getWorldPosition(new THREE.Vector3()).sub(grab);
 
     const up = () => finishRef.current();
-    drag.current = { plane, offset, up, start: g.position.clone() };
+    drag.current = { plane, offset, up, start: g.position.clone(), pointer: null };
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
 
     if (controls) controls.enabled = false; // lock the camera
     document.body.style.cursor = "grabbing";
+    onDragChange?.(true);
   };
 
   const finishDrag = () => {
@@ -99,6 +105,7 @@ export default function DraggablePart({
     drag.current = null;
     if (controls) controls.enabled = true; // unlock the camera
     document.body.style.cursor = "";
+    onDragChange?.(false);
 
     const g = group.current;
     if (!g) return;
@@ -106,6 +113,7 @@ export default function DraggablePart({
     // a click without moving the part (e.g. to read its info) is not a placement attempt
     if (g.position.distanceTo(d.start) < CLICK_SLOP) {
       g.position.copy(d.start);
+      onTap?.();
       return;
     }
 
@@ -117,7 +125,10 @@ export default function DraggablePart({
       const p = world.clone().project(camera);
       return new THREE.Vector2((p.x * size.width) / 2, (p.y * size.height) / 2);
     };
-    const partScreen = toScreen(g.getWorldPosition(new THREE.Vector3()));
+    const partScreen =
+      snapByPointer && d.pointer
+        ? new THREE.Vector2((d.pointer.x * size.width) / 2, (d.pointer.y * size.height) / 2)
+        : toScreen(g.getWorldPosition(new THREE.Vector3()));
     let best = -1;
     let bestDist = Infinity;
     slots.forEach((t, i) => {
@@ -170,6 +181,7 @@ export default function DraggablePart({
 
     const d = drag.current;
     if (d) {
+      d.pointer = state.pointer.clone();
       raycaster.setFromCamera(state.pointer, camera);
       if (raycaster.ray.intersectPlane(d.plane, tmp)) {
         const local = g.parent.worldToLocal(tmp.add(d.offset));
@@ -180,9 +192,11 @@ export default function DraggablePart({
       return;
     }
 
-    // not dragging: settle onto the stored position (smooth snap into the slot)
+    // not dragging: settle onto the stored position (smooth snap into the slot); a part picked up
+    // with a click hovers and bobs there
+    const lift = L.isSelected ? 0.04 + Math.sin(state.clock.elapsedTime * 4) * 0.015 : 0;
     const k = 1 - Math.exp(-dt * 12);
-    g.position.lerp(tmp.set(L.position[0], L.position[1], L.position[2]), k);
+    g.position.lerp(tmp.set(L.position[0], L.position[1] + lift, L.position[2]), k);
   });
 
   const handlers = isClickToPlace

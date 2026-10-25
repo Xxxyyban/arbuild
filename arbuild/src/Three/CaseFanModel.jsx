@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 
 // Put case_fan.glb in your project's public/models/ folder
 // (or change this path to wherever your other .glb files live).

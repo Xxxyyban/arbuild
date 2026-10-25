@@ -1,7 +1,7 @@
 // DDR5 stick (TeamGroup T-Force). Its own component, so its size and orientation are tuned for ram1.glb only.
 // Until ram1.glb is in public/models, the DDR4 stick (RAMModel.jsx) shows.
 import { useEffect, useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import { orientQuaternion, MM } from "./orient";
 import RAMModel from "./RAMModel";

@@ -18,7 +18,7 @@
   border: 1px solid var(--lab-line);
 }
 
-/* Colored like the score value: the header can be dark in either theme (Assemble.css). */
+/* colored like the score value */
 .assemble__clock-value {
   font-weight: 700;
   font-size: 1.05rem;
@@ -266,7 +266,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  bottom: 136px;
+  bottom: calc(var(--lab-ctrl-h, 44px) + 36px);
   width: 320px;
   display: flex;
   flex-direction: column;
@@ -491,50 +491,6 @@
   color: var(--lab-accent);
 }
 
-/* --------------------------------------------------------------------------
-   Phone: the picker becomes a top strip, the info panel a bottom sheet
-   -------------------------------------------------------------------------- */
-@media (max-width: 720px) {
-  .assemble__clock {
-    min-width: 0;
-    padding: 5px 10px;
-  }
-
-  .picker {
-    top: 8px;
-    left: 8px;
-    right: 8px;
-    flex-direction: column;
-    max-height: calc(100% - 150px);
-  }
-
-  .picker__rail {
-    flex-direction: row;
-    overflow-x: auto;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  .picker__cat {
-    flex: 0 0 auto;
-    width: 58px;
-  }
-
-  .picker__drawer {
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .partinfo {
-    top: auto;
-    left: 8px;
-    right: 8px;
-    bottom: 120px;
-    width: auto;
-    max-height: 45%;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .picker__drawer,
   .partinfo {
@@ -554,20 +510,6 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-/* Teardown has seven controls: let the row wrap instead of running off the left edge */
-.assemble__control-panel {
-  left: 24px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* .assemble prefix: Assemble.css (loaded globally) also styles .assemble__toast and would win */
-@media (min-width: 721px) {
-  .assemble .assemble__toast {
-    bottom: 128px; /* clears two rows of controls */
-  }
 }
 
 /* --------------------------------------------------------------------------
@@ -659,20 +601,6 @@
 .cable-task__actions button:focus-visible {
   outline: 2px solid var(--lab-accent);
   outline-offset: 2px;
-}
-
-@media (max-width: 720px) {
-  .cable-drawer,
-  .cable-drawer.is-beside-picker,
-  .cable-task,
-  .cable-task.is-beside-picker {
-    width: auto;
-    left: 16px;
-    right: 16px;
-  }
-  .cable-drawer .picker__drawer {
-    width: 100%;
-  }
 }
 
 .cable-drawer__ends {

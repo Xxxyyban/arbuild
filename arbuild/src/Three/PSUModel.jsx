@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useMemo, Suspense } from "react";
+import { useGLTF } from "./gltf";
+import { useFileExists } from "./useFileExists";
 import * as THREE from "three";
 
 const MODEL_PATH = "/models/psu.glb";
@@ -20,19 +21,19 @@ export const MODULAR = {
 };
 
 export default function PSUModel({ spinY = 0, ...props }) {
-  // Wrap useGLTF safely. If the file is missing or fails, it will catch and fallback.
-  let gltf = null;
-  try {
-    gltf = useGLTF(MODEL_PATH);
-  } catch (e) {
-    // File not found or load error
-  }
+  // the placeholder while the file is checked and loading (or if it's missing), then the model
+  const placeholder = <PlaceholderPSU {...props} rotation={[0, spinY, 0]} />;
+  if (!useFileExists(MODEL_PATH)) return placeholder;
+  return (
+    <Suspense fallback={placeholder}>
+      <LoadedPSU spinY={spinY} {...props} />
+    </Suspense>
+  );
+}
 
-  if (!gltf || !gltf.scene) {
-    return <PlaceholderPSU {...props} rotation={[0, spinY, 0]} />;
-  }
-
-  return <RealPSU scene={gltf.scene} spinY={spinY} {...props} />;
+function LoadedPSU({ spinY, ...props }) {
+  const { scene } = useGLTF(MODEL_PATH);
+  return <RealPSU scene={scene} spinY={spinY} {...props} />;
 }
 
 function PlaceholderPSU(props) {

@@ -1,3 +1,5 @@
+import { WIRE_IDS } from "./Wires";
+
 // Pure scoring. The ledger is { "assemble:cpu": 66, "disassemble:cpu": 66, ... }.
 // Mode-prefixed keys mean each phase earns separately, and flipping modes can't farm points.
 // Each phase is also timed: finishing within the target time keeps every point,
@@ -34,6 +36,16 @@ export const POINTS = {
   m2screw: 5, // the SSD's own screw
   m2cover: 10, // the M.2 cover back on and screwed down
   socket: 10, // the CPU locked in: the socket lever down (over the shut cover frame, on AM5)
+  // the case's and fans' wires on the board's headers (lab/Wires.js): right header, right way round
+  wire_pwr_sw: 6,
+  wire_rst_sw: 4,
+  wire_pled: 5,
+  wire_hdd_led: 5,
+  wire_hd_audio: 6,
+  wire_usb3: 6,
+  wire_cpu_fan: 10,
+  wire_case_fans: 6,
+  wire_argb: 6,
   // shared multipliers
   perfectBonus: 0.1,
   missPenalty: 0.15,
@@ -64,6 +76,15 @@ export const REMOVE_POINTS = {
   m2screw: 5, // the SSD's screw out
   m2cover: 5, // the M.2 cover off
   socket: 5, // the CPU socket opened with the CPU in it
+  wire_pwr_sw: 3,
+  wire_rst_sw: 3,
+  wire_pled: 3,
+  wire_hdd_led: 3,
+  wire_hd_audio: 4,
+  wire_usb3: 4,
+  wire_cpu_fan: 5,
+  wire_case_fans: 4,
+  wire_argb: 4,
 };
 
 export const basePoints = (mode, name) =>
@@ -213,6 +234,8 @@ export function maxPoints(mode, { slots, gpu, dualRam, psuEnds = [], boot = true
   if (slots.includes("storage")) max += perfect(T.m2screw ?? 0) + perfect(T.m2cover ?? 0);
   // the CPU socket: locking the CPU in, or opening the socket to take it out
   if (slots.includes("cpu")) max += perfect(T.socket ?? 0);
+  // the case's and fans' wires on the board (every build has a board, a cooler and a case)
+  if (slots.includes("motherboard")) max += WIRE_IDS.reduce((s, id) => s + perfect(T[`wire_${id}`] ?? 0), 0);
   if (mode === "disassemble") {
     max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(POINTS.paste);
   } else {

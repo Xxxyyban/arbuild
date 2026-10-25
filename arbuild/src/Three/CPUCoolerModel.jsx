@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useMemo, Suspense } from "react";
+import { useGLTF } from "./gltf";
+import { useFileExists } from "./useFileExists";
 import * as THREE from "three";
 
 const MODEL_PATH = "/models/cpu_cooler.glb";
@@ -8,19 +9,19 @@ const MODEL_PATH = "/models/cpu_cooler.glb";
 const TARGET_WIDTH = 0.469;
 
 export default function CPUCoolerModel({ spinX = 0, spinY = 0, spinZ = 0, ...props }) {
-  // Wrap useGLTF safely. If the file is missing or fails, it will catch and fallback.
-  let gltf = null;
-  try {
-    gltf = useGLTF(MODEL_PATH);
-  } catch (e) {
-    // File not found or load error
-  }
+  // the placeholder while the file is checked and loading (or if it's missing), then the model
+  const placeholder = <PlaceholderCooler {...props} rotation={[spinX, spinY, spinZ]} />;
+  if (!useFileExists(MODEL_PATH)) return placeholder;
+  return (
+    <Suspense fallback={placeholder}>
+      <LoadedCooler spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />
+    </Suspense>
+  );
+}
 
-  if (!gltf || !gltf.scene) {
-    return <PlaceholderCooler {...props} rotation={[spinX, spinY, spinZ]} />;
-  }
-
-  return <RealCooler scene={gltf.scene} spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />;
+function LoadedCooler({ spinX, spinY, spinZ, ...props }) {
+  const { scene } = useGLTF(MODEL_PATH);
+  return <RealCooler scene={scene} spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />;
 }
 
 function PlaceholderCooler(props) {

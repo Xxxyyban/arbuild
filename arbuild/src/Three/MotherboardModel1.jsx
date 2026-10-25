@@ -1,7 +1,7 @@
 // AM5 board (B650-PLUS). Its own component, so its size and placement are tuned
 // for this file only. The AM4 board is MotherboardModel.jsx.
 import { useEffect, useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import MotherboardModel from "./MotherboardModel";
 import { useFileExists } from "./useFileExists";
@@ -50,6 +50,23 @@ export const MOUNTS = {
   ],
   atx24: [0.294, 1.663],
   eps8: [-0.579, 2.0],
+  // the headers for the case's and fans' wires, on the file's pin rows (mm from the socket, x right, y up),
+  // labelled as the file prints them along the bottom edge (HD_AUDIO1, COM1, USB_3_4, FAN1, FAN2, ARGB1,
+  // ARGB2, USB_1_2, USB3_1, CHA_FAN, PANEL1). Both white headers there are 5 V ARGB: this board has no
+  // 12 V RGB header. The white pair at the top are the CPU fans'.
+  headers: {
+    pled: { at: [76.9, -198.5] },
+    pwr: { at: [82, -198.5] },
+    hdd: { at: [76.9, -201] },
+    rst: { at: [82, -201] },
+    aafp: { at: [-83.5, -199.75], label: "HD_AUDIO1" },
+    usb2: { at: [-41.9, -199.75], label: "USB_3_4" },
+    u32g1: { at: [103.9, -33.6], along: "y" },
+    cpu_fan: { at: [75.5, 88.6] },
+    cpu_opt: { at: [92.5, 88.7] },
+    cha_fan: { at: [62.5, -199.75], label: "CHA_FAN" },
+    add_gen2: { at: [12.3, -199.5], label: "ARGB2" },
+  },
 };
 
 export default function MotherboardModel1(props) {
@@ -164,5 +181,7 @@ export const SOCKET = {
   kind: "lga",
   lever: { Body: LeverBody, pivot: LEVER_PIVOT.map((v) => v * MM), length: 60 * MM },
   hook: { at: [28.3 * MM, -30 * MM, -0.5 * MM], height: 5.4, reach: 2 },
-  plate: { hinge: [-25.5 * MM, 0, 2.0 * MM] }, // the cover frame's hinge, on the socket's left side
+  // the cover frame's hinge, on the socket's left side, and the cap on the frame (in the hinge's frame)
+  plate: { hinge: [-25.5 * MM, 0, 2.0 * MM], cap: { at: [26.5 * MM, 0, 0.4 * MM], size: [44, 44] } },
+  cap: { size: [44, 44] },
 };

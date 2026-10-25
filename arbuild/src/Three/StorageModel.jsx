@@ -1,7 +1,7 @@
 // 1 TB M.2 2280 NVMe drive (ssd.glb), true to size. Drawn the lab's way (see STORAGE_MOUNT_ROTATION in
 // lab/Constants): lying flat, chips up, gold pins at the origin, the drive running along -X.
 import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import { orientQuaternion, MM } from "./orient";
 

@@ -1,6 +1,8 @@
-import { useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useMemo, Suspense } from "react";
+import { useGLTF } from "./gltf";
+import { useFileExists } from "./useFileExists";
 import * as THREE from "three";
+import { GpuPowerSocket } from "./Hardware";
 
 const MODEL_PATH = "/models/gpu.glb";
 // PSU's TARGET_WIDTH (0.71) was tuned against its real housing (~140mm).
@@ -9,20 +11,26 @@ const MODEL_PATH = "/models/gpu.glb";
 // matches the PCIe slot / case scale in your scene.
 const TARGET_WIDTH = 1.199;
 
+// The file has no power socket (its top edge is a flat shroud), so one is added on the top edge, left
+// of the GIGABYTE logo (where the card's short board ends, before the flow-through vent), its clip
+// toward the backplate. In the card's frame (its top edge is +Y). The lab plugs the PCIe cable in at the
+// matching spot: the catalog's powerPort [0.20, 0.06, 0.627], measured from the card's mount point.
+const POWER_SOCKET = { position: [-0.06, 0.627, -0.2], rotation: [0, Math.PI / 2, 0] };
+
 export default function GPUModel({ spinX = 0, spinY = 0, spinZ = 0, ...props }) {
-  // Wrap useGLTF safely. If the file is missing or fails, it will catch and fallback.
-  let gltf = null;
-  try {
-    gltf = useGLTF(MODEL_PATH);
-  } catch (e) {
-    // File not found or load error
-  }
+  // the placeholder while the file is checked and loading (or if it's missing), then the model
+  const placeholder = <PlaceholderGPU {...props} rotation={[spinX, spinY, spinZ]} />;
+  if (!useFileExists(MODEL_PATH)) return placeholder;
+  return (
+    <Suspense fallback={placeholder}>
+      <LoadedGPU spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />
+    </Suspense>
+  );
+}
 
-  if (!gltf || !gltf.scene) {
-    return <PlaceholderGPU {...props} rotation={[spinX, spinY, spinZ]} />;
-  }
-
-  return <RealGPU scene={gltf.scene} spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />;
+function LoadedGPU({ spinX, spinY, spinZ, ...props }) {
+  const { scene } = useGLTF(MODEL_PATH);
+  return <RealGPU scene={scene} spinX={spinX} spinY={spinY} spinZ={spinZ} {...props} />;
 }
 
 function PlaceholderGPU(props) {
@@ -80,6 +88,7 @@ function RealGPU({ scene, spinX = 0, spinY = 0, spinZ = 0, ...props }) {
       <group scale={scale} position={offset}>
         <primitive object={cloned} />
       </group>
+      <GpuPowerSocket {...POWER_SOCKET} />
     </group>
   );
 }

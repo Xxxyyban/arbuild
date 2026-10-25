@@ -2,6 +2,7 @@
 // Picking an option lays that part on the bench. Styles: styles/BuildLab.css (.picker*).
 import { useState } from "react";
 import { CATEGORIES, OPTIONAL_SLOTS, optionsFor, badgesFor } from "../../lab/Catalog";
+import { useSizeVar } from "./useSizeVar";
 
 // Headings when a category fills more than one slot (RAM), and the "leave it out" choice
 // for parts a build can do without.
@@ -78,12 +79,13 @@ export function CategoryIcon({ id, size = 22 }) {
  */
 export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect }) {
   const [open, setOpen] = useState(null);
+  const railRef = useSizeVar("--lab-pick-h"); // the overlays under the strip on a phone clear it
   const cat = CATEGORIES.find((c) => c.id === open);
   const options = open ? optionsFor(open) : [];
 
   return (
     <div className="picker" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="picker__rail" role="toolbar" aria-label="Parts">
+      <div className="picker__rail" role="toolbar" aria-label="Parts" ref={railRef}>
         {CATEGORIES.map((c) => {
           const has = c.slots.some((s) => picks[s]);
           return (
@@ -96,7 +98,8 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
               onClick={() => setOpen(open === c.id ? null : c.id)}
             >
               <CategoryIcon id={c.id} />
-              <span>{c.label}</span>
+              <span className={c.short ? "picker__label has-short" : "picker__label"}>{c.label}</span>
+              {c.short && <span className="picker__short">{c.short}</span>}
               {has && <i className="picker__dot" aria-hidden="true" />}
             </button>
           );

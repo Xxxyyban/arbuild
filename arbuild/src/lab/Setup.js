@@ -2,6 +2,7 @@
 import { ALL_PARTS } from "./Constants";
 import { correctPicks, normalizePlatform } from "./Catalog";
 import { m2Start, socketStart } from "./Rules";
+import { wiresStart } from "./Wires";
 
 export const DEFAULT_SETUP = {
   startMode: "disassemble", // "assemble" | "disassemble"
@@ -54,6 +55,8 @@ export function buildStart(setup) {
     m2: m2Start(installed.storage),
     // the CPU socket's lever is down (and AM5's cover frame shut); its plastic cap is on while it's empty
     socket: socketStart(installed.cpu),
+    // a PC that was running has the case's and fans' wires on the board's headers
+    wires: wiresStart(full),
   };
 }
 

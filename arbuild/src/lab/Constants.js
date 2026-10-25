@@ -38,6 +38,7 @@ export const TRAY_OFFSETS = {
   cpu_cooler: [0.95, 0.01, 3.1],
   storage: [-1.75, 0.03, 3.15],
   m2cover: [-1.74, 0.01, 3.42], // the board's M.2 cover, once it is lifted off (its middle)
+  socketcap: [0.95, 0.01, 2.62], // the AM5 socket's plastic cap once it pops off, between the CPU and the cooler
 };
 
 // [x, y, z] added on top of the tray position for the part's name tag. Default is [0, 0.3, 0].
@@ -133,6 +134,9 @@ export const BASE_MOUNTS = {
   ], // the 9 ATX screw holes, measured on the hole rings in close-up
   atx24: [0.204, 1.515], // centre of the 24-pin header (vertical, on the right edge): the model's Cube014_22
   eps8: [-0.593, 1.986], // centre of the 8-pin CPU power header (top-left): the model's Cube081_89
+  // the small headers for the case's and fans' wires (lab/Wires.js): { [id]: { at: [x, y] mm from the
+  // socket's centre, seen from the front (x right, y up), label (as printed), along: "y" if it runs up the board } }
+  headers: null,
 };
 
 /** Everything the lab needs to place parts on one board, from that board's MOUNTS. */
@@ -164,6 +168,7 @@ export function boardLayout(m = BASE_MOUNTS) {
     holes: m.holes || BASE_MOUNTS.holes,
     atx24: m.atx24 || BASE_MOUNTS.atx24,
     eps8: m.eps8 || BASE_MOUNTS.eps8,
+    headers: m.headers || BASE_MOUNTS.headers,
   };
 }
 

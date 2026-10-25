@@ -1,0 +1,220 @@
+/* ==========================================================================
+   Build Lab on a phone (narrow, or a phone on its side: short): every phone rule for the lab page
+   in one place, loaded
+   after BuildLab.css, BuildLabParts.css and BuildLabTask.css. (The start screen's phone rules stay
+   with it in BuildLab.css.)
+
+   The screen, top to bottom: a one-row header, the parts strip, the bench, the guide card, the
+   control panel. The control panel, the parts strip and the guide card measure themselves
+   (--lab-ctrl-h, --lab-pick-h, --lab-task-h, see components/lab/useSizeVar.js), so whatever sits
+   next to them clears them however many rows they wrap to.
+   ========================================================================== */
+
+/* the parts strip's short labels ("Board") only show on a phone */
+.picker__short {
+  display: none;
+}
+
+@media (max-width: 720px), (max-height: 500px) {
+  /* ---------- header: one row (a class adds the clock and score on a second) ---------- */
+  .assemble__bar {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 6px 12px;
+  }
+
+  .assemble__back {
+    padding: 8px;
+    margin: -8px 0 -8px -8px;
+  }
+
+  /* the arrow alone; the words stay for screen readers */
+  .assemble__back-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .assemble__title-group {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .assemble__badge-sub {
+    overflow: hidden;
+    font-size: 0.58rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .assemble__title-group h1 {
+    font-size: 0.88rem;
+  }
+
+  .assemble__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .assemble__selection-indicator {
+    max-width: 40vw;
+    overflow: hidden;
+    font-size: 0.74rem;
+    text-overflow: ellipsis;
+  }
+
+  .assemble__rotate-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .assemble__clock,
+  .assemble__score-card {
+    min-width: 0;
+    padding: 4px 10px;
+  }
+
+  /* ---------- parts strip along the top: all seven fit on most phones, it scrolls on narrower ---------- */
+  .picker {
+    top: 8px;
+    left: 8px;
+    width: min(520px, calc(100% - 16px)); /* full width upright, not the whole way across on its side */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    max-height: calc(100% - var(--lab-ctrl-h, 96px) - 24px);
+  }
+
+  .picker__rail {
+    flex-direction: row;
+    gap: 2px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .picker__cat {
+    flex: 1 0 46px;
+    width: auto;
+    padding: 6px 2px 5px;
+    font-size: 0.58rem;
+  }
+
+  .picker__label.has-short {
+    display: none;
+  }
+
+  .picker__short {
+    display: inline;
+  }
+
+  .picker__drawer {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* the cable list and the plug-in steps open under the strip */
+  .cable-drawer,
+  .cable-drawer.is-beside-picker,
+  .cable-task,
+  .cable-task.is-beside-picker {
+    top: calc(var(--lab-pick-h, 0px) + 16px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+
+  .cable-drawer {
+    max-height: calc(100% - var(--lab-pick-h, 0px) - var(--lab-ctrl-h, 96px) - 32px);
+  }
+
+  .cable-drawer .picker__drawer {
+    width: 100%;
+  }
+
+  /* ---------- the bench's view buttons: a phone pinches to zoom ---------- */
+  .lab-view {
+    display: none;
+  }
+
+  /* ---------- control panel: along the bottom, three buttons a row upright, one row on its side ---------- */
+  .assemble__control-panel {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 6px;
+  }
+
+  .assemble__ctrl-btn {
+    justify-content: center;
+    min-height: 40px;
+    padding: 6px 4px;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* ---------- guide card: just above the controls; closed it is one line, open it scrolls ---------- */
+  .lab-task {
+    top: auto;
+    left: auto;
+    right: 8px;
+    bottom: calc(var(--lab-ctrl-h, 96px) + 16px);
+    width: min(440px, calc(100% - 16px));
+  }
+
+  .lab-task__head {
+    padding: 8px 12px;
+  }
+
+  .lab-task__body {
+    max-height: calc(100dvh - var(--lab-ctrl-h, 96px) - var(--lab-pick-h, 0px) - 260px);
+    min-height: 80px;
+  }
+
+  /* ---------- part info: a sheet above the controls ---------- */
+  .partinfo {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--lab-ctrl-h, 96px) + 16px);
+    width: auto;
+    max-height: 50%;
+  }
+
+  /* ---------- messages: above the guide card ---------- */
+  .assemble__toast {
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--lab-ctrl-h, 96px) + var(--lab-task-h, 0px) + 24px);
+    max-width: none;
+    text-align: center;
+  }
+
+  /* ---------- AR: under the parts strip ---------- */
+  .lab-ar-top,
+  .lab-ar-top.is-beside-picker {
+    top: calc(var(--lab-pick-h, 0px) + 16px);
+    left: 8px;
+    right: 8px;
+  }
+
+  .lab-pill {
+    padding: 5px 12px;
+    font-size: 0.78rem;
+  }
+}
+

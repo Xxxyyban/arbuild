@@ -5,21 +5,24 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { useAuth } from "../context/AuthContext";
 import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
-import { CablePlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, LeverHook, PLUG_REACH } from "../Three/Hardware";
+import { CablePlug, HeaderPlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, SocketSlide, SocketCapOnBench, LeverHook, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
+import { MM, headerPlugReach } from "../Three/cableStubs";
 import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
 import { ARContext } from "../Three/xrSetup";
 import { GLBridge, ARHitTest, ARRoot, CamAR, useARSupport, startARSession, requestMotion } from "../Three/ar/ARTools";
-import { useARGestures, GestureGroup } from "../Three/ar/ARGestures";
+import { useARGestures, GestureGroup, MIN_SCALE, MAX_SCALE } from "../Three/ar/ARGestures";
+import Icon from "../components/Icon";
 import {
-  CaseWithMeasure, CaseRig, CaseFans, Workbench, TrayLabel, BenchLoadingFallback, CameraFocus,
-  ThermalPaste, TrayModel, TargetMarker, Blast, Flyer,
+  CaseWithMeasure, CaseRig, CaseFans, Workbench, TrayLabel, BenchLoadingFallback, CameraFocus, ViewControls, FitFov,
+  ThermalPaste, TrayModel, TargetMarker, RamSlotMarker, Blast, Flyer,
 } from "../components/lab/BenchScene";
 import MonitorStation from "../components/lab/MonitorStation";
 import StartScreen from "../components/lab/StartScreen";
 import PartPicker from "../components/lab/PartPicker";
 import PartInfoPanel from "../components/lab/PartInfoPanel";
+import { useSizeVar } from "../components/lab/useSizeVar";
 import {
   ALL_PARTS, PART_LABEL, trayPosition, toWorldPose, moboLocalToWorld,
   MOTHERBOARD_TARGET, PSU_TARGET, GPU_TARGET, MOBO_LYING_ROTATION, MOBO_MOUNTED_ROTATION,
@@ -28,16 +31,22 @@ import {
   LAY_ANGLE, LAY_CENTER, AR_SCALE, HOME_CAM, HOME_TARGET,
 } from "../lab/Constants";
 import {
-  installBlock, removeBlock, evaluateBoot, isFullyBuilt, isFullyStripped, expertSteps,
+  installBlock, removeBlock, evaluateBoot, bootTime, isFullyBuilt, isFullyStripped, expertSteps,
   CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
   M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done,
-  socketKind, socketStart, leverBlock, plateBlock, socketDone,
+  socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone,
 } from "../lab/Rules";
 import {
   POINTS, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
   maxPoints, officialScore, officialDelta, taskRequirements, taskLedger, OFFICIAL_MAX,
 } from "../lab/Scoring";
 import { DEFAULT_SETUP, normalizeSetup, buildStart, setupFromUrl } from "../lab/Setup";
+import {
+  CABLE_IDS, STUB_TYPE, PORT_ROT, PORT_LATCH, GHOST_COLOR, PORT_LABEL, FIXED_MARK, PLUG_LOOK, PORT_WHERE, PSU_FIXED_OUT, HEADER_LIFT, WIRE_GHOST, wireRoute, cableRoute, psuToCase,
+} from "../lab/CableRoutes";
+import {
+  WIRES, WIRE_IDS, WIRE_WHERE, HEADERS, headerLabel, wiresStart, wireBlock, wireFitBlock, wireFault, wireRight, wireOn,
+} from "../lab/Wires";
 import { createReporter, MISTAKE_TYPES } from "../lab/reportEvent";
 import { CATALOG, PLATFORM_LABEL, itemFor, fitBlock, buildSlots, correctPicks } from "../lab/Catalog";
 import { studentSetup, formatClock } from "../lab/Sessions";
@@ -45,6 +54,7 @@ import { useLabSession } from "../lab/useLabSession";
 import "../styles/BuildLab.css";
 import "../styles/BuildLabParts.css";
 import "../styles/BuildLabTask.css";
+import "../styles/BuildLabPhone.css"; // every phone rule, after the rest
 
 const OVERHEAT = { helloMs: 5000, loadMinMs: 3000, loadMaxMs: 5000, bsodMs: 3000, blastMs: 2200, explodeAfterBsod: true };
 const SHUTDOWN_DURATION = 1800;
@@ -55,7 +65,7 @@ const NO_CABLES = { atx24: false, eps8: false, pcie: false }; // also the PSU en
 const NO_SCREWS = Array.from({ length: SCREW_COUNT }, () => false);
 const EMPTY_BUILD = {
   mode: "assemble", installed: {}, pasteApplied: false, ramSlot: { ram1: null, ram2: null },
-  cables: NO_CABLES, psuCables: NO_CABLES, screws: NO_SCREWS,
+  cables: NO_CABLES, psuCables: NO_CABLES, screws: NO_SCREWS, wires: wiresStart(false),
 };
 // A part on the board: undoes the board's stretch so the part keeps its real proportions.
 function TrueSize({ unstretch, rotation, children }) {
@@ -69,32 +79,6 @@ function TrueSize({ unstretch, rotation, children }) {
 const HEADER_HEIGHT = 0.045; // a power header stands about 9 mm off the board
 const SOCKET_ROTATION = [0, Math.PI, 0]; // board space -> the socket's frame (Three/cpuSocket.js)
 
-// Cables, case space. Every plug goes in along -Z (into the board or card); its wires leave along +Z.
-const CABLE_IDS = ["atx24", "eps8", "pcie"];
-const STUB_TYPE = { atx24: "atx24", eps8: "eps8", pcie: "pcie8" };
-const PORT_ROT = { atx24: [Math.PI / 2, Math.PI / 2, 0], eps8: [Math.PI / 2, 0, 0], pcie: [Math.PI / 2, 0, 0] };
-const PORT_LATCH = { atx24: [1, 0, 0], eps8: [0, -1, 0], pcie: [0, -1, 0] }; // which side the clip hooks over
-const GHOST_COLOR = { atx24: "#f2a33a", eps8: "#f2d24a", pcie: "#f2d24a" }; // see-through guide wires
-const PORT_LABEL = { atx24: "24-pin header", eps8: "8-pin CPU header", pcie: "GPU power socket" };
-// a fixed PSU's cables: the marking on each plug, and how to tell them apart
-const FIXED_MARK = { atx24: "MB 24-pin", eps8: "CPU 4+4", pcie: "PCI-E 6+2" };
-const PLUG_LOOK = {
-  atx24: "widest plug, 24 pins in 2 rows of 12",
-  eps8: "8-pin plug marked CPU, which splits 4 + 4",
-  pcie: "8-pin plug marked PCI-E, which splits 6 + 2",
-};
-const PORT_WHERE = {
-  atx24: "the long 24-pin header on the right edge of the board",
-  eps8: "the 8-pin header at the top-left, next to the CPU",
-  pcie: "the power socket on the top edge of the graphics card",
-};
-const PSU_FIXED_OUT = [-0.3, 0.3, 0.1]; // where a non-modular PSU's cables come out (case space)
-const PSU_ROT = new THREE.Euler(...PSU_TARGET.rotation);
-/** A point in the PSU's own frame, in case space (the PSU sits at PSU_TARGET when installed). */
-const psuToCase = ([x, y, z]) => {
-  const v = new THREE.Vector3(x, y, z).applyEuler(PSU_ROT);
-  return [PSU_TARGET.position[0] + v.x, PSU_TARGET.position[1] + v.y, PSU_TARGET.position[2] + v.z];
-};
 const PHASE_ZERO = { assemble: 0, disassemble: 0 };
 const HOME_VIEW = { position: HOME_CAM, target: HOME_TARGET }; // the whole bench, where the camera starts
 const POWER_ON = { shutdown: false, unplugged: false, discharged: false };
@@ -110,8 +94,9 @@ function powerAndMonitor(s) {
 }
 
 function ControlPanel({ buttons }) {
+  const panelRef = useSizeVar("--lab-ctrl-h"); // what sits above the panel clears its rows
   return (
-    <div className="assemble__control-panel">
+    <div className="assemble__control-panel" ref={panelRef}>
       {buttons.map((b) => (
         <button
           key={b.key}
@@ -128,11 +113,6 @@ function ControlPanel({ buttons }) {
     </div>
   );
 }
-
-const pill = {
-  position: "absolute", left: 12, padding: "6px 14px", borderRadius: 999,
-  background: "rgba(15,23,42,0.85)", color: "#fff", fontSize: 14,
-};
 
 export default function BuildLab() {
   const { user, profile } = useAuth();
@@ -164,6 +144,10 @@ export default function BuildLab() {
   // the CPU socket: its lever, AM5's cover frame and the plastic cap on it
   const [socket, setSocket] = useState(init.socket ?? socketStart(init.installed.cpu));
   const [cableTask, setCableTask] = useState(null); // connecting one end of a cable: { cable, end: "psu" | "part", port, flipped }
+  // the case's and fans' wires on the board's headers ({ [wire]: { at, flipped } | null }), and the one
+  // being connected: { wire, at (the header picked), flipped (an LED plug's + on the wrong pin) }
+  const [wires, setWires] = useState(init.wires ?? wiresStart(false));
+  const [wireTask, setWireTask] = useState(null);
   const [cableDrawer, setCableDrawer] = useState(false);
   const [power, setPower] = useState(init.power);
   const [monitor, setMonitor] = useState(init.monitor);
@@ -181,7 +165,9 @@ export default function BuildLab() {
   const [mistakes, setMistakes] = useState(0);
   const [inspectId, setInspectId] = useState(null); // catalog id shown in the part info panel
   const [taskDone, setTaskDone] = useState(null); // class only: { ms } once the task's phase was finished
-  const [taskOpen, setTaskOpen] = useState(true); // class only: the task card is expanded
+  // the guide card starts open on a computer, and closed on a phone, where it would cover the bench
+  const [taskOpen, setTaskOpen] = useState(() => !window.matchMedia?.("(max-width: 720px), (max-height: 500px)").matches);
+  const taskRef = useSizeVar("--lab-task-h"); // messages on a phone sit above the card
   const [bounce, setBounce] = useState({}); // part -> count, remounts a part that didn't fit so it returns to the bench
   const [popups, setPopups] = useState([]);
   const [feedback, setFeedback] = useState(null);
@@ -191,6 +177,8 @@ export default function BuildLab() {
   const [casePose, setCasePose] = useState(null);
   const [caseBox, setCaseBox] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  // RAM on a computer: the stick being dragged (its slots show)
+  const [ramDrag, setRamDrag] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [exploding, setExploding] = useState(false);
 
@@ -223,7 +211,15 @@ export default function BuildLab() {
   const contentRef = useRef(null);
   const rigApi = useRef({});
   const raycaster = useRef(new THREE.Raycaster());
-  const gestures = useARGestures({ overlayRef, enabled: arLike });
+  // AR: the bench's size (1 = as placed), from a pinch or the size buttons
+  const [arSize, setArSize] = useState(1);
+  const gestures = useARGestures({ overlayRef, enabled: arLike, onScale: setArSize });
+  const resetGestures = () => {
+    gestures.reset();
+    setArSize(1);
+  };
+  const sizeBy = (factor) => setArSize(gestures.setScale(gestures.state.current.target.scale * factor));
+  const viewRef = useRef(null); // the view buttons on a computer (ViewControls)
 
   const cfg = normalizeSetup(setup ?? DEFAULT_SETUP);
   // In a class the instructor's task sets the work, and there is a clock and points.
@@ -262,6 +258,8 @@ export default function BuildLab() {
   const m2Look = BOARD_M2_COVERS[boardVariant] || undefined; // the board's own M.2 cover, if it has one
   const sockLook = BOARD_SOCKETS[boardVariant] || BOARD_SOCKETS[0]; // where the board's socket lever (and frame) go
   const sockKind = socketKind(picks); // "zif" (AM4: lever only) or "lga" (AM5: lever and cover frame)
+  // what holds a part in when taking it apart (Rules removeBlock)
+  const links = { cables, screws, m2, socket, socketKind: sockKind, wires };
   const UPRIGHT = [0, Math.PI, 0];
   const boardMounted = !!installed.motherboard;
   const moboTarget = useMemo(() => toWorldPose(MOTHERBOARD_TARGET.position, MOTHERBOARD_TARGET.rotation, rig), [rig]);
@@ -302,6 +300,20 @@ export default function BuildLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [motherboardPos, boardMounted, rig, L]
   );
+  // Each DIMM slot's middle, the way it runs (up the board) and the way out of the board, in world space:
+  // where its click target goes when a stick is picked up.
+  const ramSlotMarks = useMemo(() => {
+    const world = (l) =>
+      boardMounted
+        ? toWorldPose(moboLocalToWorld(MOTHERBOARD_TARGET.position, l, MOBO_MOUNTED_ROTATION, L.scale), UPRIGHT, rig).position
+        : moboLocalToWorld(motherboardPos, l, MOBO_LYING_ROTATION, L.scale);
+    const from = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    return L.ramSlots.map((l) => {
+      const center = world(l);
+      return { center, along: from(world([l[0], l[1] + 0.1, l[2]]), center), up: from(world([l[0], l[1], l[2] - 0.1]), center) };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motherboardPos, boardMounted, rig, L]);
   const ram1Free = ramTargets.map((t, i) => ({ ...t, slot: i })).filter((t) => ramSlot.ram2 !== t.slot);
   const ram2Free = ramTargets.map((t, i) => ({ ...t, slot: i })).filter((t) => ramSlot.ram1 !== t.slot);
 
@@ -421,11 +433,17 @@ export default function BuildLab() {
       setMotherboardPos(MOTHERBOARD_TARGET.position);
       setScrews(NO_SCREWS); // set in the case; the screws still have to go in
     }
-    if (name === "ram1" || name === "ram2") {
+    const isRam = name === "ram1" || name === "ram2";
+    let ramMsg = "";
+    if (isRam) {
       const free = name === "ram1" ? ram1Free : ram2Free;
       const s = slot ?? free[0].slot;
       const other = ramSlot[name === "ram1" ? "ram2" : "ram1"];
-      if (other != null && Math.abs(other - s) === 1) flawed = true; // neighbouring slots, no dual channel
+      ramMsg = `${PART_LABEL[name]} pushed into slot ${s + 1} until both latches clicked.`;
+      if (other != null && Math.abs(other - s) === 1) {
+        flawed = true; // neighbouring slots, no dual channel
+        if (hintsOn) ramMsg += ` It's right next to the other stick (slot ${other + 1}), so they run in single channel: slots 1+3 or 2+4 give dual channel.`;
+      }
       setRamSlot((p) => ({ ...p, [name]: s }));
     }
 
@@ -450,7 +468,7 @@ export default function BuildLab() {
 
     logAction(name, k, flawed);
     const missCount = misses.current[k] || 0;
-    const msg = `${PART_LABEL[name]} installed.${missCount === 0 ? " Perfect placement!" : ""}`;
+    const msg = `${isRam ? ramMsg : `${PART_LABEL[name]} installed.`}${missCount === 0 && !flawed ? " Perfect placement!" : ""}`;
     award(k, actionPoints(basePoints(mode, name), missCount), msg, name);
   }
 
@@ -469,7 +487,7 @@ export default function BuildLab() {
     if (!installed[name]) return;
     if (gestures.consumeSuppress()) return; // a drag/pinch/twist just happened, not a real tap
 
-    const b = removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind });
+    const b = removeBlock(name, installed, power, links);
     if (b) {
       miss(b.key, b.msg, blockType(b.key));
       return;
@@ -503,11 +521,11 @@ export default function BuildLab() {
 
     logAction(name, k, flawed);
     const missCount = misses.current[k] || 0;
-    award(k, actionPoints(basePoints(mode, name), missCount), `${PART_LABEL[name]} removed.${missCount === 0 ? " Clean removal!" : ""}`, name);
+    award(k, actionPoints(basePoints(mode, name), missCount), `${PART_LABEL[name]} removed.${missCount === 0 ? " Clean removal!" : ""}${name === "cpu" && sockKind === "lga" ? " Put the socket's plastic cap back on to protect its pins." : ""}`, name);
   }
 
   function reportBlocked(name) {
-    const b = removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind });
+    const b = removeBlock(name, installed, power, links);
     if (b) miss(b.key, b.msg, blockType(b.key));
   }
 
@@ -688,6 +706,9 @@ export default function BuildLab() {
     setCableTask(null);
     if (atPsu) {
       setPsuCables((prev) => ({ ...prev, [c]: true }));
+      if (c === "pcie" && !picks.gpu) {
+        return showHint("PCIe power cable plugged into the PSU. There's no graphics card yet: tuck it aside, it's ready if you add one.", "success");
+      }
       return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${CABLES[c].label} plugged into the PSU. Its other end waits for the ${c === "pcie" ? "graphics card" : "motherboard"}.`, key);
     }
     setCables((prev) => ({ ...prev, [c]: true }));
@@ -711,6 +732,112 @@ export default function BuildLab() {
     setPsuCables((p) => ({ ...p, [c]: false }));
     award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${label} unplugged from the PSU.`, key);
   }
+
+  /* ---------- the case's and fans' wires on the board's small headers (lab/Wires.js) ---------- */
+  // Like a cable's part end: pick the wire in CABLES, click the header, turn an LED plug + to +, push
+  // it on. A plug that fits goes on even on the wrong header: power on shows the mistake.
+  const headers = L.headers;
+  const sockCase = useMemo(() => moboLocalToWorld(MOTHERBOARD_TARGET.position, L.cpuLocal, MOBO_MOUNTED_ROTATION, L.scale), [L]);
+  const headerPos = (spot, lift = HEADER_LIFT) => {
+    const at = headers?.[spot]?.at;
+    return at ? [sockCase[0] + at[0] * MM, sockCase[1] + at[1] * MM, L.pcbFront + lift] : null;
+  };
+  // a plug's long way along the header: across the board, or up it (the USB 3.0 header on the right edge)
+  const headerRot = (spot) => (headers?.[spot]?.along === "y" ? [Math.PI / 2, Math.PI / 2, 0] : [Math.PI / 2, 0, 0]);
+
+  function startWire(id) {
+    if (mode !== "assemble" || exploding) return;
+    const b = wireBlock(id, installed);
+    if (b) return showHint(b.msg);
+    setCableDrawer(false);
+    setCableTask(null);
+    setWireTask({ wire: id, at: null, flipped: false });
+  }
+
+  function chooseHeader(spot) {
+    if (!wireTask) return;
+    const id = wireTask.wire;
+    const no = wireFitBlock(id, spot, wires);
+    if (no) return miss(`wire_${id}`, no, "miss", "It won't go on there. Look at the plug and read the labels on the board.");
+    // an LED plug can arrive either way round; the others only fit one way
+    setWireTask({ ...wireTask, at: spot, flipped: !!WIRES[id].polar && Math.random() < 0.5 });
+  }
+
+  function turnWire() {
+    setWireTask((t) => (t ? { ...t, flipped: !t.flipped } : t));
+  }
+
+  function pushWire() {
+    if (!wireTask?.at) return;
+    const { wire: id, at, flipped } = wireTask;
+    const key = `wire_${id}`;
+    const k = ledgerKey(mode, key);
+    const w = { at, flipped };
+    setWireTask(null);
+    setWires((p) => ({ ...p, [id]: w }));
+    setPhaseActions((n) => n + 1);
+    const fault = wireFault(id, w, headers);
+    if (fault) {
+      // it goes on, so it's a mistake to find at power on (hints on: said now)
+      misses.current[k] = (misses.current[k] || 0) + 1;
+      reportEvent("miss", key, fault);
+      return showHint(hintsOn ? `${WIRES[id].label} is on, but: ${fault}` : `${WIRES[id].label} plugged in.`, hintsOn ? "fail" : "success");
+    }
+    award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${WIRES[id].label} on ${headerLabel(at, headers)}${WIRES[id].polar ? ", + on +" : ""}.`, key);
+  }
+
+  // Clicking a wire's plug: push it on while connecting; otherwise pull it off (to fix it, or taking apart).
+  function clickWire(id) {
+    if (exploding) return;
+    if (wireTask?.wire === id && wireTask.at) return pushWire();
+    const w = wires[id];
+    if (!w) return;
+    const key = `wire_${id}`;
+    const label = WIRES[id].label;
+    if (mode === "disassemble") {
+      const s = safetyBlock(power);
+      if (s) return miss(s.key, s.msg, "safety");
+      setWires((p) => ({ ...p, [id]: null }));
+      const k = ledgerKey(mode, key);
+      return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${label} unplugged from ${headerLabel(w.at, headers)}.`, key);
+    }
+    if (monitor.status !== "off") return showHint("Press POWER to turn the PC off before you pull a wire off.");
+    setWires((p) => ({ ...p, [id]: null }));
+    setBooted(false);
+    showHint(`${label} pulled off ${headerLabel(w.at, headers)}. Pick it in CABLES to plug it in again.`, "success");
+  }
+
+  // A wire's plug: on its header, or hovering over the one picked; its guide wire runs back to where it comes from.
+  function wirePose(id) {
+    const w = wires[id];
+    let pose = null;
+    if (w && headers?.[w.at]) pose = { spot: w.at, seated: true, flipped: !!w.flipped };
+    else if (wireTask?.wire === id && wireTask.at) pose = { spot: wireTask.at, seated: false, flipped: wireTask.flipped };
+    if (!pose) return null;
+    const pos = headerPos(pose.spot);
+    const top = [pos[0], pos[1], pos[2] + headerPlugReach(WIRES[id].plug) + (pose.seated ? 0 : 0.05)];
+    const cooler = [sockCase[0] + 0.1, sockCase[1] + 0.06, L.pcbFront + 0.3];
+    return { ...pose, pos, rot: headerRot(pose.spot), ghost: wireRoute(id, top, cooler) };
+  }
+  const wireWaiting = (id) => (mode === "assemble" ? wireTask?.wire === id && !!wireTask.at : !!wires[id] && power.discharged);
+  // the headers that light up for the wire being connected: the right one and its look-alikes, if free
+  const wireSpots = wireTask && !wireTask.at ? WIRES[wireTask.wire].offer.filter((sp) => headers?.[sp] && !wireOn(wires, sp)) : [];
+
+  // The camera glides in on the free headers the wire might go on, then on the one picked.
+  const wireFocus = useMemo(() => {
+    if (!wireTask || !headers) return null;
+    const free = WIRES[wireTask.wire].offer.filter((sp) => headers[sp] && !wireOn(wires, sp));
+    const spots = wireTask.at ? [wireTask.at] : free.length ? free : WIRES[wireTask.wire].offer.filter((sp) => headers[sp]);
+    const pts = spots.map((sp) => headerPos(sp));
+    const c = [0, 1, 2].map((k) => pts.reduce((sum, p) => sum + p[k], 0) / pts.length);
+    const span = Math.max(0.05, ...pts.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1])));
+    const target = toWorldPose(c, [0, 0, 0], rig).position;
+    const dir = rig.laidDown ? [0.12, 1, 0.3] : [0.2, 0.15, 1];
+    const n = Math.hypot(...dir);
+    const d = Math.max(0.24, span * 2.6 + 0.12); // close on one header or a tight group, back for spread ones
+    return { key: `wire:${wireTask.wire}:${wireTask.at ?? ""}`, target, position: target.map((v, k) => v + (dir[k] / n) * d) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wireTask?.wire, wireTask?.at, headers, rig, sockCase, wires]);
 
   /* ---------- the M.2 cover and the SSD's screw ---------- */
   // Every board's M.2 slot has a cover held by 2 screws, and the SSD has its own screw under it.
@@ -796,7 +923,12 @@ export default function BuildLab() {
       setSocket((p) => ({ ...p, lever: "up" }));
       if (mode === "disassemble" && cpuIn && sockKind === "zif") return socketOpened();
       if (sockKind === "lga") return showHint("Lever up. Now lift the cover frame.", "success");
-      return showHint(cpuIn ? "Lever up: the CPU is free." : "Lever up. Line the CPU's gold triangle up with the socket's and drop it in.", "success");
+      return showHint(
+        cpuIn
+          ? "Lever up: the socket's top plate slides back and lets go of the CPU's pins."
+          : "Lever up: the socket's top plate has slid open. Line the CPU's gold triangle up with the socket's and drop it in.",
+        "success"
+      );
     }
     const popCap = sockKind === "lga" && cpuIn && socket.cap;
     setSocket((p) => ({ ...p, lever: "down", cap: popCap ? false : p.cap }));
@@ -804,10 +936,21 @@ export default function BuildLab() {
       const k = ledgerKey(mode, "socket");
       const msg = popCap
         ? "CPU locked in. The plastic cap pops off: keep it, it goes back on if the CPU ever comes out."
-        : "CPU locked in: the lever is down and hooked.";
+        : "CPU locked in: the lever slid the socket's top plate over, and it grips every pin.";
       return award(k, actionPoints(basePoints(mode, "socket"), misses.current[k] || 0), msg, "socket");
     }
     showHint("Lever down and hooked.", "success");
+  }
+
+  // AM5's plastic cap pops off when the lever locks a CPU in and waits on the bench; after a
+  // teardown it goes back on the empty socket.
+  function clickCap() {
+    if (exploding) return;
+    if (mode === "disassemble" && unsafe()) return;
+    const b = capBlock(socket, installed);
+    if (b) return miss(b.key, b.msg, "blocked");
+    setSocket((p) => ({ ...p, cap: true }));
+    showHint("Plastic cap back on: it keeps the empty socket's pins safe.", "success");
   }
 
   function clickPlate() {
@@ -897,10 +1040,7 @@ export default function BuildLab() {
     }
     if (!pose) return null;
     const out = PLUG_REACH + (pose.seated ? 0 : 0.11);
-    const a = psuWireEnd(c);
-    const b = [pose.pos[0], pose.pos[1], pose.pos[2] + out];
-    const lift = Math.max(a[2], b[2]) + 0.08;
-    pose.ghost = [a, [a[0] + 0.14, a[1] + 0.04, a[2] + 0.06], [(a[0] + b[0]) / 2 + 0.1, (a[1] + b[1]) / 2, lift], [b[0], b[1], b[2] + 0.04], b];
+    pose.ghost = cableRoute(c, psuWireEnd(c), [pose.pos[0], pose.pos[1], pose.pos[2] + out]);
     return pose;
   }
 
@@ -974,6 +1114,22 @@ export default function BuildLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cableTask?.cable, cableTask?.end, installed.psu, rig, L]);
 
+  // A RAM stick picked up with a click moves the camera in on the DIMM slots; once it is in (or put
+  // down) the camera glides back to the bench, where the next stick is.
+  const ramHeld = !arLike && mode === "assemble" && (selectedPart === "ram1" || selectedPart === "ram2") ? selectedPart : null;
+  const ramFocus = useMemo(() => {
+    if (!ramHeld) return null;
+    // the slots' middle, moved a little toward their numbered (lower) ends so those stay in view
+    const along = ramSlotMarks[0].along;
+    const len = Math.hypot(...along) || 1;
+    const c = [0, 1, 2].map((k) => ramTargets.reduce((sum, t) => sum + t.position[k], 0) / ramTargets.length - (along[k] / len) * 0.1);
+    const off = !boardMounted ? [0.05, 0.85, 0.5] : rig.laidDown ? [0.1, 1.0, 0.3] : [0.25, 0.2, 1.05];
+    return { key: `ram:${ramHeld}`, target: c, position: [c[0] + off[0], c[1] + off[1], c[2] + off[2]] };
+  }, [ramHeld, ramTargets, ramSlotMarks, boardMounted, rig]);
+
+  // every case and fan wire is on its header, the right way round
+  const wiresDone = WIRE_IDS.every((id) => wireRight(id, wires[id]));
+
   // every cable this build needs is in at both ends
   const cablesDone =
     !!picks.psu &&
@@ -1023,14 +1179,23 @@ export default function BuildLab() {
       );
     }
     setPower({ ...POWER_ON }); // powering on plugs it back in
-    const result = evaluateBoot({ installed, pasteApplied, ramSlot, picks, cables: liveCables }, { hints: hintsOn });
+    const result = evaluateBoot({ installed, pasteApplied, ramSlot, picks, cables: liveCables, wires, headers }, { hints: hintsOn });
     if (result.status === "dead") {
       reportEvent("bootfail", result.part || "psu", result.message);
       showHint(result.message);
       return;
     }
-    const { lowRes } = result;
     clearTimers();
+    // no graphics card and none built into the CPU: the PC runs, the monitor gets no picture
+    if (result.status === "nosignal") {
+      reportEvent("bootfail", result.part, result.message);
+      setMonitor({ status: "nosignal" });
+      showHint(result.message);
+      return;
+    }
+    const { lowRes } = result;
+    // a stronger build starts faster (it shows on the screen, and the wait is that much shorter)
+    const seconds = bootTime({ installed, picks, ramSlot });
     setMonitor({ status: "booting", lowRes });
     later(() => {
       if (result.status === "overheat") {
@@ -1038,20 +1203,25 @@ export default function BuildLab() {
         runOverheat(lowRes, result.detail, result.fix);
         return;
       }
-      setMonitor(result);
+      setMonitor(result.status === "hello" ? { ...result, seconds } : result);
       if (result.status === "post") reportEvent("bootfail", "post", `${result.title}: ${result.code}`);
       if (result.status === "hello") {
         setBooted(true);
         const points = POINTS.bootBase + (result.ramCount === 2 ? POINTS.bootDualRam : 0) + (lowRes ? 0 : POINTS.bootGpu);
         const more = scored ? " for more points" : " for a faster PC";
-        const message = lowRes
-          ? `Booted on integrated graphics. Add a GPU${more}.`
+        // what's off on the case (a dark power light, dead front USB...) comes first: something to fix
+        const odd = result.symptoms?.[0];
+        const message = odd
+          ? `Started in ${seconds} s, but check the case: ${odd.text}${odd.cause ? ` ${odd.cause}` : ""}`
+          : lowRes
+          ? `Started in ${seconds} s on the CPU's built-in graphics: the picture is low and blocky. Add a graphics card${more}.`
           : result.ramCount === 2
-          ? "System booted. Build complete!"
-          : `System booted. Add a second RAM stick${more}.`;
+          ? `Started in ${seconds} s. Build complete!`
+          : `Started in ${seconds} s. Add a second RAM stick${more}.`;
+        if (odd) reportEvent("bootfail", "wires", result.symptoms.map((x) => x.text).join(" "));
         award(ledgerKey("assemble", "boot"), points, message, "boot");
       }
-    }, 2200);
+    }, result.status === "hello" ? 700 + seconds * 330 : 2200);
   }
 
   /* ---------- mode switching ---------- */
@@ -1072,6 +1242,8 @@ export default function BuildLab() {
     setSocket(s.socket ?? socketStart(s.installed.cpu));
     setCableTask(null);
     setCableDrawer(false);
+    setWires(s.wires ?? wiresStart(false));
+    setWireTask(null);
     setPower(pm.power);
     setMonitor(pm.monitor);
     setMotherboardPos(s.installed.motherboard ? MOTHERBOARD_TARGET.position : trayPosition("motherboard"));
@@ -1212,7 +1384,7 @@ export default function BuildLab() {
   /* ---------- phase status ---------- */
   const phaseDone =
     phaseActions > 0 &&
-    (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && m2Done(m2, installed) && socketDone(socket, installed) && booted);
+    (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && m2Done(m2, installed) && socketDone(socket, installed) && wiresDone && booted);
   const canToggle =
     cfg.modeControl === "student" && (cfg.toggle === "free" || (cfg.toggle === "afterComplete" && phaseDone));
   // a build is the required parts plus any optional ones picked (second RAM stick, graphics card)
@@ -1281,6 +1453,39 @@ export default function BuildLab() {
     setSelectedPart(name);
   }
 
+  // RAM on a computer: a click picks the stick up (another click puts it down); its free slots then
+  // show their numbers. Two sticks run in dual channel in slots 1+3 or 2+4.
+  const dualSlot = (name, slot) => {
+    const other = ramSlot[name === "ram1" ? "ram2" : "ram1"];
+    return other != null ? Math.abs(other - slot) === 2 : slot === 0 || slot === 2;
+  };
+  function tapRam(name) {
+    if (selectedPart === name) {
+      setSelectedPart(null);
+      return showHint(`${PART_LABEL[name]} put down.`, "success");
+    }
+    const b = installBlock(name, installed, picks, psuCables, m2, socket);
+    if (b) {
+      reportEvent("blocked", name, b.msg);
+      return showHint(b.msg);
+    }
+    setSelectedPart(name);
+    const other = ramSlot[name === "ram1" ? "ram2" : "ram1"];
+    const pair =
+      other != null
+        ? `slot ${other < 2 ? other + 3 : other - 1} pairs with the stick in slot ${other + 1} for dual channel`
+        : "slots 1 and 3 together run in dual channel";
+    showHint(`${PART_LABEL[name]} picked up. Click a slot to push it in${hintsOn ? `: ${pair}` : ""}.`, "success");
+  }
+  const ramPicking = selectedPart === "ram1" || selectedPart === "ram2" ? selectedPart : ramDrag;
+
+  useEffect(() => {
+    if (!selectedPart || arLike) return;
+    const onKey = (e) => e.key === "Escape" && setSelectedPart(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedPart, arLike]);
+
   /* ---------- picking parts (Packet Tracer style drawer) ---------- */
   // A part that is installed can't be swapped; neither can a board with parts on it.
   const lockedSlots = {};
@@ -1328,10 +1533,10 @@ export default function BuildLab() {
         sessionRef.current = null;
         setInAR(false);
         setPlacement(null);
-        gestures.reset();
+        resetGestures();
       });
       setPlacement(null);
-      gestures.reset();
+      resetGestures();
       setInAR(true);
     } catch (err) {
       console.error(err);
@@ -1347,7 +1552,7 @@ export default function BuildLab() {
       streamRef.current = stream;
       setGyro(await motionP);
       setPlacement(null);
-      gestures.reset();
+      resetGestures();
       setCamMode(true);
       setPlaceToken((t) => t + 1);
     } catch (err) {
@@ -1362,7 +1567,7 @@ export default function BuildLab() {
     setCamMode(false);
     setGyro(false);
     setPlacement(null);
-    gestures.reset();
+    resetGestures();
   };
 
   const exitAR = () => {
@@ -1392,16 +1597,20 @@ export default function BuildLab() {
         o = o.parent;
       }
       if (!id) continue;
+      if (id.startsWith("wire:") && wireSpots.length) continue; // choosing a header: plugs let the tap through
       if (id.startsWith("target:")) {
         const [n, sl] = id.slice(7).split(":");
         install(n, sl === undefined ? undefined : Number(sl));
       } else if (id.startsWith("cable:")) clickCable(id.slice(6));
+      else if (id.startsWith("wire:")) clickWire(id.slice(5));
+      else if (id.startsWith("header:")) chooseHeader(id.slice(7));
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
       else if (id === "m2cover") clickM2Cover();
       else if (id === "socketlever") clickLever();
       else if (id === "socketplate") clickPlate();
+      else if (id === "socketcap") clickCap();
       else if (id.startsWith("m2coverscrew:")) clickCoverScrew(Number(id.slice(13)));
       else if (id === "m2screw") clickSsdScrew();
       else if (id.startsWith("port:")) choosePort(id.slice(5));
@@ -1444,7 +1653,7 @@ export default function BuildLab() {
 
   const pull = (name) => ({
     partId: name,
-    locked: !!removeBlock(name, installed, power, { cables, screws, m2, socket, socketKind: sockKind }),
+    locked: !!removeBlock(name, installed, power, links),
     onBlocked: () => reportBlocked(name),
     onPull: (worldPos) => uninstall(name, worldPos),
     onTap: () => {
@@ -1489,25 +1698,30 @@ export default function BuildLab() {
     const lga = sockKind === "lga";
     const opening = mode === "assemble" ? !installed.cpu : installed.cpu && !installed.cpu_cooler;
     if (opening) return { lever: socket.lever === "down", plate: lga && socket.lever === "up" && socket.plate === "closed" };
-    if (mode !== "assemble") return {};
+    // taken apart: AM5's cap goes back on the empty socket
+    if (mode !== "assemble") return { bench: lga && !installed.cpu && !socket.cap };
     return { plate: lga && socket.plate === "open", lever: socket.lever === "up" && (!lga || socket.plate === "closed") };
   })();
 
   // The board group is stretched by the board's own fit (L.scale); the parts on it are wrapped in
   // <TrueSize unstretch={unstretch}> so they keep their real proportions instead of stretching with it.
   const unstretch = [1 / L.scale[0], 1 / L.scale[1], 1 / L.scale[2]];
+  // AM4: the CPU slides with the socket's top plate (socket frame y is board y; board units are stretched)
+  const cpuSlide = sockLook.top ? [0, sockLook.top.slide[1] * unstretch[1], 0] : [0, 0, 0];
   const moboBody = (
     <group rotation={boardMounted ? MOBO_MOUNTED_ROTATION : MOBO_LYING_ROTATION} scale={L.scale}>
       <PartModel category="motherboard" variant={variantOf("motherboard")} />
 
       {installed.cpu && (
         <Blast active={exploding} power={1.2} outZ={-1} position={L.cpuLocal}>
-          {wrapPull(
-            "cpu",
-            <TrueSize unstretch={unstretch} rotation={[Math.PI / 2, 0, Math.PI]}>
-              <PartModel category="cpu" variant={variantOf("cpu")} />
-            </TrueSize>
-          )}
+          <SocketSlide open={socket.lever === "up"} offset={cpuSlide}>
+            {wrapPull(
+              "cpu",
+              <TrueSize unstretch={unstretch} rotation={[Math.PI / 2, 0, Math.PI]}>
+                <PartModel category="cpu" variant={variantOf("cpu")} />
+              </TrueSize>
+            )}
+          </SocketSlide>
         </Blast>
       )}
 
@@ -1528,6 +1742,16 @@ export default function BuildLab() {
             </TrueSize>
           )}
         </Blast>
+      )}
+
+      {sockLook.top && (
+        <group position={L.cpuLocal}>
+          <TrueSize unstretch={unstretch} rotation={SOCKET_ROTATION}>
+            <SocketSlide open={socket.lever === "up"} offset={sockLook.top.slide}>
+              <sockLook.top.Body />
+            </SocketSlide>
+          </TrueSize>
+        </group>
       )}
 
       {/* the CPU socket's lever and its hook, and AM5's cover frame (x right, y up the board, z out) */}
@@ -1655,6 +1879,9 @@ export default function BuildLab() {
         onClick={() => trySelect(name)}
         onCorrect={(k) => install(name, isRam ? free[k ?? 0].slot : undefined)}
         onIncorrect={() => miss(name, c.wrong, "miss")}
+        snapByPointer={isRam}
+        onTap={isRam && !arLike ? () => tapRam(name) : undefined}
+        onDragChange={isRam ? (on) => setRamDrag(on ? name : null) : undefined}
       >
         <group userData={{ partId: name }} onPointerDown={() => inspect(name)}>{body}</group>
       </DraggablePart>
@@ -1690,11 +1917,12 @@ export default function BuildLab() {
           },
           {
             key: "cables",
-            label: cablesDone ? "CABLES ✓" : "CABLES",
-            color: "#f0c419", lit: cableDrawer || !!cableTask, dim: !picks.psu, disabled: exploding,
-            title: "Connect the PSU cables",
+            label: cablesDone && wiresDone ? "CABLES ✓" : "CABLES",
+            color: "#f0c419", lit: cableDrawer || !!cableTask || !!wireTask, dim: !picks.psu && !installed.motherboard, disabled: exploding,
+            title: "Connect the PSU cables, and the case's and fans' wires",
             onPress: () => {
               setCableTask(null);
+              setWireTask(null);
               setCableDrawer((o) => !o);
             },
           },
@@ -1745,9 +1973,13 @@ export default function BuildLab() {
   }
 
   const classLocked = inClass && classPhase !== "running"; // waiting for the instructor, or class over
-  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables, m2, socket });
+  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables, m2, socket, wires });
   // only steps that must happen in order get a "next" highlight (a teardown's parts can go in any order)
   const nextStep = steps.findIndex((s) => !s.done && !s.anyOrder);
+  const stepsDone = steps.filter((s) => s.done).length;
+  // the guide card's headline: the step to do now (all a closed card shows)
+  const nowStep =
+    nextStep >= 0 ? steps[nextStep].label : stepsDone < steps.length ? "Take the parts out in any order" : "Every step done";
   const orderedSteps = steps.filter((s) => !s.anyOrder);
   const anyOrderSteps = steps.filter((s) => s.anyOrder);
   const showPicker = mode === "assemble" && cfg.partPicking === "student" && !classLocked;
@@ -1762,7 +1994,7 @@ export default function BuildLab() {
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          Exit Lab
+          <span className="assemble__back-label">Exit Lab</span>
         </Link>
 
         <div className="assemble__title-group">
@@ -1836,9 +2068,11 @@ export default function BuildLab() {
               camera={{ position: HOME_CAM, fov: 45 }}
               onCreated={({ gl }) => gl.setClearAlpha(0)}
             >
+              <FitFov enabled={!inAR} />
               <ARContext.Provider value={arLike}>
                 <GLBridge glRef={glRef} />
-                {!arLike && <CameraFocus focus={cableFocus} home={HOME_VIEW} />}
+                {!arLike && <CameraFocus focus={cableFocus || wireFocus || ramFocus} home={HOME_VIEW} />}
+                {!arLike && <ViewControls apiRef={viewRef} home={HOME_VIEW} />}
                 <ambientLight intensity={2.0} />
                 <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
                 <directionalLight position={[6, 8, 6]} intensity={2.4} />
@@ -1933,6 +2167,48 @@ export default function BuildLab() {
                             ))}
                           {cableTask?.end === "part" && cableTask.port && <LatchTab position={latchTab(cableTask.port)} />}
 
+                          {/* the case's and fans' wires on the board's small headers */}
+                          {installed.motherboard &&
+                            !exploding &&
+                            WIRE_IDS.map((id) => {
+                              const pose = wirePose(id);
+                              if (!pose) return null;
+                              return (
+                                <group key={`wire-${id}`}>
+                                  <CableRun points={pose.ghost} radius={0.005} color={WIRE_GHOST[WIRES[id].group]} ghost />
+                                  <HeaderPlug
+                                    kind={WIRES[id].plug} colors={WIRES[id].colors} partId={`wire:${id}`}
+                                    position={pose.pos} rotation={pose.rot}
+                                    plugged={pose.seated} flipped={pose.flipped}
+                                    waiting={wireWaiting(id)}
+                                    inert={wireSpots.length > 0}
+                                    onClick={() => clickWire(id)}
+                                  />
+                                </group>
+                              );
+                            })}
+                          {installed.motherboard &&
+                            wireSpots.map((sp) => {
+                              // the front panel's pairs are 2.5 mm apart: small rings, labels above the inner row, below the edge row;
+                              // the others' labels go toward the middle of the board, clear of the case and each other
+                              const panel = HEADERS[sp].panel;
+                              const below = sp === "hdd" || sp === "rst";
+                              const hy = headers[sp].at[1];
+                              const side = headers[sp].along === "y" ? [-0.04, 0, 0.01] : [0, hy > 0 ? -0.026 : 0.026, 0.01];
+                              return (
+                                <PortMarker
+                                  key={`header-${sp}`} partId={`header:${sp}`}
+                                  position={headerPos(sp, 0.014)}
+                                  size={panel ? 0.0085 : 0.016}
+                                  label={headerLabel(sp, headers)}
+                                  labelAt={panel ? [0, below ? -0.012 : 0.012, 0.004] : side}
+                                  fontSize={panel ? 0.0055 : 0.0085}
+                                  hit={panel ? [0.022, 0.0115] : null}
+                                  onClick={() => chooseHeader(sp)}
+                                />
+                              );
+                            })}
+
                           {installed.gpu && (
                             <Blast active={exploding} power={1.1} position={L.gpu} rotation={GPU_TARGET.rotation}>
                               {wrapPull("gpu", <PartModel category="gpu" variant={variantOf("gpu")} spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />)}
@@ -1941,6 +2217,15 @@ export default function BuildLab() {
                         </CaseRig>
 
                         {benchParts.map(renderTrayPart)}
+                        {sockLook.cap && !socket.cap && !!picks.motherboard && !exploding && (
+                          <SocketCapOnBench
+                            size={sockLook.cap.size}
+                            position={trayPosition("socketcap")}
+                            label={hintsOn ? "Socket cover" : null}
+                            waiting={socketWait.bench}
+                            onClick={clickCap}
+                          />
+                        )}
                         {m2.cover === "off" && !exploding && (
                           <M2CoverOnBench
                             look={m2Look}
@@ -1951,6 +2236,16 @@ export default function BuildLab() {
                           />
                         )}
 
+                        {!arLike && mode === "assemble" && !exploding && ramPicking && !installed[ramPicking] &&
+                          (ramPicking === "ram1" ? ram1Free : ram2Free).map((t) => (
+                            <RamSlotMarker
+                              key={t.slot}
+                              number={t.slot + 1}
+                              mark={ramSlotMarks[t.slot]}
+                              good={hintsOn && dualSlot(ramPicking, t.slot)}
+                              onPlace={selectedPart === ramPicking ? () => install(ramPicking, t.slot) : undefined}
+                            />
+                          ))}
                         {showMarkers &&
                           (selectedPart === "ram1" || selectedPart === "ram2") &&
                           (selectedPart === "ram1" ? ram1Free : ram2Free).map((t) => (
@@ -1978,6 +2273,7 @@ export default function BuildLab() {
                   <OrbitControls
                     makeDefault enabled={!inAR} target={HOME_TARGET} enableDamping dampingFactor={0.08}
                     minDistance={1} maxDistance={25} maxPolarAngle={Math.PI / 2.05}
+                    zoomToCursor zoomSpeed={1.3}
                   />
                 )}
               </ARContext.Provider>
@@ -1990,34 +2286,70 @@ export default function BuildLab() {
           ref={overlayRef}
           style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: arLike ? "auto" : "none", touchAction: "none" }}
         >
-          {arLike && (
-            <>
-              <div style={{ ...pill, top: 12, fontWeight: 700 }}>{scored ? `SCORE ${official}/${outOf} · ` : ""}PARTS LEFT {partsLeft}</div>
-              <div style={{ ...pill, top: 52, maxWidth: "60%" }}>
-                {mode === "disassemble"
-                  ? "Tap a part to remove it"
-                  : selectedPart
-                  ? `Selected ${selectedPart.toUpperCase()}: tap the green marker`
-                  : "Tap a part to pick it up"}
-              </div>
-            </>
+          {/* AR: the status, Move / Exit AR and any AR error, in one row under the parts strip */}
+          {(inAR || camMode || arError) && (
+            <div className={`lab-ar-top ${showPicker ? "is-beside-picker" : ""}`}>
+              {arLike && (
+                <div className="lab-ar-top__status">
+                  <span className="lab-pill is-strong">{scored ? `SCORE ${official}/${outOf} · ` : ""}PARTS LEFT {partsLeft}</span>
+                  <span className="lab-pill">
+                    {mode === "disassemble"
+                      ? "Tap a part to remove it"
+                      : selectedPart
+                      ? `Selected ${selectedPart.toUpperCase()}: tap the green marker`
+                      : "Tap a part to pick it up"}
+                  </span>
+                </div>
+              )}
+              {(inAR || camMode) && (
+                <div className="lab-ar-top__actions">
+                  {inAR && placement && (
+                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlacement(null); resetGestures(); }}>Move</button>
+                  )}
+                  {arLite && (
+                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlaceToken((t) => t + 1); resetGestures(); }}>Move</button>
+                  )}
+                  <button type="button" className="flow-btn flow-btn--tool" onClick={exitAR}>Exit AR</button>
+                </div>
+              )}
+              {arError && <p className="lab-ar-top__error" role="alert">{arError}</p>}
+            </div>
           )}
 
           {inAR && !placement && (
-            <div style={{ position: "absolute", bottom: 90, left: 12, right: 12, textAlign: "center", color: "#fff", background: "rgba(15,23,42,0.85)", padding: "8px 12px", borderRadius: 12, fontSize: 14 }}>
-              Move your phone slowly to find a flat surface, then tap the ring to place the bench.
-            </div>
+            <div className="lab-ar-hint is-boxed">Move your phone slowly to find a flat surface, then tap the ring to place the bench.</div>
           )}
 
           {arLike && (placement || arLite) && (
-            <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, textAlign: "center", color: "#cbd5e1", fontSize: 12, pointerEvents: "none" }}>
-              Drag to spin · pinch to resize · twist to rotate
+            <div className="lab-ar-hint">Drag to spin · pinch or use + and − to resize · twist to rotate</div>
+          )}
+
+          {arLike && (placement || arLite) && (
+            <div className="ar-size" role="group" aria-label="Bench size">
+              <button type="button" aria-label="Make it bigger" disabled={arSize >= MAX_SCALE} onClick={() => sizeBy(1.25)}>
+                <Icon name="plus" size={20} />
+              </button>
+              <span className="ar-size__value" aria-live="polite">{Math.round(arSize * 100)}%</span>
+              <button type="button" aria-label="Make it smaller" disabled={arSize <= MIN_SCALE} onClick={() => sizeBy(0.8)}>
+                <Icon name="minus" size={20} />
+              </button>
+              <button type="button" aria-label="Back to the placed size" disabled={arSize === 1} onClick={() => setArSize(gestures.setScale(1))}>
+                <Icon name="fit" size={18} />
+              </button>
             </div>
           )}
 
-          {arError && (
-            <div style={{ position: "absolute", top: 56, left: 12, right: 12, textAlign: "center", color: "#fff", background: "rgba(153,27,27,0.92)", padding: "8px 12px", borderRadius: 12, fontSize: 14 }}>
-              {arError}
+          {!arLike && (
+            <div className="lab-view" role="toolbar" aria-label="View" onPointerDown={(e) => e.stopPropagation()}>
+              <button type="button" className="lab-view__btn" title="Zoom in (or scroll)" aria-label="Zoom in" onClick={() => viewRef.current?.zoom(0.7)}>
+                <Icon name="zoomIn" />
+              </button>
+              <button type="button" className="lab-view__btn" title="Zoom out (or scroll)" aria-label="Zoom out" onClick={() => viewRef.current?.zoom(1 / 0.7)}>
+                <Icon name="zoomOut" />
+              </button>
+              <button type="button" className="lab-view__btn" title="Show the whole bench" aria-label="Show the whole bench" onClick={() => viewRef.current?.home()}>
+                <Icon name="fit" />
+              </button>
             </div>
           )}
 
@@ -2039,6 +2371,7 @@ export default function BuildLab() {
                 cables={cables} psuCables={psuCables} installed={installed} picks={picks} active={cableTask?.cable}
                 besidePicker={showPicker}
                 onPick={startCable} onClose={() => setCableDrawer(false)}
+                wires={wires} headers={headers} activeWire={wireTask?.wire} onPickWire={startWire}
               />
             </div>
           )}
@@ -2088,6 +2421,33 @@ export default function BuildLab() {
             </section>
           )}
 
+          {wireTask && mode === "assemble" && !classLocked && (
+            <section className={`cable-task ${showPicker ? "is-beside-picker" : ""}`} aria-live="polite" style={{ pointerEvents: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
+              <span className="cable-task__step">
+                {WIRES[wireTask.wire].label} · step {wireTask.at ? 2 : 1} of 2
+              </span>
+              {wireTask.at ? (
+                <p>
+                  {WIRES[wireTask.wire].polar
+                    ? "Line the + mark on the plug up with + on the board, then push it on."
+                    : `Push it straight down onto the ${headerLabel(wireTask.at, headers)} pins.`}
+                  {hintsOn && WIRES[wireTask.wire].polar && (wireTask.flipped ? " The + mark is over the − pin right now." : " The + mark is over the + pin.")}
+                </p>
+              ) : (
+                <p>
+                  {arLike ? "Tap" : "Click"} the header this plug goes on. Read the labels printed on the board.
+                  {hintsOn && ` It goes on ${WIRE_WHERE[wireTask.wire]}.`}
+                </p>
+              )}
+              <div className="cable-task__actions">
+                {wireTask.at && WIRES[wireTask.wire].polar && <button type="button" onClick={turnWire}>Turn plug</button>}
+                {wireTask.at && <button type="button" className="is-primary" onClick={pushWire}>Push on</button>}
+                {wireTask.at && <button type="button" onClick={() => setWireTask((t) => ({ ...t, at: null }))}>Pick another header</button>}
+                <button type="button" onClick={() => setWireTask(null)}>Cancel</button>
+              </div>
+            </section>
+          )}
+
           {cfg.partInfo && inspectId && (
             <div style={{ pointerEvents: "auto" }}>
               <PartInfoPanel itemId={inspectId} mode={mode} onClose={() => setInspectId(null)} />
@@ -2102,15 +2462,18 @@ export default function BuildLab() {
 
           {(task || hintsOn) && !classLocked && !arLike && (
             <section
+              ref={taskRef}
               className={`lab-task ${taskOpen ? "is-open" : ""} ${taskDone ? "is-done" : ""}`}
               aria-label={task ? "Your task" : "Steps"}
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button type="button" className="lab-task__head" aria-expanded={taskOpen} onClick={() => setTaskOpen((o) => !o)}>
                 <span className="lab-task__tag">
-                  {task ? (taskDone ? "Task done ✓" : "Your task") : mode === "assemble" ? "How experts build it" : "Safety first, then any order"}
+                  {task
+                    ? taskDone ? "Task done ✓" : "Your task"
+                    : `${mode === "assemble" ? "How experts build it" : "Safety first, then any order"} · ${stepsDone} of ${steps.length}`}
                 </span>
-                <strong>{task ? task.title : `${steps.filter((s) => s.done).length} of ${steps.length} steps done`}</strong>
+                <strong>{task ? task.title : nowStep}</strong>
                 <span className="lab-task__chev" aria-hidden="true">{taskOpen ? "–" : "+"}</span>
               </button>
               {taskOpen && (
@@ -2184,18 +2547,6 @@ export default function BuildLab() {
                 </>
               )}
               <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={leaveClass}>Leave class</button>
-            </div>
-          )}
-
-          {(inAR || camMode) && (
-            <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8, pointerEvents: "auto" }}>
-              {(inAR && placement) && (
-                <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlacement(null); gestures.reset(); }}>Move</button>
-              )}
-              {arLite && (
-                <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlaceToken((t) => t + 1); gestures.reset(); }}>Move</button>
-              )}
-              <button type="button" className="flow-btn flow-btn--tool" onClick={exitAR}>Exit AR</button>
             </div>
           )}
 

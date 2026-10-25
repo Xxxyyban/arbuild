@@ -1,7 +1,7 @@
 // AM5 CPU (Ryzen 5 7600X). Its own component, so its size and orientation are tuned
 // for this file only. The AM4 CPU is CPUModel.jsx.
 import { useEffect, useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import { MM } from "./orient";
 import CPUModel from "./CPUModel";

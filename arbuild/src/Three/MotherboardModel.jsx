@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF } from "./gltf";
 import * as THREE from "three";
 import { BASE_MOUNTS, STORAGE_MOUNT_ROTATION } from "../lab/Constants";
 import { MM } from "./cableStubs";
 import { SSD_TOP, restingOffset } from "./m2Cover";
 import { BUILT_M2_COVER, BuiltZifLever } from "./Hardware";
+import { splitTriangles } from "./cpuSocket";
 import { useFileExists } from "./useFileExists";
 
 // AM4 board (B550). The AM5 board has its own component: MotherboardModel1.jsx.
@@ -49,6 +50,22 @@ export const MOUNTS = {
   ],
   atx24: [0.298, 1.542],
   eps8: [-0.555, 1.994],
+  // the headers for the case's and fans' wires, measured on the file's pins (mm from the socket, x right,
+  // y up); labels as printed on this board
+  headers: {
+    pled: { at: [77.95, -198] },
+    pwr: { at: [83, -198] },
+    hdd: { at: [77.95, -200.5] },
+    rst: { at: [83, -200.5] },
+    aafp: { at: [-86.4, -198.8] },
+    usb2: { at: [34.9, -199.3], label: "USB_E12" },
+    u32g1: { at: [97.7, -48.1], label: "U32G1_12", along: "y" },
+    cpu_fan: { at: [48.7, 86.5] },
+    cpu_opt: { at: [38.1, 86.5] },
+    cha_fan: { at: [68.8, -199.4], label: "CHA_FAN2" },
+    add_gen2: { at: [-14.6, -198.8] },
+    rgb: { at: [-32, -199.3], label: "RGB_HEADER2" },
+  },
 };
 
 export default function MotherboardModel({ spinY = 0, ...props }) {
@@ -131,8 +148,10 @@ function RealMotherboard({ spinY = 0, ...props }) {
         child.visible = false;
         child.raycast = () => {};
       }
+      // the socket's top plate slides with the lever (SOCKET.top): the board keeps the rest of the socket
+      if (child.isMesh && SOCKET_PARTS.includes(child.name)) child.geometry = topPlateSplit(scene, child.name).rest;
     });
-  }, [cloned]);
+  }, [cloned, scene]);
 
   const { scale, offset } = useMemo(() => {
     cloned.rotation.set(0, 0, 0);
@@ -172,13 +191,18 @@ function fitOf(object) {
 // Hardware.jsx M2Cover draws a cover in the SSD's frame raised to SSD_TOP (x = 0 the drive's pins,
 // the drive along -X, +Y out of the board). This board's heatsink is moved there from where the file
 // has it, so on the board it sits exactly where the model put it.
-function bakeM2Cover(scene) {
+const place = (pos, turn, s = 1) =>
+  new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...turn)), new THREE.Vector3(s, s, s));
+
+/** File -> board space: RealMotherboard's groups, outermost first. */
+function boardFrame(scene) {
   scene.updateMatrixWorld(true);
   const { scale, offset } = fitOf(scene);
-  const place = (pos, turn, s = 1) =>
-    new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...turn)), new THREE.Vector3(s, s, s));
-  // file -> board space: RealMotherboard's groups, outermost first
-  const toBoard = place(PLACE, [0, Math.PI, 0]).multiply(place([0, 0, 0], [Math.PI / 2, 0, 0])).multiply(place(offset, [0, 0, 0], scale));
+  return place(PLACE, [0, Math.PI, 0]).multiply(place([0, 0, 0], [Math.PI / 2, 0, 0])).multiply(place(offset, [0, 0, 0], scale));
+}
+
+function bakeM2Cover(scene) {
+  const toBoard = boardFrame(scene);
   // board space -> the cover's frame: undo the M.2 slot's group, its true-size wrapper and the drive's turn
   const toCover = new THREE.Matrix4()
     .makeTranslation(0, -SSD_TOP, 0)
@@ -231,14 +255,65 @@ export const M2_COVER = {
   ],
 };
 
-/* ---------- the CPU socket's lever (Three/cpuSocket.js) ---------- */
+/* ---------- the CPU socket: its lever and its sliding top plate (Three/cpuSocket.js) ---------- */
 // The file's AM4 socket has no lever: its body (raised along the right side, where the cam is) ends at
 // x 30.4 mm. The lab draws the lever beside it, pivoting at the top corner, and its hook near the
-// bottom. In mm in the socket's frame (x right, y up the board, z out; 0 = the CPU's seat).
+// bottom. What holds the CPU is the socket's top plate (the part with the pin holes, x -20..19 mm):
+// the lever's cam slides it a little sideways, gripping every pin. It is cut out of the socket's two
+// meshes so it can slide; drawn where the file has it, it is the locked position. In mm in the
+// socket's frame (x right, y up the board, z out; 0 = the CPU's seat).
+const SOCKET_PARTS = ["Object_64", "Object_65"];
+const onTopPlate = ([x, y, z]) => x >= -20.4 && x <= 19 && y >= -20.4 && y <= 21.4 && z >= -0.65 && z <= 0.55;
+
+/** File -> the socket's frame: board space, then BuildLab's socket group undone. */
+function socketFrame(scene) {
+  return place([0, 0, 0], [0, Math.PI, 0])
+    .multiply(new THREE.Matrix4().makeScale(...MOUNTS.scale))
+    .multiply(new THREE.Matrix4().makeTranslation(-MOUNTS.cpu[0], -MOUNTS.cpu[1], -MOUNTS.cpu[2]))
+    .multiply(boardFrame(scene))
+    .multiply(scene.matrixWorld.clone().invert());
+}
+
+const splits = new WeakMap(); // a socket mesh's geometry -> its top plate and the rest, worked out once
+function topPlateSplit(scene, name) {
+  const mesh = scene.getObjectByName(name);
+  if (!splits.has(mesh.geometry)) {
+    const frame = socketFrame(scene).multiply(mesh.matrixWorld);
+    const [plate, rest] = splitTriangles(mesh.geometry, frame, onTopPlate);
+    splits.set(mesh.geometry, { plate, rest, frame, material: mesh.material });
+  }
+  return splits.get(mesh.geometry);
+}
+
+function OwnTopPlate() {
+  const { scene } = useGLTF(MODEL_PATH);
+  const plate = useMemo(() => {
+    const g = new THREE.Group();
+    SOCKET_PARTS.forEach((name) => {
+      const { plate: geometry, frame, material } = topPlateSplit(scene, name);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.copy(frame);
+      mesh.matrixWorldNeedsUpdate = true; // a fixed matrix: its world matrix follows only when flagged
+      mesh.receiveShadow = true;
+      g.add(mesh);
+    });
+    return g;
+  }, [scene]);
+  return <primitive object={plate} />;
+}
+
+/** The file's top plate; nothing to slide if the file is missing (the placeholder board shows then). */
+function TopPlateBody() {
+  return useFileExists(MODEL_PATH) ? <OwnTopPlate /> : null;
+}
+
 export const SOCKET = {
   kind: "zif",
   lever: { Body: BuiltZifLever, pivot: [31.6 * MM, 20.5 * MM, 0.2 * MM], length: 42 * MM },
   hook: { at: [30.3 * MM, -18 * MM, -2 * MM], height: 3.7, reach: 1.6 },
+  // with the lever up the plate (and a CPU in it) sits 1.2 mm toward the cam, its holes open
+  top: { Body: TopPlateBody, slide: [0, 1.2 * MM, 0] },
 };
 
 // No preload: the AM4 board file is large, so each board loads only once it is picked.

@@ -8,7 +8,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
-import { buildCableStub, buildScrew, MM } from "./cableStubs";
+import { buildCableStub, buildHeaderPlug, buildScrew, buildPcieSocket, MM } from "./cableStubs";
 import { buildM2Cover, restingOffset, M2_COVER_SCREWS, SSD_SCREW, SSD_TOP } from "./m2Cover";
 import { buildZifLever, buildLeverHook, buildLoadPlate, buildSocketCap, LEVER_LIFT, LEVER_OUT, PLATE_OPEN } from "./cpuSocket";
 
@@ -48,11 +48,30 @@ const click = (fn) => (e) => {
  * A cable plug: type atx24 | eps8 | pcie8. `rotation` turns its wires (+Y) to face out of the socket.
  * `flipped` turns it half a turn about its wires, putting the clip on the other side.
  */
-export function CablePlug({ type, position, rotation, plugged, flipped = false, waiting, onClick, partId }) {
+export function CablePlug({ type, ...props }) {
   const object = useMemo(() => buildCableStub(type), [type]);
+  return <SlidingPlug object={object} out={PLUG_OUT} {...props} />;
+}
+
+/**
+ * A plug for one of the board's small headers (lab/Wires.js): kind pin2 | pin2led | audio | usb3 |
+ * fan4 | argb3, its wires in `colors`. Same moves as CablePlug, closer to the board while it waits.
+ */
+export function HeaderPlug({ kind, colors, ...props }) {
+  const key = colors.join();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const object = useMemo(() => buildHeaderPlug(kind, colors), [kind, key]);
+  return <SlidingPlug object={object} out={0.05} {...props} />;
+}
+
+/**
+ * A plug that slides in (plugged) or hovers `out` above its socket, and turns half a turn when flipped.
+ * `inert`: takes no clicks, so the header rings behind it get them.
+ */
+function SlidingPlug({ object, out, position, rotation, plugged, flipped = false, waiting, onClick, partId, inert = false }) {
   const slide = useRef();
   const turn = useRef();
-  useSlide(slide, plugged ? 0 : PLUG_OUT, waiting);
+  useSlide(slide, plugged ? 0 : out, waiting);
   useFrame((_, dt) => {
     const g = turn.current;
     if (!g) return;
@@ -63,11 +82,9 @@ export function CablePlug({ type, position, rotation, plugged, flipped = false, 
     <group position={position} rotation={rotation}>
       <group
         ref={slide}
-        position={[0, plugged ? 0 : PLUG_OUT, 0]}
+        position={[0, plugged ? 0 : out, 0]}
         userData={{ partId }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={click(onClick)}
-        {...pointer}
+        {...(inert ? {} : { onPointerDown: (e) => e.stopPropagation(), onClick: click(onClick), ...pointer })}
       >
         <group ref={turn} rotation={[0, flipped ? Math.PI : 0, 0]}>
           <primitive object={object} />
@@ -96,8 +113,11 @@ export function CableRun({ points, radius = 0.014, color = "#16171a", ghost = fa
   );
 }
 
-/** A header the student can click while connecting a cable: a pulsing ring, with a name when hints are on. */
-export function PortMarker({ position, label, onClick, partId, size = 0.06 }) {
+/**
+ * A header the student can click while connecting a cable: a pulsing ring, with a name when hints are on.
+ * The small headers for the case's wires use a small ring, and their label (as printed) close beside it.
+ */
+export function PortMarker({ position, label, onClick, partId, size = 0.06, labelAt = [0, 0.1, 0.04], fontSize = 0.035, hit = null }) {
   const ring = useRef();
   useFrame((state) => {
     if (ring.current) ring.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 5) * 0.12);
@@ -115,14 +135,14 @@ export function PortMarker({ position, label, onClick, partId, size = 0.06 }) {
         <torusGeometry args={[size, size * 0.13, 10, 36]} />
         <meshBasicMaterial color="#34d399" transparent opacity={0.9} depthTest={false} />
       </mesh>
-      {/* bigger invisible target inside the ring, clickable from either side */}
+      {/* bigger invisible target inside the ring (or `hit`: a [width, height] box), clickable from either side */}
       <mesh userData={{ partId }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
-        <circleGeometry args={[size, 20]} />
+        {hit ? <planeGeometry args={hit} /> : <circleGeometry args={[size, 20]} />}
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       {label && (
-        <Billboard position={[0, 0.1, 0.04]}>
-          <Text fontSize={0.035} color="#ffffff" outlineWidth={0.004} outlineColor="#0f172a" anchorX="center" renderOrder={999} material-depthTest={false}>
+        <Billboard position={labelAt}>
+          <Text fontSize={fontSize} color="#ffffff" outlineWidth={fontSize * 0.11} outlineColor="#0f172a" anchorX="center" renderOrder={999} material-depthTest={false}>
             {label}
           </Text>
         </Billboard>
@@ -383,6 +403,12 @@ export function SsdScrew({ driven, waiting, onClick }) {
   );
 }
 
+/** A graphics card's 8-pin PCIe power socket (cableStubs.js buildPcieSocket), in the card's own frame. */
+export function GpuPowerSocket({ position, rotation }) {
+  const object = useMemo(() => buildPcieSocket(), []);
+  return <primitive object={object} position={position} rotation={rotation} />;
+}
+
 /* ---------- the CPU socket's lever, its hook, and AM5's cover frame (Three/cpuSocket.js) ---------- */
 // All in the socket's frame: x to the right, y up the board, z out of it. A waiting lever or frame
 // nudges the way it is about to move instead of bobbing.
@@ -433,10 +459,52 @@ export function LeverHook({ hook }) {
   return <primitive object={object} position={hook.at} />;
 }
 
-/** AM5's cover frame on its hinge (plate = { hinge }), with the plastic cap on it while `cap`. */
+/** AM5's plastic cap on its cover frame (look = { at, size }: its centre's underside, and w × d mm). */
+function SocketCap({ look }) {
+  const object = useMemo(() => buildSocketCap(...look.size), [look]);
+  return <primitive object={object} position={look.at} />;
+}
+
+/**
+ * Moves its children to `offset` while `open` and back while not: AM4's socket top plate, and the CPU
+ * sitting in it, slide as the lever moves.
+ */
+export function SocketSlide({ open, offset, children }) {
+  const g = useRef();
+  const t = useRef(open ? 1 : 0);
+  useFrame((_, dt) => {
+    if (!g.current) return;
+    const k = ease(t, open ? 1 : 0, dt);
+    g.current.position.set(offset[0] * k, offset[1] * k, offset[2] * k);
+  });
+  return <group ref={g}>{children}</group>;
+}
+
+/** A socket's plastic cap lying on the bench, centred on position; clicking it puts it back on. */
+export function SocketCapOnBench({ size, position, label, waiting, onClick }) {
+  const object = useMemo(() => buildSocketCap(...size), [size]);
+  const lift = useRef();
+  useSlide(lift, 0, waiting);
+  return (
+    <group position={position}>
+      <group ref={lift} userData={{ partId: "socketcap" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
+        {/* the cover's z (out of the socket) points up */}
+        <primitive object={object} rotation={[-Math.PI / 2, 0, 0]} />
+      </group>
+      {label && (
+        <Billboard position={[0, 0.09, 0]}>
+          <Text fontSize={0.05} color="#e5e7eb" outlineWidth={0.004} outlineColor="#111827" anchorX="center">
+            {label}
+          </Text>
+        </Billboard>
+      )}
+    </group>
+  );
+}
+
+/** AM5's cover frame on its hinge (plate = { hinge, cap }), with the plastic cap on it while `cap`. */
 export function SocketPlate({ plate, open, cap, waiting, onClick }) {
   const frame = useMemo(() => buildLoadPlate(), []);
-  const capObject = useMemo(() => buildSocketCap(), []);
   const turn = useRef();
   const b = useRef(open ? 1 : 0);
   useFrame((state, dt) => {
@@ -448,7 +516,7 @@ export function SocketPlate({ plate, open, cap, waiting, onClick }) {
     <group position={plate.hinge}>
       <group ref={turn} userData={{ partId: "socketplate" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
         <primitive object={frame} />
-        {cap && <primitive object={capObject} />}
+        {cap && <SocketCap look={plate.cap} />}
       </group>
     </group>
   );

@@ -2,14 +2,17 @@
 // No React, no Three.js. `installed` is { cpu: true, gpu: true, ... }.
 import { PART_LABEL } from "./Constants";
 import { itemFor, requiredWatts, buildSlots } from "./Catalog";
+import { bootWires, wireSteps, anyWire } from "./Wires";
 
 // How technicians build a PC:
 //   1. On the bench, with the board on its box: CPU, then RAM, then the M.2 SSD (easy to reach here),
 //      then thermal paste and the CPU cooler.
 //   2. Mount the finished board in the case and drive in its 9 screws.
 //   3. Install the PSU, then plug the 24-pin and the 8-pin CPU cable into the board.
-//   4. Graphics card last (it covers the M.2 slot), then plug in its PCIe power cable.
-//   5. Power on.
+//   4. The case's wires (front panel, USB, audio) and the fans' wires onto the board's small headers
+//      (lab/Wires.js), while the bottom of the board is still easy to reach.
+//   5. Graphics card last (it covers the M.2 slot), then plug in its PCIe power cable.
+//   6. Power on.
 // A teardown has no fixed order: after power off, unplug and drain, parts can come out in any order
 // as long as nothing is physically in the way (REMOVE_NEEDS). The board may come out with its
 // CPU, cooler, RAM and SSD still on it, the way technicians usually do it.
@@ -123,9 +126,10 @@ export const psuEndDone = (cable, picks, psuCables) => !!psuCables?.[cable];
 export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => c !== "pcie" || !!picks?.gpu);
 
 /** Can this cable's PSU end be plugged in now? null, or { key, msg }. */
+// The PCIe cable can go into the PSU even with no graphics card picked: plugged in on the bench, it's
+// ready if one is added later (a PSU's sockets are hard to reach once it's in the case).
 export function psuPlugBlock(cable, picks) {
   if (!picks?.psu) return { key: `psu_${cable}`, msg: "Pick a PSU first." };
-  if (cable === "pcie" && !picks.gpu) return { key: "psu_pcie", msg: "This build has no graphics card, so it needs no PCIe power cable." };
   return null;
 }
 export const SCREW_COUNT = 9;
@@ -164,7 +168,7 @@ export function removeBlock(name, installed, power, links = null) {
   const safety = safetyBlock(power);
   if (safety) return safety;
   if (links) {
-    const { cables = {}, screws = [], m2 = null } = links;
+    const { cables = {}, screws = [], m2 = null, wires = null } = links;
     if (name === "storage" && m2?.cover === "on") {
       return { key: "m2cover", msg: "Take the M.2 cover off first: unscrew its 2 screws, then lift it off the SSD." };
     }
@@ -176,6 +180,12 @@ export function removeBlock(name, installed, power, links = null) {
     }
     if (name === "motherboard" && (cables.atx24 || cables.eps8)) {
       return { key: name, msg: "Unplug the 24-pin and the 8-pin CPU cables from the board first." };
+    }
+    if (name === "cpu_cooler" && wires?.cpu_fan) {
+      return { key: name, msg: "Unplug the cooler's fan from the board first (its wire is on CPU_FAN)." };
+    }
+    if (name === "motherboard" && anyWire(wires)) {
+      return { key: name, msg: "Unplug the case's wires from the board first: front panel, USB, audio, fans and lights." };
     }
     const left = screws.filter(Boolean).length;
     if (name === "motherboard" && left > 0) {
@@ -197,11 +207,14 @@ export function removeBlock(name, installed, power, links = null) {
 
 /**
  * Decides what the monitor shows when the student presses POWER ON.
- * state = { installed, pasteApplied, ramSlot: { ram1, ram2 }, picks }
- * `hints` false hides the "fix" text so students must troubleshoot on their own.
+ * state = { installed, pasteApplied, ramSlot: { ram1, ram2 }, picks, cables, wires, headers }
+ * (wires: lab/Wires.js, headers: the board's MOUNTS.headers; without wires they aren't checked).
+ * `hints` false hides the "fix" text so students must troubleshoot on their own. A running PC's
+ * `symptoms` ([{ text, cause }]: a dark power light, dead front USB...) always show, they're what
+ * you'd notice; only with hints on does each come with its cause.
  */
 export function evaluateBoot(state, { hints = true } = {}) {
-  const { installed, pasteApplied, ramSlot, picks = null, cables = null } = state;
+  const { installed, pasteApplied, ramSlot, picks = null, cables = null, wires = null, headers = null } = state;
   const ramCount = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   const lowRes = !installed.gpu;
   const fix = (text) => (hints ? text : "");
@@ -212,6 +225,14 @@ export function evaluateBoot(state, { hints = true } = {}) {
     return {
       status: "dead", part: "cable_atx24",
       message: hints ? "Nothing happens. The 24-pin cable isn't plugged into the motherboard, so the board gets no power." : "Nothing happens.",
+    };
+  }
+  // the case's power button only starts the PC through its wire on the front-panel PWR pins
+  const wired = wires && installed.motherboard ? bootWires(wires, headers) : null;
+  if (wired?.off) {
+    return {
+      status: "dead", part: "wire_pwr_sw",
+      message: hints ? `You press the case's power button: nothing happens. ${wired.off}` : "You press the case's power button: nothing happens.",
     };
   }
   if (!installed.cpu) {
@@ -231,14 +252,28 @@ export function evaluateBoot(state, { hints = true } = {}) {
     return { status: "post", lowRes, title: "No bootable device", detail: fix("No drive found. Install an SSD or HDD, then restart."), code: "Error: BOOT-02" };
   }
   const cpu = picks ? itemFor("cpu", picks) : null;
+  // no graphics card: the PC still runs, but only a CPU with built-in graphics can draw a picture
   if (!installed.gpu && cpu && cpu.igpu === false) {
-    return { status: "dead", part: "gpu", message: hints ? `The PC runs but the screen stays black. The ${cpu.short} has no built-in graphics, so it needs a GPU.` : "The PC runs but the screen stays black." };
+    return {
+      status: "nosignal", part: "gpu",
+      message: hints
+        ? `The PC is on, but the screen says "No signal". The ${cpu.short} has no built-in graphics, so with no graphics card nothing draws the picture.`
+        : 'The PC is on, but the screen says "No signal".',
+    };
   }
   if (!installed.cpu_cooler) {
     return { status: "overheat", lowRes, ramCount, detail: "The CPU cooler is missing, so the CPU overheated.", fix: fix("Fix: install a CPU cooler (with thermal paste) before powering on.") };
   }
   if (!pasteApplied) {
     return { status: "overheat", lowRes, ramCount, detail: "The cooler has no thermal paste, so heat could not leave the CPU.", fix: fix("Fix: power off, apply thermal paste on the CPU, then mount the cooler.") };
+  }
+  // the board checks for the CPU's fan on CPU_FAN, and stops before it starts Windows if there's none
+  if (wired?.fanError) {
+    return {
+      status: "post", lowRes, part: "wire_cpu_fan", title: "CPU Fan Error!",
+      detail: fix(`${wired.fanError} With no fan there, it stops to protect the CPU.`),
+      code: "Press F1 to Run SETUP",
+    };
   }
   if (cables && installed.gpu && !cables.pcie) {
     return {
@@ -270,8 +305,22 @@ export function evaluateBoot(state, { hints = true } = {}) {
   if (ramCount === 2 && Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) {
     notes.push("RAM sticks are in neighbouring slots, try slots 1+3 or 2+4 for dual channel.");
   }
-  if (!installed.gpu) notes.push("Integrated graphics, add a GPU for a sharper picture.");
-  return { status: "hello", lowRes, ramCount, note: hints ? notes[0] ?? null : null };
+  if (!installed.gpu) notes.push("Built-in graphics: a low, blocky picture. A graphics card makes it sharp.");
+  const symptoms = (wired?.symptoms ?? []).map((s) => ({ id: s.id, text: s.text, cause: hints ? s.cause : null }));
+  return { status: "hello", lowRes, ramCount, note: hints ? notes[0] ?? null : null, symptoms };
+}
+
+/**
+ * How long the PC takes to start, in seconds: the drive, the CPU and the memory set the pace, one
+ * stick (or two in neighbouring slots) runs single channel, and built-in graphics is slower to draw
+ * the screen than a graphics card. A stronger build starts faster. state as for evaluateBoot.
+ */
+export function bootTime({ installed, picks, ramSlot }) {
+  const parts = ["storage", "cpu", "ram1"].map((slot) => itemFor(slot, picks)?.bootS ?? 3);
+  const sticks = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
+  if (sticks < 2 || Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) parts.push(1); // single channel
+  if (!installed.gpu) parts.push(1); // built-in graphics
+  return Math.round(parts.reduce((s, x) => s + x, 0) * 10) / 10;
 }
 
 /* ---------- the M.2 cover over the SSD slot ---------- */
@@ -303,11 +352,12 @@ export const m2Done = (m2, installed) =>
 
 /* ---------- the CPU socket: its lever, and on AM5 its cover frame ---------- */
 // socket = { lever: "down" | "up", plate: "closed" | "open", cap: bool }
-// An AM4 socket (ZIF: the pins are on the CPU) has only a lever: up to drop the CPU in, down to clamp
-// its pins. An AM5 socket (LGA: the pins are in the socket) also has a hinged metal cover frame (the
-// load plate) that the lever holds shut, with a plastic cap on it that pops off once a CPU is locked
-// in. On AM4 `plate` is ignored. The lever only moves with no cooler on the CPU, so a CPU under a
-// cooler is always locked in.
+// An AM4 socket (ZIF: the pins are on the CPU) is held by its lever alone: up slides the socket's top
+// plate open so the CPU drops in, down slides it back and grips every pin. An AM5 socket (LGA: the
+// pins are in the socket) has a hinged metal cover frame (the load plate) that the lever holds shut,
+// with a plastic cap on it that pops off once a CPU is locked in (`cap` false: it waits on the bench,
+// and can go back on an empty socket). On AM4 `plate` and `cap` are ignored. The lever only moves
+// with no cooler on the CPU, so a CPU under a cooler is always locked in.
 export const socketKind = (picks) => (itemFor("motherboard", picks)?.socket === "am5" ? "lga" : "zif");
 
 /** How a board starts: lever down, frame shut, the cap on while there is no CPU in it. */
@@ -325,8 +375,8 @@ function socketShutBlock(s, kind, removing = false) {
     return {
       key: "socket",
       msg: removing
-        ? "Lift the socket lever first: while it's down it clamps the CPU's pins."
-        : "Lift the socket lever first: unhook it and raise it all the way up. The CPU only drops in with the lever up.",
+        ? "Lift the socket lever first: while it's down, the socket's top plate grips the CPU's pins."
+        : "Lift the socket lever first: unhook it and raise it all the way up. That slides the socket's top plate open so the CPU drops in.",
     };
   }
   if (s.lever === "down") {
@@ -354,6 +404,14 @@ export function plateBlock(s) {
   return null;
 }
 
+/** Can AM5's plastic cap go back on from the bench? Only on an empty socket. */
+export function capBlock(s, installed) {
+  if (!s.cap && installed.cpu) {
+    return { key: "socket", msg: "The plastic cap only goes back on an empty socket. Take the CPU out first." };
+  }
+  return null;
+}
+
 /** The socket is finished: a CPU in it is locked in. */
 export const socketDone = (s, installed) => !installed.cpu || socketLocked(s);
 
@@ -366,7 +424,7 @@ export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) =>
  * then every part can come out in any order (anyOrder: true).
  * state = { installed, picks, pasteApplied, booted, power }
  */
-export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {}, m2 = null, socket = null }) {
+export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {}, m2 = null, socket = null, wires = null }) {
   const slot = m2 || m2Start(installed.storage);
   const sock = socket || socketStart(installed.cpu);
   const lga = socketKind(picks) === "lga";
@@ -388,6 +446,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       any("PCIe cable unplugged (before the graphics card comes out)", !cables.pcie),
       any("Graphics card out (it covers the M.2 slot)", out("gpu")),
       any("24-pin and 8-pin CPU cables unplugged (before the board comes out)", !cables.atx24 && !cables.eps8),
+      any("Front-panel, USB, audio and fan wires unplugged (before the cooler and the board come out)", !anyWire(wires)),
       any(`Motherboard screws out (${SCREW_COUNT - driven} of ${SCREW_COUNT})`, out("motherboard") || driven === 0),
       any("PSU out (its cables unplugged from the parts)", out("psu")),
       ...(socketed.length ? [any("Cables off the PSU (once it's out)", socketed.every((c) => !psuCables[c]))] : []),
@@ -404,10 +463,10 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
   const ramDone = installed.ram1 && (!has("ram2") || installed.ram2);
   return [
     { label: "Pick parts that work together", done: buildSlots(picks).every(has) },
-    { label: lga ? "Open the CPU socket: unhook the lever, lift it, lift the cover frame" : "Lift the CPU socket's lever", done: !!installed.cpu || sockOpen },
+    { label: lga ? "Open the CPU socket: unhook the lever, lift it, lift the cover frame" : "Lift the CPU socket's lever (it slides the socket open)", done: !!installed.cpu || sockOpen },
     { label: "Seat the CPU in the socket (board on the bench)", done: !!installed.cpu },
     {
-      label: lga ? "Close the cover frame and hook the lever down (the cap pops off)" : "Push the socket lever down to lock the CPU",
+      label: lga ? "Close the cover frame and hook the lever down (the cap pops off)" : "Push the socket lever down: the socket grips the CPU's pins",
       done: !!installed.cpu && socketLocked(sock),
     },
     { label: has("ram2") ? "Click both RAM sticks into slots 1 and 3" : "Click the RAM stick into its slot", done: !!ramDone },
@@ -429,6 +488,8 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     { label: "Install the PSU", done: !!installed.psu },
     { label: "Plug the 24-pin cable into the board", done: !!cables.atx24 },
     { label: "Plug the 8-pin CPU cable in (top-left)", done: !!cables.eps8 },
+    // before the graphics card, which covers the bottom of the board
+    ...wireSteps(wires, installed),
     ...(has("gpu")
       ? [
           { label: "Install the graphics card last", done: !!installed.gpu },

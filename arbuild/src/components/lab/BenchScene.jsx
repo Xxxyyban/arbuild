@@ -1,5 +1,5 @@
 // 3D pieces shared by both modes (moved out of Assemble.jsx / Disassemble.jsx).
-import { useRef, useMemo, useLayoutEffect, useContext, useEffect } from "react";
+import { useRef, useMemo, useLayoutEffect, useContext, useEffect, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text, Billboard } from "@react-three/drei";
@@ -281,16 +281,70 @@ export function CameraFocus({ focus, home }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, controls]);
-  useFrame((_, dt) => {
-    const a = anim.current;
-    if (!a || !controls) return;
-    a.t = Math.min(1, a.t + dt / 0.8);
-    const k = a.t * a.t * (3 - 2 * a.t);
-    camera.position.lerpVectors(a.fromP, a.toP, k);
-    controls.target.lerpVectors(a.fromT, a.toT, k);
-    controls.update();
-    if (a.t >= 1) anim.current = null;
-  });
+  useFrame((_, dt) => glide(anim, camera, controls, dt, 0.8));
+  return null;
+}
+
+/** One frame of a camera glide ({ t, fromP, fromT, toP, toT }) lasting `seconds`, eased at both ends. */
+function glide(anim, camera, controls, dt, seconds) {
+  const a = anim.current;
+  if (!a || !controls) return;
+  a.t = Math.min(1, a.t + dt / seconds);
+  const k = a.t * a.t * (3 - 2 * a.t);
+  camera.position.lerpVectors(a.fromP, a.toP, k);
+  controls.target.lerpVectors(a.fromT, a.toT, k);
+  controls.update();
+  if (a.t >= 1) anim.current = null;
+}
+
+/**
+ * A phone held upright sees the bench through a tall, narrow window, so at the 45° view the bench's
+ * ends are cut off. Below FIT wide-to-tall the view opens up until it shows as much across as a
+ * FIT-shaped screen would (to MAX_FOV). Off in WebXR, which sets its own camera.
+ */
+const FIT = 0.75;
+const MAX_FOV = 64;
+export function FitFov({ base = 45, enabled = true }) {
+  const camera = useThree((s) => s.camera);
+  const width = useThree((s) => s.size.width);
+  const height = useThree((s) => s.size.height);
+  useEffect(() => {
+    if (!enabled || !camera.isPerspectiveCamera || !height) return;
+    const aspect = width / height;
+    const open = (2 * Math.atan((Math.tan((base * Math.PI) / 360) * FIT) / aspect) * 180) / Math.PI;
+    camera.fov = aspect >= FIT ? base : Math.min(open, MAX_FOV);
+    camera.updateProjectionMatrix();
+  }, [camera, width, height, base, enabled]);
+  return null;
+}
+
+/**
+ * The view buttons on a computer: apiRef.current gets { zoom(factor), home() }. zoom moves the camera
+ * toward the point it orbits (factor < 1) or away from it, within the controls' distance limits;
+ * home glides back to the whole bench. The mouse wheel and a trackpad pinch zoom as well.
+ */
+export function ViewControls({ apiRef, home }) {
+  const { camera, controls } = useThree();
+  const anim = useRef(null);
+  useEffect(() => {
+    const start = (toP, toT) => {
+      anim.current = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toP, toT };
+    };
+    apiRef.current = {
+      zoom: (factor) => {
+        if (!controls) return;
+        const target = controls.target.clone();
+        const offset = camera.position.clone().sub(target);
+        const d = THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance);
+        start(target.clone().add(offset.setLength(d)), target);
+      },
+      home: () => controls && start(new THREE.Vector3(...home.position), new THREE.Vector3(...home.target)),
+    };
+    return () => {
+      apiRef.current = null;
+    };
+  }, [camera, controls, apiRef, home]);
+  useFrame((_, dt) => glide(anim, camera, controls, dt, 0.35));
   return null;
 }
 
@@ -334,6 +388,68 @@ export function TargetMarker({ name, pose, onPlace, radius = 0.22 }) {
         <sphereGeometry args={[radius, 24, 24]} />
         <meshBasicMaterial color="#3ddc84" transparent opacity={0.55} depthTest={false} />
       </mesh>
+    </group>
+  );
+}
+
+const RAM_SLOT_LENGTH = 0.6; // a DIMM slot, about 130 mm
+// the click box: the slot and the space just above it, up past its walls (so it is hit before them),
+// nearly as wide as the gap to the next slot
+const RAM_SLOT_HIT = [0.042, 0.07];
+const _x = new THREE.Vector3();
+const _y = new THREE.Vector3();
+const _z = new THREE.Vector3();
+
+/**
+ * A DIMM slot to put the picked-up RAM stick into: a see-through bar on the slot with the slot's
+ * number at its lower end. mark = { center, along, up } in world space (along: up the board, up: out
+ * of it). `good` (hints on) marks the slots that run in dual channel. With onPlace the whole slot
+ * takes the click; without it (while a stick is dragged) the bar only shows the way.
+ */
+export function RamSlotMarker({ number, mark, good, onPlace }) {
+  const [hover, setHover] = useState(false);
+  const quaternion = useMemo(() => {
+    _y.set(...mark.along).normalize();
+    _z.set(...mark.up).normalize();
+    _x.crossVectors(_y, _z).normalize();
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(_x, _y, _z));
+  }, [mark]);
+  const color = good ? "#10b981" : "#e5e7eb";
+  const handlers = onPlace
+    ? {
+        onClick: (e) => {
+          e.stopPropagation();
+          onPlace();
+        },
+        onPointerDown: (e) => e.stopPropagation(),
+        onPointerOver: (e) => {
+          e.stopPropagation();
+          setHover(true);
+          document.body.style.cursor = "pointer";
+        },
+        onPointerOut: () => {
+          setHover(false);
+          document.body.style.cursor = "";
+        },
+      }
+    : {};
+  return (
+    <group position={mark.center} quaternion={quaternion}>
+      <mesh position={[0, 0, 0.012]} renderOrder={998}>
+        <boxGeometry args={[0.03, RAM_SLOT_LENGTH, 0.008]} />
+        <meshBasicMaterial color={color} transparent opacity={hover ? 0.7 : 0.35} depthTest={false} depthWrite={false} />
+      </mesh>
+      {onPlace && (
+        <mesh position={[0, 0, RAM_SLOT_HIT[1] / 2]} userData={{ partId: `ramslot:${number}` }} {...handlers}>
+          <boxGeometry args={[RAM_SLOT_HIT[0], RAM_SLOT_LENGTH, RAM_SLOT_HIT[1]]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
+      <Billboard position={[0, -RAM_SLOT_LENGTH / 2 - 0.045, 0.02]}>
+        <Text fontSize={0.05} color={color} outlineWidth={0.005} outlineColor="#111827" anchorX="center" anchorY="middle" renderOrder={999}>
+          {String(number)}
+        </Text>
+      </Billboard>
     </group>
   );
 }

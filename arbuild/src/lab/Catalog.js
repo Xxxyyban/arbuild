@@ -20,7 +20,7 @@ export const normalizePlatform = (value) => (PLATFORMS.includes(value) ? value :
 
 // Picker order. Each category lists the bench slots it fills; RAM has one pick per stick.
 export const CATEGORIES = [
-  { id: "motherboard", label: "Motherboard", slots: ["motherboard"] },
+  { id: "motherboard", label: "Motherboard", short: "Board", slots: ["motherboard"] }, // short: on a phone
   { id: "cpu", label: "CPU", slots: ["cpu"] },
   { id: "ram", label: "RAM", slots: ["ram1", "ram2"] },
   { id: "cpu_cooler", label: "Cooler", slots: ["cpu_cooler"] },
@@ -68,6 +68,7 @@ export const CATALOG = {
     socket: "am4",
     tdp: 65,
     igpu: false,
+    bootS: 3, // its share of the start-up time (Rules bootTime)
     variant: 0, // cpu.glb
     specs: [["Socket", "AM4"], ["Cores", "6 cores / 12 threads"], ["Heat output", "65 W"], ["Graphics", "None built in"]],
     note: "The pins are under this CPU. Bent pins mean it won't work.",
@@ -79,6 +80,7 @@ export const CATALOG = {
     socket: "am5",
     tdp: 105,
     igpu: true,
+    bootS: 2,
     variant: 1, // cpu1.glb
     specs: [["Socket", "AM5"], ["Cores", "6 cores / 12 threads"], ["Heat output", "105 W"], ["Graphics", "Basic built-in graphics"]],
     note: "This CPU has flat pads underneath. The pins are on the board's socket.",
@@ -90,6 +92,7 @@ export const CATALOG = {
     name: "8 GB DDR4-3200 stick",
     short: "DDR4",
     memory: "ddr4",
+    bootS: 2,
     variant: 0, // ram.glb
     specs: [["Type", "DDR4"], ["Speed", "3200 MT/s"], ["Size", "8 GB"]],
     note: "Two matching sticks in slots 1 and 3 run in dual channel, which is faster than one.",
@@ -99,6 +102,7 @@ export const CATALOG = {
     name: "16 GB DDR5-6000 stick (T-Force)",
     short: "DDR5",
     memory: "ddr5",
+    bootS: 1.5,
     variant: 1, // ram1.glb
     specs: [["Type", "DDR5"], ["Speed", "6000 MT/s"], ["Size", "16 GB"]],
     note: "DDR5 has its notch in a different place from DDR4, so the two can never be mixed.",
@@ -131,6 +135,7 @@ export const CATALOG = {
     category: "storage",
     name: "1 TB M.2 NVMe SSD (Gen 4)",
     short: "1 TB",
+    bootS: 2.5,
     variant: 0, // ssd.glb
     specs: [["Slot", "M.2 (PCIe 4.0)"], ["Size", "1 TB"]],
   },
@@ -138,6 +143,7 @@ export const CATALOG = {
     category: "storage",
     name: "2 TB M.2 NVMe SSD (Gen 3)",
     short: "2 TB",
+    bootS: 4,
     variant: 1, // ssd1.glb
     specs: [["Slot", "M.2 (PCIe 3.0)"], ["Size", "2 TB"]],
     note: "A Gen 3 drive works in a Gen 4 slot, just a little slower.",
@@ -150,7 +156,7 @@ export const CATALOG = {
     short: "3060 Ti",
     power: 200,
     variant: 0, // gpu.glb
-    powerPort: [0.469, 0.071, 0.627], // PCIe power socket, from the card's mount point (case space)
+    powerPort: [0.2, 0.06, 0.627], // PCIe power socket, from the card's mount point (case space; GPUModel.jsx)
     specs: [["Slot", "PCIe x16"], ["Power draw", "200 W"], ["Needs", "1 × 8-pin PCIe power"]],
   },
   gpu_6700xt: {
@@ -159,7 +165,9 @@ export const CATALOG = {
     short: "6700 XT",
     power: 230,
     variant: 1, // gpu1.glb
-    powerPort: [0.447, 0.061, 0.579], // PCIe power socket, from the card's mount point (case space)
+    // the 8-pin socket in the recess at the end of its top edge (the 6-pin one is beside it, toward the
+    // end), from the card's mount point (case space); the plug sits a little down into it
+    powerPort: [0.418, 0.038, 0.566],
     specs: [["Slot", "PCIe x16"], ["Power draw", "230 W"], ["Needs", "8-pin + 6-pin PCIe power"]],
     note: "Draws more power than the RTX 3060 Ti. Check the PSU can handle it with your CPU.",
   },

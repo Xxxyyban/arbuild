@@ -1,8 +1,10 @@
 // The Cables drawer, like Packet Tracer's connections box: pick a PSU cable, then connect its ends.
 // The PSU end comes first, on the bench (plugged into a modular PSU, or routed out of a fixed PSU's
-// bundle), then the part end. Styles: styles/BuildLabParts.css
-// (.cable-drawer*); the option cards reuse .picker__*.
+// bundle), then the part end. Under them, the case's and the fans' wires (lab/Wires.js): pick one,
+// then the header it goes on. Styles: styles/BuildLabParts.css (.cable-drawer*); the option cards
+// reuse .picker__*.
 import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed } from "../../lab/Rules";
+import { WIRES, WIRE_GROUPS, WIRE_IDS, wireBlock, headerLabel } from "../../lab/Wires";
 
 // wire colours shown on each card, so students learn to recognise the cables
 const SWATCH = {
@@ -17,7 +19,7 @@ const PINS = {
 };
 const PART_END = { atx24: "Motherboard", eps8: "Motherboard", pcie: "Graphics card" };
 
-export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose }) {
+export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose, wires, headers, activeWire, onPickWire }) {
   const modular = psuModular(picks);
   const anyFixed = Object.keys(CABLES).some((c) => psuCableFixed(c, picks));
   return (
@@ -40,7 +42,8 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
           {Object.keys(CABLES).map((c) => {
             const psuDone = psuEndDone(c, picks, psuCables);
             const partDone = !!cables[c];
-            const notNeeded = c === "pcie" && !picks?.gpu;
+            // no graphics card (yet): the PCIe cable can still go into the PSU, ready for one
+            const spare = c === "pcie" && !picks?.gpu;
             const next = !psuDone ? psuPlugBlock(c, picks) : partDone ? null : plugBlock(c, installed, picks, psuCables);
             const done = psuDone && partDone;
             return (
@@ -48,7 +51,7 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
                 <button
                   type="button"
                   className="picker__option"
-                  disabled={notNeeded || done || !!next}
+                  disabled={done || !!next}
                   onClick={() => onPick(c)}
                 >
                   <span className="picker__name">{CABLES[c].label}</span>
@@ -60,8 +63,10 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
                     <End label={PART_END[c]} done={partDone} />
                   </span>
                   <span className="picker__state">
-                    {notNeeded
-                      ? "Not needed: no graphics card in this build."
+                    {spare
+                      ? psuDone
+                        ? "In the PSU, ready if you add a graphics card."
+                        : "No graphics card yet. You can still plug it into the PSU now, ready for one later."
                       : done
                       ? "Connected at both ends ✓"
                       : active === c
@@ -75,6 +80,37 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
             );
           })}
         </ul>
+
+        {WIRE_GROUPS.map((g) => (
+          <div key={g.id} className="picker__slot">
+            <h3 className="picker__slot-head">{g.label}</h3>
+            <ul className="picker__list">
+              {WIRE_IDS.filter((id) => WIRES[id].group === g.id).map((id) => {
+                const w = wires?.[id];
+                const block = w ? null : wireBlock(id, installed);
+                return (
+                  <li key={id} className={w || activeWire === id ? "is-chosen" : ""}>
+                    <button type="button" className="picker__option" disabled={!!w || !!block} onClick={() => onPickWire(id)}>
+                      <span className="picker__name">{WIRES[id].label}</span>
+                      <span className="cable-drawer__swatch" aria-hidden="true">
+                        {WIRES[id].colors.map((col, i) => <i key={i} style={{ background: col }} />)}
+                      </span>
+                      <span className="picker__state">
+                        {w
+                          ? `On ${headerLabel(w.at, headers)} (click its plug to pull it off)` // no tick: right or wrong shows at power on
+                          : activeWire === id
+                          ? "Connecting…"
+                          : block
+                          ? block.msg
+                          : `${WIRES[id].look[0].toUpperCase()}${WIRES[id].look.slice(1)}.`}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );

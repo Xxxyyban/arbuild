@@ -171,17 +171,6 @@
   text-align: center;
 }
 
-/* Phone: the task card sits above the two-row control panel */
-@media (max-width: 720px) {
-  .lab-task {
-    top: auto;
-    left: 8px;
-    right: 8px;
-    bottom: 124px;
-    width: auto;
-  }
-}
-
 /* Start screen: a lab opened from a class */
 .lab-start__status {
   margin: 0 0 10px;

@@ -1,5 +1,5 @@
 // Floating screen. One monitor object drives every status from both modes:
-// off | shuttingDown | booting | loading | hello | bsod | post
+// off | shuttingDown | booting | loading | hello | bsod | post | nosignal
 import { useRef, useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, createPortal } from "@react-three/fiber";
@@ -82,6 +82,7 @@ const BG = {
   bsod: "#0a5ab8",
   post: "#000000",
   hello: "#0c2229",
+  nosignal: "#000000",
 };
 
 function ScreenContent({ monitor, userName }) {
@@ -109,8 +110,22 @@ function ScreenContent({ monitor, userName }) {
       {status === "hello" && (
         <>
           <ScreenText y={0.1} size={0.15}>{`Hello, ${userName}`}</ScreenText>
-          <ScreenText y={-0.06} size={0.055} color="#b8c4d2">Your PC is up and running.</ScreenText>
+          <ScreenText y={-0.06} size={0.055} color="#b8c4d2">
+            {monitor.seconds ? `Your PC started in ${monitor.seconds} s.` : "Your PC is up and running."}
+          </ScreenText>
           {monitor.note && <ScreenText y={-0.2} size={0.045} color="#e8a33d">{monitor.note}</ScreenText>}
+          {/* what you'd notice on the case (lab/Wires.js): three at most, then how many more */}
+          {monitor.symptoms?.length > 0 && (
+            <>
+              <ScreenText y={-0.29} size={0.036} color="#94a3b8">Check the case:</ScreenText>
+              {monitor.symptoms.slice(0, 3).map((s, i) => (
+                <ScreenText key={s.text} y={-0.345 - i * 0.05} size={0.034} color="#fbbf24">{s.text}</ScreenText>
+              ))}
+              {monitor.symptoms.length > 3 && (
+                <ScreenText y={-0.455} size={0.03} color="#94a3b8">{`and ${monitor.symptoms.length - 3} more`}</ScreenText>
+              )}
+            </>
+          )}
         </>
       )}
 
@@ -123,6 +138,18 @@ function ScreenContent({ monitor, userName }) {
           <ScreenText left x={L} y={-0.24} size={0.036} color="#dbe7f7">{`What failed: ${monitor.detail}`}</ScreenText>
           {monitor.fix && <ScreenText left x={L} y={-0.36} size={0.036} color="#ffe58a">{monitor.fix}</ScreenText>}
         </>
+      )}
+
+      {/* the PC is on, but nothing draws a picture: the monitor's own message */}
+      {status === "nosignal" && (
+        <group position={[0, -0.05, 0]}>
+          <mesh position={[0, 0, 0.001]}>
+            <planeGeometry args={[0.62, 0.2]} />
+            <meshBasicMaterial color="#1f2937" toneMapped={false} />
+          </mesh>
+          <ScreenText y={0.03} size={0.055} color="#e5e7eb">No signal</ScreenText>
+          <ScreenText y={-0.045} size={0.034} color="#9ca3af">HDMI 1</ScreenText>
+        </group>
       )}
 
       {status === "post" && (
@@ -144,7 +171,7 @@ export default function MonitorStation({ monitor, userName }) {
         <ScreenContent monitor={monitor} userName={userName} />
       </ScreenSurface>
       <Text position={[0, -SCREEN_H / 2 - 0.08, 0.002]} fontSize={0.05} color="#9fb0c3" anchorX="center" anchorY="top" raycast={() => null}>
-        {monitor.lowRes ? "Integrated graphics" : "Dedicated GPU"}
+        {monitor.status === "nosignal" ? "No graphics output" : monitor.lowRes ? "Built-in graphics" : "Graphics card"}
       </Text>
     </group>
   );
