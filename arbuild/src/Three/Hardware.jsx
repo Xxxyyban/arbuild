@@ -4,7 +4,7 @@
 // A plug sits on its header when plugged in; otherwise it hovers a little way out along its wires.
 // A screw sits flush in its hole when driven in; loose, it hovers above the hole.
 // Anything waiting to be used bobs gently. Clicks go to onClick; userData.partId lets AR taps find them.
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
@@ -45,6 +45,17 @@ const click = (fn) => (e) => {
 };
 
 /**
+ * A raycast that puts its hits in front of everything else: for things drawn over everything (the
+ * rings, depth test off) or that are the student's next move (a plug to push in), so a part in front
+ * (a tall header, a tower cooler) can't swallow the click. Use as a mesh's `raycast`.
+ */
+function raycastOnTop(raycaster, intersects) {
+  const from = intersects.length;
+  THREE.Mesh.prototype.raycast.call(this, raycaster, intersects);
+  for (let i = from; i < intersects.length; i++) intersects[i].distance = 0;
+}
+
+/**
  * A cable plug: type atx24 | eps8 | pcie8. `rotation` turns its wires (+Y) to face out of the socket.
  * `flipped` turns it half a turn about its wires, putting the clip on the other side.
  */
@@ -66,12 +77,18 @@ export function HeaderPlug({ kind, colors, ...props }) {
 
 /**
  * A plug that slides in (plugged) or hovers `out` above its socket, and turns half a turn when flipped.
- * `inert`: takes no clicks, so the header rings behind it get them.
+ * `inert`: takes no clicks, so the header rings behind it get them. `onTop`: takes the click even
+ * when something is in front of it (the plug to push in next).
  */
-function SlidingPlug({ object, out, position, rotation, plugged, flipped = false, waiting, onClick, partId, inert = false }) {
+function SlidingPlug({ object, out, position, rotation, plugged, flipped = false, waiting, onClick, partId, inert = false, onTop = false }) {
   const slide = useRef();
   const turn = useRef();
   useSlide(slide, plugged ? 0 : out, waiting);
+  useEffect(() => {
+    object.traverse((o) => {
+      if (o.isMesh) o.raycast = onTop ? raycastOnTop : THREE.Mesh.prototype.raycast;
+    });
+  }, [object, onTop]);
   useFrame((_, dt) => {
     const g = turn.current;
     if (!g) return;
@@ -128,6 +145,7 @@ export function PortMarker({ position, label, onClick, partId, size = 0.06, labe
         ref={ring}
         userData={{ partId }}
         renderOrder={998}
+        raycast={raycastOnTop}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={click(onClick)}
         {...pointer}
@@ -136,7 +154,7 @@ export function PortMarker({ position, label, onClick, partId, size = 0.06, labe
         <meshBasicMaterial color="#34d399" transparent opacity={0.9} depthTest={false} />
       </mesh>
       {/* bigger invisible target inside the ring (or `hit`: a [width, height] box), clickable from either side */}
-      <mesh userData={{ partId }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
+      <mesh userData={{ partId }} raycast={raycastOnTop} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
         {hit ? <planeGeometry args={hit} /> : <circleGeometry args={[size, 20]} />}
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
@@ -183,7 +201,7 @@ export function PSUPanel({ layout, plugs, choosing, latch, onSocket, onPlug }) {
         return (
           <group key={id}>
             {/* the label printed on the PSU (unless the model has it printed already) */}
-            {!layout.printed && (
+            {!layout.printed && !s.unlabelled && (
               <Billboard position={[x, s.at[0][1] - 0.05, out - 0.01]}>
                 <Text fontSize={0.026} color="#e5e7eb" outlineWidth={0.003} outlineColor="#111827" anchorX="center">
                   {s.label}
@@ -212,6 +230,7 @@ export function PSUPanel({ layout, plugs, choosing, latch, onSocket, onPlug }) {
             plugged={p.seated}
             flipped={p.flipped}
             waiting={p.waiting}
+            onTop={!p.seated}
             onClick={() => onPlug?.(cable)}
           />
         ))

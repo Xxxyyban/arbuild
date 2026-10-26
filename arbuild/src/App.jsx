@@ -55,6 +55,7 @@ import "./styles/BuildLabPhone.css";
 import "./styles/Admin.css";
 import "./styles/Instructor.css";
 import "./styles/InstructorClass.css";
+import "./styles/Troubleshoot.css";
 import "./styles/tokens.css";
 
 // ============================================================

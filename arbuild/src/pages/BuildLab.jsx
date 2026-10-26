@@ -33,7 +33,7 @@ import {
 import {
   installBlock, removeBlock, evaluateBoot, bootTime, isFullyBuilt, isFullyStripped, expertSteps,
   CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
-  M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done,
+  M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done, cableNeeded, isGpuCable, gpuSixPin,
   socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone,
 } from "../lab/Rules";
 import {
@@ -41,11 +41,13 @@ import {
   maxPoints, officialScore, officialDelta, taskRequirements, taskLedger, OFFICIAL_MAX,
 } from "../lab/Scoring";
 import { DEFAULT_SETUP, normalizeSetup, buildStart, setupFromUrl } from "../lab/Setup";
+import { previewSetup, troubleTotal } from "../lab/Tasks";
+import { findFaults, fixedFaults, scenarioFaults, troubleSteps } from "../lab/Faults";
 import {
   CABLE_IDS, STUB_TYPE, PORT_ROT, PORT_LATCH, GHOST_COLOR, PORT_LABEL, FIXED_MARK, PLUG_LOOK, PORT_WHERE, PSU_FIXED_OUT, HEADER_LIFT, WIRE_GHOST, wireRoute, cableRoute, psuToCase,
 } from "../lab/CableRoutes";
 import {
-  WIRES, WIRE_IDS, WIRE_WHERE, HEADERS, headerLabel, wiresStart, wireBlock, wireFitBlock, wireFault, wireRight, wireOn,
+  WIRES, WIRE_IDS, WIRE_WHERE, HEADERS, headerLabel, headerName, wireName, wiresStart, wireBlock, wireFitBlock, wireFault, wireRight, wireOn,
 } from "../lab/Wires";
 import { createReporter, MISTAKE_TYPES } from "../lab/reportEvent";
 import { CATALOG, PLATFORM_LABEL, itemFor, fitBlock, buildSlots, correctPicks } from "../lab/Catalog";
@@ -61,7 +63,7 @@ const SHUTDOWN_DURATION = 1800;
 const SAFETY_NOTE = "Shut it down, unplug it and drain it before touching any part.";
 const HINT_HIDDEN = "That didn't work. Think about what is missing.";
 // After an explosion: everything back on the bench, the picked parts stay picked.
-const NO_CABLES = { atx24: false, eps8: false, pcie: false }; // also the PSU ends (psuCables)
+const NO_CABLES = { atx24: false, eps8: false, pcie: false, pcie6: false }; // also the PSU ends (psuCables)
 const NO_SCREWS = Array.from({ length: SCREW_COUNT }, () => false);
 const EMPTY_BUILD = {
   mode: "assemble", installed: {}, pasteApplied: false, ramSlot: { ram1: null, ram2: null },
@@ -119,10 +121,14 @@ export default function BuildLab() {
   const userName = profile?.firstName || "Builder";
   const labSession = useLabSession({ user, profile });
 
-  // null = start screen. ?start=build|teardown (old-route redirects) skips it.
-  const [setup, setSetup] = useState(() =>
-    new URLSearchParams(window.location.search).get("start") ? setupFromUrl(window.location.search) : null
-  );
+  // null = start screen. ?start=build|teardown (old-route redirects) skips it, and so does an
+  // instructor's ?preview= link (a task tried out as a student gets it; nothing is saved).
+  const [setup, setSetup] = useState(() => {
+    const search = window.location.search;
+    const q = new URLSearchParams(search);
+    if (q.get("preview")) return previewSetup(search);
+    return q.get("start") ? setupFromUrl(search) : null;
+  });
   const initial = useRef(null);
   if (!initial.current) {
     const s = buildStart(setup ?? DEFAULT_SETUP);
@@ -149,6 +155,8 @@ export default function BuildLab() {
   const [wires, setWires] = useState(init.wires ?? wiresStart(false));
   const [wireTask, setWireTask] = useState(null);
   const [cableDrawer, setCableDrawer] = useState(false);
+  // the PSU socket each socketed cable went into, when not its own (either PCI-E socket takes either PCIe cable)
+  const [psuSockOf, setPsuSockOf] = useState(init.psuSockOf ?? {});
   const [power, setPower] = useState(init.power);
   const [monitor, setMonitor] = useState(init.monitor);
   const [flights, setFlights] = useState({}); // name -> { position, rotation } where a pulled part was let go
@@ -156,6 +164,9 @@ export default function BuildLab() {
     init.installed.motherboard ? MOTHERBOARD_TARGET.position : trayPosition("motherboard")
   );
   const [booted, setBooted] = useState(false);
+  // troubleshooting: the PC started with nothing wrong (the task is done), and the guide's first steps
+  const [troubleOk, setTroubleOk] = useState(false);
+  const [troubleLog, setTroubleLog] = useState({ poweredOn: false, madeSafe: false });
   const [phaseActions, setPhaseActions] = useState(0);
   const [promptDismissed, setPromptDismissed] = useState(false);
 
@@ -225,9 +236,13 @@ export default function BuildLab() {
   // In a class the instructor's task sets the work, and there is a clock and points.
   // Free build (no class) is for learning: no task, no clock, no points.
   const inClass = !!labSession.code;
-  const scored = inClass;
-  const task = inClass ? cfg.task : null;
+  // an instructor trying a task out (?preview=): scored and timed like the class, nothing saved
+  const preview = !inClass && !!cfg.preview;
+  const scored = inClass || preview;
+  const task = scored ? cfg.task : null;
+  const trouble = task?.mode === "troubleshoot"; // fixing the instructor's faulty PC
   const hintsOn = cfg.hints;
+  const help = cfg.help; // the step list, the board's labels, the RAM slot numbers, the faults left
   const platform = cfg.platform;
   const parMs = cfg.parMin * 60000;
   const scoreInfo = timedScore(ledger.current, penalty.current, phaseMs.current, parMs);
@@ -237,10 +252,28 @@ export default function BuildLab() {
   // student's PSU takes cables.
   const taskMode = task?.mode ?? cfg.startMode;
   const outOf = task?.points ?? OFFICIAL_MAX;
-  const req = taskRequirements(task ?? { mode: taskMode }, psuSocketed(picks.psu ? picks : correctPicks(platform)));
+  const req = { ...taskRequirements(task ?? { mode: taskMode }, psuSocketed(picks.psu ? picks : correctPicks(platform))), gpu6: gpuSixPin(picks) };
   const maxPts = maxPoints(taskMode, req);
   const officialCard = timedScore(taskLedger(ledger.current, req), penalty.current, phaseMs.current, parMs);
-  const official = officialScore(officialCard, taskMode, maxPts, outOf);
+  // Troubleshooting: what's wrong with the PC now and which of the set-up's faults are fixed. The
+  // score is the fixed faults' points, and the start's once it starts with nothing wrong, for the
+  // time taken (building and taking apart together), out of the task's points.
+  const faultsNow = trouble
+    ? findFaults({ installed, picks, pasteApplied, ramSlot, cables, psuCables, psuSockOf, screws, m2, socket, wires }, task)
+    : [];
+  const faultIds = trouble ? Object.keys(task.faultPoints) : [];
+  const fixedIds = trouble ? fixedFaults(faultIds, faultsNow) : [];
+  const startFaults = useMemo(() => (trouble ? scenarioFaults(task.scenario, task) : []), [trouble, task]);
+  const troubleMs = phaseMs.current.assemble + phaseMs.current.disassemble;
+  const troubleScore = (earned, ms) =>
+    Math.max(0, Math.min(outOf, Math.round((earned * timeFactor(ms, parMs) * outOf) / Math.max(1, troubleTotal(task)))));
+  const official = !trouble
+    ? officialScore(officialCard, taskMode, maxPts, outOf)
+    : taskDone
+    ? troubleScore(taskDone.earned, taskDone.ms)
+    : troubleScore(fixedIds.reduce((s, id) => s + task.faultPoints[id], 0), troubleMs);
+  // with "faults left" hidden, the score would give a fix away: it shows once the PC is fixed
+  const scoreShown = !trouble || help.faultsLeft || !!taskDone;
 
   const rig = useMemo(() => ({ laidDown: isLaidDown, position: casePose ?? [0, 0, 0] }), [isLaidDown, casePose]);
 
@@ -336,7 +369,11 @@ export default function BuildLab() {
   }
 
   function triggerPopup(points, type) {
-    if (!scored) return;
+    if (!scored || trouble) return; // troubleshooting: the points come with each fault fixed
+    pushPopup(points, type);
+  }
+
+  function pushPopup(points, type) {
     const id = Date.now() + Math.random();
     setPopups((p) => [...p, { id, points, type }]);
     setTimeout(() => setPopups((p) => p.filter((x) => x.id !== id)), 1200);
@@ -461,7 +498,8 @@ export default function BuildLab() {
       flawed = true;
       ledger.current[k] = 0;
       logAction(name, k, flawed);
-      deduct(POINTS.skipPaste, `Cooler mounted without thermal paste. -${POINTS.skipPaste}`);
+      // troubleshooting scores the faults, not these points: no number in the message
+      deduct(POINTS.skipPaste, `Cooler mounted without thermal paste.${trouble ? "" : ` -${POINTS.skipPaste}`}`);
       reportEvent("penalty", name, "Cooler mounted without thermal paste", -POINTS.skipPaste);
       return;
     }
@@ -558,6 +596,7 @@ export default function BuildLab() {
       return miss(key, "Shut down and unplug the PC first, then hold the power button to drain it.", "safety");
     }
     setPower((p) => ({ ...p, discharged: true }));
+    setTroubleLog((l) => ({ ...l, madeSafe: true }));
     const k = ledgerKey("disassemble", "discharge");
     award(k, actionPoints(POINTS.discharge, misses.current[k] || 0), "Leftover power drained. Now it's safe to take parts out.", "discharge");
   }
@@ -576,6 +615,7 @@ export default function BuildLab() {
 
   /* ---------- cables and screws ---------- */
   const gpuPort = itemFor("gpu", picks)?.powerPort;
+  const gpuPort6 = itemFor("gpu", picks)?.powerPort6; // a card's 6-pin power socket, if it has one
   const modularPsu = psuModular(picks);
   const psuPanel = modularPsu ? PSU_PANELS[itemFor("psu", picks)?.variant ?? 0] : null;
   // a PSU with fixed cables (all of them, or some on a semi-modular one): where they leave it, and
@@ -615,13 +655,16 @@ export default function BuildLab() {
     setCableTask({ cable: c, end: "part", port: null, flipped: false });
   }
 
-  // the PSU end: which labelled socket
+  // the PSU end: which labelled socket (a socket with the same label as its own does too, if it's free)
+  const sockOf = (c) => psuSockOf[c] ?? CABLES[c].psuSocket;
   function chooseSocket(sock) {
     if (cableTask?.end !== "psu") return showHint("Pick a cable in CABLES first, then click the socket it goes into.");
     const c = cableTask.cable;
     const want = CABLES[c].psuSocket;
-    if (sock !== want) {
-      const mixUp = (sock === "cpu" && want === "pcie") || (sock === "pcie" && want === "cpu");
+    const taken = CABLE_IDS.find((o) => o !== c && psuCables[o] && !isFixed(o) && sockOf(o) === sock);
+    if (taken) return showHint(`The ${CABLES[taken].label} is already in that socket. Use the other ${psuPanel.sockets[sock].label} socket.`);
+    if (sock !== want && psuPanel.sockets[sock].label !== psuPanel.sockets[want].label) {
+      const mixUp = (sock === "cpu" && isGpuCable(c)) || (isGpuCable(sock) && want === "cpu");
       return miss(
         `psu_${c}`,
         `That's the ${psuPanel.sockets[sock].label} socket. The ${CABLES[c].label} goes into the ${psuPanel.sockets[want].label} socket.` +
@@ -664,7 +707,7 @@ export default function BuildLab() {
     award(
       k,
       actionPoints(basePoints(mode, key), misses.current[k] || 0),
-      `${label} routed out of the bundle. Its plug waits for the ${c === "pcie" ? "graphics card" : "motherboard"}.`,
+      `${label} routed out of the bundle. Its plug waits for the ${isGpuCable(c) ? "graphics card" : "motherboard"}.`,
       key
     );
   }
@@ -706,10 +749,11 @@ export default function BuildLab() {
     setCableTask(null);
     if (atPsu) {
       setPsuCables((prev) => ({ ...prev, [c]: true }));
+      setPsuSockOf((prev) => ({ ...prev, [c]: cableTask.port }));
       if (c === "pcie" && !picks.gpu) {
-        return showHint("PCIe power cable plugged into the PSU. There's no graphics card yet: tuck it aside, it's ready if you add one.", "success");
+        return showHint("8-pin PCIe cable plugged into the PSU. There's no graphics card yet: tuck it aside, it's ready if you add one.", "success");
       }
-      return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${CABLES[c].label} plugged into the PSU. Its other end waits for the ${c === "pcie" ? "graphics card" : "motherboard"}.`, key);
+      return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${CABLES[c].label} plugged into the PSU. Its other end waits for the ${isGpuCable(c) ? "graphics card" : "motherboard"}.`, key);
     }
     setCables((prev) => ({ ...prev, [c]: true }));
     award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${CABLES[c].label} plugged in. The clip clicked over the tab.`, key);
@@ -726,7 +770,7 @@ export default function BuildLab() {
       return showHint(`The ${label} is plugged into the PSU.`, "success");
     }
     if (!psuCables[c]) return showHint(`The ${label} is already off the PSU.`, "success");
-    if (cables[c]) return miss(key, `Unplug the ${label} from the ${c === "pcie" ? "graphics card" : "motherboard"} first, then from the PSU.`, "blocked");
+    if (cables[c]) return miss(key, `Unplug the ${label} from the ${isGpuCable(c) ? "graphics card" : "motherboard"} first, then from the PSU.`, "blocked");
     const s = safetyBlock(power);
     if (s) return miss(s.key, s.msg, "safety");
     setPsuCables((p) => ({ ...p, [c]: false }));
@@ -776,14 +820,15 @@ export default function BuildLab() {
     setWireTask(null);
     setWires((p) => ({ ...p, [id]: w }));
     setPhaseActions((n) => n + 1);
+    setBooted(false); // a changed wire is checked at the next power on
     const fault = wireFault(id, w, headers);
     if (fault) {
       // it goes on, so it's a mistake to find at power on (hints on: said now)
       misses.current[k] = (misses.current[k] || 0) + 1;
       reportEvent("miss", key, fault);
-      return showHint(hintsOn ? `${WIRES[id].label} is on, but: ${fault}` : `${WIRES[id].label} plugged in.`, hintsOn ? "fail" : "success");
+      return showHint(hintsOn ? `${wireName(id)} is on, but: ${fault}` : `${wireName(id)} plugged in.`, hintsOn ? "fail" : "success");
     }
-    award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${WIRES[id].label} on ${headerLabel(at, headers)}${WIRES[id].polar ? ", + on +" : ""}.`, key);
+    award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${wireName(id)} plugged onto ${headerName(at, headers)}${WIRES[id].polar ? ", + on +" : ""}.`, key);
   }
 
   // Clicking a wire's plug: push it on while connecting; otherwise pull it off (to fix it, or taking apart).
@@ -793,18 +838,18 @@ export default function BuildLab() {
     const w = wires[id];
     if (!w) return;
     const key = `wire_${id}`;
-    const label = WIRES[id].label;
+    const label = wireName(id);
     if (mode === "disassemble") {
       const s = safetyBlock(power);
       if (s) return miss(s.key, s.msg, "safety");
       setWires((p) => ({ ...p, [id]: null }));
       const k = ledgerKey(mode, key);
-      return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${label} unplugged from ${headerLabel(w.at, headers)}.`, key);
+      return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), `${label} unplugged from ${headerName(w.at, headers)}.`, key);
     }
     if (monitor.status !== "off") return showHint("Press POWER to turn the PC off before you pull a wire off.");
     setWires((p) => ({ ...p, [id]: null }));
     setBooted(false);
-    showHint(`${label} pulled off ${headerLabel(w.at, headers)}. Pick it in CABLES to plug it in again.`, "success");
+    showHint(`${label} pulled off ${headerName(w.at, headers)}. Pick it in CABLES to plug it in again.`, "success");
   }
 
   // A wire's plug: on its header, or hovering over the one picked; its guide wire runs back to where it comes from.
@@ -832,9 +877,11 @@ export default function BuildLab() {
     const c = [0, 1, 2].map((k) => pts.reduce((sum, p) => sum + p[k], 0) / pts.length);
     const span = Math.max(0.05, ...pts.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1])));
     const target = toWorldPose(c, [0, 0, 0], rig).position;
-    const dir = rig.laidDown ? [0.12, 1, 0.3] : [0.2, 0.15, 1];
+    // headers along the board's top edge (the fans') are seen from a little below, clear of the case's top rail
+    const top = c[1] > 1.85;
+    const dir = rig.laidDown ? [0.12, 1, 0.3] : top ? [0.19, -0.11, 1] : [0.2, 0.15, 1];
     const n = Math.hypot(...dir);
-    const d = Math.max(0.24, span * 2.6 + 0.12); // close on one header or a tight group, back for spread ones
+    const d = Math.max(top ? 0.55 : 0.3, span * 2.6 + 0.15); // close on one header or a tight group, back for spread ones
     return { key: `wire:${wireTask.wire}:${wireTask.at ?? ""}`, target, position: target.map((v, k) => v + (dir[k] / n) * d) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wireTask?.wire, wireTask?.at, headers, rig, sockCase, wires]);
@@ -1016,15 +1063,16 @@ export default function BuildLab() {
     atx24: [L.atx24[0], L.atx24[1], L.pcbFront + HEADER_HEIGHT],
     eps8: [L.eps8[0], L.eps8[1], L.pcbFront + HEADER_HEIGHT],
     pcie: gpuPort ? [L.gpu[0] + gpuPort[0], L.gpu[1] + gpuPort[1], L.gpu[2] + gpuPort[2]] : null,
+    pcie6: gpuPort6 ? [L.gpu[0] + gpuPort6[0], L.gpu[1] + gpuPort6[1], L.gpu[2] + gpuPort6[2]] : null,
   };
-  const portOpen = (p) => (p === "pcie" ? installed.gpu && !!gpuPort : !!installed.motherboard);
+  const portOpen = (p) => (p === "pcie" ? installed.gpu && !!gpuPort : p === "pcie6" ? installed.gpu && !!gpuPort6 : !!installed.motherboard);
 
   // Where a cable's PSU end leaves the PSU in the case: the end of its plug's wires (case space).
   function psuWireEnd(c) {
     const fixedOut = psuFixed && isFixed(c) ? psuFixed.cables[c]?.out : null;
     if (fixedOut) return psuToCase([fixedOut[0], fixedOut[1], psuFixed.face - 0.05]);
-    if (!psuPanel || !psuPanel.sockets[CABLES[c].psuSocket]) return PSU_FIXED_OUT;
-    const at = psuPanel.sockets[CABLES[c].psuSocket].at;
+    if (!psuPanel || !psuPanel.sockets[sockOf(c)]) return PSU_FIXED_OUT;
+    const at = psuPanel.sockets[sockOf(c)].at;
     const x = at.reduce((s, p) => s + p[0], 0) / at.length;
     const y = at.reduce((s, p) => s + p[1], 0) / at.length;
     return psuToCase([x, y, psuPanel.face - PLUG_REACH]);
@@ -1051,7 +1099,7 @@ export default function BuildLab() {
       const connecting = cableTask?.cable === c && cableTask.end === "psu" && cableTask.port;
       if (psuCables[c]) {
         const unplugNow = mode === "disassemble" && !cables[c] && power.discharged;
-        psuPlugs[c] = { socket: CABLES[c].psuSocket, seated: true, flipped: false, waiting: unplugNow };
+        psuPlugs[c] = { socket: sockOf(c), seated: true, flipped: false, waiting: unplugNow };
       } else if (connecting) {
         psuPlugs[c] = { socket: cableTask.port, seated: false, flipped: cableTask.flipped, waiting: true };
       }
@@ -1074,7 +1122,7 @@ export default function BuildLab() {
     !exploding && (
       <FixedCables
         layout={psuFixed}
-        cables={CABLE_IDS.filter((c) => isFixed(c) && (c !== "pcie" || !!picks.gpu)).map((c) => ({
+        cables={CABLE_IDS.filter((c) => isFixed(c) && cableNeeded(c, picks)).map((c) => ({
           id: c,
           type: STUB_TYPE[c],
           color: GHOST_COLOR[c],
@@ -1133,7 +1181,7 @@ export default function BuildLab() {
   // every cable this build needs is in at both ends
   const cablesDone =
     !!picks.psu &&
-    CABLE_IDS.filter((c) => c !== "pcie" || !!picks.gpu).every((c) => psuEndDone(c, picks, psuCables) && cables[c]);
+    CABLE_IDS.filter((c) => cableNeeded(c, picks)).every((c) => psuEndDone(c, picks, psuCables) && cables[c]);
 
   // a plug bobs when it's the student's move: push it in (assemble) or unplug it (disassemble, once safe)
   const cableWaiting = (c) =>
@@ -1147,6 +1195,7 @@ export default function BuildLab() {
       setMonitor({ status: "loading", lowRes });
       later(() => {
         setMonitor({ status: "bsod", lowRes, detail, fix });
+        if (trouble) return; // troubleshooting: the crash is the clue, the PC stays as it was
         if (OVERHEAT.explodeAfterBsod) later(explode, OVERHEAT.bsodMs);
         else {
           deduct(POINTS.explosion, "The PC crashed from overheating. Power off, fix it, and try again.");
@@ -1171,6 +1220,7 @@ export default function BuildLab() {
       setMonitor({ status: "off" });
       return;
     }
+    setTroubleLog((l) => (l.poweredOn ? l : { ...l, poweredOn: true }));
     if (installed.motherboard && screws.some((s) => !s)) {
       return miss(
         "screws",
@@ -1179,7 +1229,9 @@ export default function BuildLab() {
       );
     }
     setPower({ ...POWER_ON }); // powering on plugs it back in
-    const result = evaluateBoot({ installed, pasteApplied, ramSlot, picks, cables: liveCables, wires, headers }, { hints: hintsOn });
+    const result = evaluateBoot({ installed, pasteApplied, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf }, { hints: hintsOn });
+    // troubleshooting: the task is done when the PC starts with nothing wrong
+    const clean = trouble && faultsNow.length === 0;
     if (result.status === "dead") {
       reportEvent("bootfail", result.part || "psu", result.message);
       showHint(result.message);
@@ -1199,7 +1251,7 @@ export default function BuildLab() {
     setMonitor({ status: "booting", lowRes });
     later(() => {
       if (result.status === "overheat") {
-        reportEvent("bootfail", "cpu_cooler", result.detail);
+        reportEvent("bootfail", "cpu_cooler", result.cause);
         runOverheat(lowRes, result.detail, result.fix);
         return;
       }
@@ -1207,12 +1259,18 @@ export default function BuildLab() {
       if (result.status === "post") reportEvent("bootfail", "post", `${result.title}: ${result.code}`);
       if (result.status === "hello") {
         setBooted(true);
+        if (clean) setTroubleOk(true);
         const points = POINTS.bootBase + (result.ramCount === 2 ? POINTS.bootDualRam : 0) + (lowRes ? 0 : POINTS.bootGpu);
-        const more = scored ? " for more points" : " for a faster PC";
+        const more = scored && !trouble ? " for more points" : " for a faster PC";
         // what's off on the case (a dark power light, dead front USB...) comes first: something to fix
         const odd = result.symptoms?.[0];
-        const message = odd
+        const left = faultsNow.length;
+        const message = clean
+          ? `Started in ${seconds} s, with nothing odd on the case. The PC is fixed!`
+          : odd
           ? `Started in ${seconds} s, but check the case: ${odd.text}${odd.cause ? ` ${odd.cause}` : ""}`
+          : trouble
+          ? `Started in ${seconds} s.${help.faultsLeft ? ` Still ${left} thing${left === 1 ? "" : "s"} to fix.` : ""}`
           : lowRes
           ? `Started in ${seconds} s on the CPU's built-in graphics: the picture is low and blocky. Add a graphics card${more}.`
           : result.ramCount === 2
@@ -1242,6 +1300,7 @@ export default function BuildLab() {
     setSocket(s.socket ?? socketStart(s.installed.cpu));
     setCableTask(null);
     setCableDrawer(false);
+    setPsuSockOf(s.psuSockOf ?? {});
     setWires(s.wires ?? wiresStart(false));
     setWireTask(null);
     setPower(pm.power);
@@ -1249,6 +1308,8 @@ export default function BuildLab() {
     setMotherboardPos(s.installed.motherboard ? MOTHERBOARD_TARGET.position : trayPosition("motherboard"));
     setFlights({});
     setBooted(false);
+    setTroubleOk(false);
+    setTroubleLog({ poweredOn: false, madeSafe: false });
     setPhaseActions(0);
     setPromptDismissed(false);
     setSelectedPart(null);
@@ -1341,7 +1402,7 @@ export default function BuildLab() {
   const assigned = inClass && labSession.session ? studentSetup(labSession.session, labSession.me) : null;
   // A new task, or a change to what the task starts with, sends the student back to its start.
   const assignKey = assigned
-    ? `${assigned.task.id}|${assigned.startMode}|${assigned.platform}|${assigned.partPicking}`
+    ? `${assigned.task.id}|${assigned.startMode}|${assigned.platform}|${assigned.partPicking}|${JSON.stringify(assigned.scenario ?? null)}`
     : null;
   const assignedJson = assigned ? JSON.stringify(assigned) : "";
   const lastAssign = useRef(null);
@@ -1382,8 +1443,9 @@ export default function BuildLab() {
   }
 
   /* ---------- phase status ---------- */
-  const phaseDone =
-    phaseActions > 0 &&
+  const phaseDone = trouble
+    ? troubleOk
+    : phaseActions > 0 &&
     (mode === "disassemble" ? isFullyStripped(installed, Object.fromEntries(psuSocketed(picks).map((c) => [c, psuCables[c]]))) : isFullyBuilt(installed, picks) && m2Done(m2, installed) && socketDone(socket, installed) && wiresDone && booted);
   const canToggle =
     cfg.modeControl === "student" && (cfg.toggle === "free" || (cfg.toggle === "afterComplete" && phaseDone));
@@ -1393,9 +1455,10 @@ export default function BuildLab() {
 
   useEffect(() => {
     if (phaseDone) commitOpenActions(); // finishing a phase locks in its actions
-    // The task is done the first time its own phase (build + boot, or full teardown) is finished.
-    if (phaseDone && task && mode === task.mode && !taskDone) {
-      setTaskDone({ ms: Math.round(phaseMs.current[mode]) });
+    // The task is done the first time its own phase (build + boot, or full teardown) is finished, or
+    // (troubleshooting) the PC starts with nothing wrong: every fault fixed, and the start's points.
+    if (phaseDone && task && (trouble || mode === task.mode) && !taskDone) {
+      setTaskDone(trouble ? { ms: Math.round(troubleMs), earned: troubleTotal(task) } : { ms: Math.round(phaseMs.current[mode]) });
       setTaskOpen(true);
       reportEvent("task", task.mode, `Finished the task: ${task.title}`);
     }
@@ -1403,7 +1466,7 @@ export default function BuildLab() {
   }, [phaseDone]);
 
   /* ---------- phase clock (class only): counts up, slower work keeps fewer points ---------- */
-  const clockOn = scored && !!setup && !phaseDone && classPhase === "running";
+  const clockOn = scored && !!setup && !phaseDone && (classPhase === "running" || preview);
   useEffect(() => {
     if (!clockOn) return undefined;
     const m = mode;
@@ -1423,8 +1486,24 @@ export default function BuildLab() {
     };
   }, [clockOn, mode]);
 
-  const elapsed = phaseMs.current[mode];
-  const factorNow = scoreInfo.factor[mode];
+  // troubleshooting counts the whole job, building and taking apart together
+  const elapsed = trouble ? troubleMs : phaseMs.current[mode];
+  const factorNow = trouble ? timeFactor(troubleMs, parMs) : scoreInfo.factor[mode];
+
+  // a fault fixed (or undone) shows on the score, when the student may see how many are left
+  const fixedKey = fixedIds.join(",");
+  const lastFixed = useRef(null);
+  useEffect(() => {
+    const before = lastFixed.current;
+    lastFixed.current = fixedIds;
+    if (!trouble || !before || !help.faultsLeft || taskDone) return;
+    const pts = (list) => Math.round((list.reduce((s, id) => s + task.faultPoints[id], 0) * outOf) / Math.max(1, troubleTotal(task)));
+    const gained = pts(fixedIds.filter((id) => !before.includes(id)));
+    const lost = pts(before.filter((id) => !fixedIds.includes(id)));
+    if (gained) pushPopup(`+${gained}`, "success");
+    if (lost) pushPopup(`-${lost}`, "fail");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedKey]);
 
   // The instructor's live table. Time is sent in 15 s steps so a class doesn't flood Firestore.
   const timeBucket = `${Math.floor(phaseMs.current.assemble / 15000)}:${Math.floor(phaseMs.current.disassemble / 15000)}`;
@@ -1433,12 +1512,13 @@ export default function BuildLab() {
     labSession.pushProgress({
       mode, platform, partsLeft, mistakes, phaseDone,
       taskId: task?.id ?? null, taskDone: !!taskDone, taskMs: taskDone?.ms ?? 0,
+      faultsFixed: trouble ? fixedIds.length : null, faultsTotal: trouble ? faultIds.length : null,
       score: official, scoreScale: outOf, points: scoreInfo.total,
       assemble: scoreInfo.assemble, disassemble: scoreInfo.disassemble, penalty: scoreInfo.penalty,
       assembleMs: Math.round(phaseMs.current.assemble), disassembleMs: Math.round(phaseMs.current.disassemble),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inClass, classPhase, mode, platform, partsLeft, mistakes, phaseDone, scoreRev, timeBucket, taskDone]);
+  }, [inClass, classPhase, mode, platform, partsLeft, mistakes, phaseDone, scoreRev, timeBucket, taskDone, fixedKey]);
 
   /* ---------- selection (AR taps) ---------- */
   function trySelect(name) {
@@ -1748,7 +1828,10 @@ export default function BuildLab() {
         <group position={L.cpuLocal}>
           <TrueSize unstretch={unstretch} rotation={SOCKET_ROTATION}>
             <SocketSlide open={socket.lever === "up"} offset={sockLook.top.slide}>
-              <sockLook.top.Body />
+              {/* parts drawn from the board file load with it: their own boundary, so the bench stays up */}
+              <Suspense fallback={null}>
+                <sockLook.top.Body />
+              </Suspense>
             </SocketSlide>
           </TrueSize>
         </group>
@@ -1759,7 +1842,9 @@ export default function BuildLab() {
         <group position={L.cpuLocal}>
           <TrueSize unstretch={unstretch} rotation={SOCKET_ROTATION}>
             <LeverHook hook={sockLook.hook} />
-            <SocketLever lever={sockLook.lever} up={socket.lever === "up"} waiting={socketWait.lever} onClick={clickLever} />
+            <Suspense fallback={null}>
+              <SocketLever lever={sockLook.lever} up={socket.lever === "up"} waiting={socketWait.lever} onClick={clickLever} />
+            </Suspense>
             {sockLook.plate && (
               <SocketPlate
                 plate={sockLook.plate}
@@ -1781,14 +1866,16 @@ export default function BuildLab() {
               <SsdScrew driven={m2.ssdScrew} waiting={m2Wait.ssdScrew} onClick={clickSsdScrew} />
             )}
             {m2.cover === "on" && (
-              <M2Cover
-                look={m2Look}
-                screws={m2.coverScrews}
-                coverWaiting={m2Wait.cover}
-                screwsWaiting={m2Wait.coverScrews}
-                onCover={clickM2Cover}
-                onScrew={clickCoverScrew}
-              />
+              <Suspense fallback={null}>
+                <M2Cover
+                  look={m2Look}
+                  screws={m2.coverScrews}
+                  coverWaiting={m2Wait.cover}
+                  screwsWaiting={m2Wait.coverScrews}
+                  onCover={clickM2Cover}
+                  onScrew={clickCoverScrew}
+                />
+              </Suspense>
             )}
           </TrueSize>
         </group>
@@ -1999,9 +2086,7 @@ export default function BuildLab() {
 
         <div className="assemble__title-group">
           <span className="assemble__badge-sub">
-            {inClass
-              ? `${mode === "assemble" ? "Assemble" : "Disassemble"} · class ${labSession.code}`
-              : `Free build · ${mode === "assemble" ? "Assemble" : "Disassemble"}`}
+            {`${inClass ? "" : preview ? "Preview · " : "Free build · "}${trouble ? "Troubleshoot · " : ""}${mode === "assemble" ? "Assemble" : "Disassemble"}${inClass ? ` · class ${labSession.code}` : ""}`}
           </span>
           <h1>Build Lab</h1>
         </div>
@@ -2010,7 +2095,11 @@ export default function BuildLab() {
           {scored && (
           <div
             className={`assemble__clock ${factorNow < 1 ? "is-slow" : ""}`}
-            title={`Target ${cfg.parMin} min per phase. After that the phase's points slowly drop, down to half at ${cfg.parMin * 3} min.`}
+            title={
+              trouble
+                ? `Target ${cfg.parMin} min for the whole job. After that the points slowly drop, down to half at ${cfg.parMin * 3} min.`
+                : `Target ${cfg.parMin} min per phase. After that the phase's points slowly drop, down to half at ${cfg.parMin * 3} min.`
+            }
           >
             <span className="assemble__score-label">TIME</span>
             <span className="assemble__clock-value">{formatClock(elapsed)}</span>
@@ -2023,6 +2112,8 @@ export default function BuildLab() {
               <>Selected: <strong>{selectedPart.toUpperCase()}</strong> (tap the green marker)</>
             ) : mode === "disassemble" && hovered ? (
               <>{arLike ? "Tap to remove" : "Drag to pull out"}: <strong>{PART_LABEL[hovered].toUpperCase()}</strong></>
+            ) : trouble ? (
+              help.faultsLeft ? <>Fixed: <strong>{fixedIds.length} of {faultIds.length}</strong></> : <>Find what's wrong</>
             ) : (
               <>Parts left: <strong>{partsLeft}</strong></>
             )}
@@ -2036,10 +2127,16 @@ export default function BuildLab() {
           <div className="assemble__score-card-wrapper">
             <div
               className="assemble__score-card"
-              title={`Official score ${official} out of ${outOf}. Points for the task: ${officialCard[taskMode]} of ${maxPts} (${Math.round(officialCard.factor[taskMode] * 100)}% for time) · Penalties -${scoreInfo.penalty} · Mistakes ${mistakes}`}
+              title={
+                trouble
+                  ? scoreShown
+                    ? `Score ${official} out of ${outOf}: ${fixedIds.length} of ${faultIds.length} faults fixed, ${Math.round(factorNow * 100)}% for time · Mistakes ${mistakes}`
+                    : "Your score shows once the PC is fixed."
+                  : `Official score ${official} out of ${outOf}. Points for the task: ${officialCard[taskMode]} of ${maxPts} (${Math.round(officialCard.factor[taskMode] * 100)}% for time) · Penalties -${scoreInfo.penalty} · Mistakes ${mistakes}`
+              }
             >
               <span className="assemble__score-label">SCORE</span>
-              <span className="assemble__score-value">{official}<small className="assemble__score-max">/{outOf}</small></span>
+              <span className="assemble__score-value">{scoreShown ? official : "?"}<small className="assemble__score-max">/{outOf}</small></span>
             </div>
             <div className="assemble__popup-container">
               {popups.map((p) => (
@@ -2065,7 +2162,7 @@ export default function BuildLab() {
               style={{ position: "absolute", inset: 0, zIndex: 1, touchAction: "none" }}
               dpr={[1, 2]}
               gl={{ alpha: true, antialias: true }}
-              camera={{ position: HOME_CAM, fov: 45 }}
+              camera={{ position: HOME_CAM, fov: 45, near: 0.02, far: 200 }}
               onCreated={({ gl }) => gl.setClearAlpha(0)}
             >
               <FitFov enabled={!inAR} />
@@ -2149,6 +2246,7 @@ export default function BuildLab() {
                                     position={pose.pos} rotation={pose.rot}
                                     plugged={pose.seated} flipped={pose.flipped}
                                     waiting={cableWaiting(c)}
+                                    onTop={mode === "assemble" && cableWaiting(c)}
                                     onClick={() => clickCable(c)}
                                   />
                                 </group>
@@ -2161,7 +2259,7 @@ export default function BuildLab() {
                               <PortMarker
                                 key={`port-${p}`} partId={`port:${p}`}
                                 position={[portPos[p][0], portPos[p][1], portPos[p][2] + 0.03]}
-                                label={hintsOn ? PORT_LABEL[p] : null}
+                                label={hintsOn && help.labels ? PORT_LABEL[p] : null}
                                 onClick={() => choosePort(p)}
                               />
                             ))}
@@ -2182,6 +2280,7 @@ export default function BuildLab() {
                                     plugged={pose.seated} flipped={pose.flipped}
                                     waiting={wireWaiting(id)}
                                     inert={wireSpots.length > 0}
+                                    onTop={mode === "assemble" && wireWaiting(id)}
                                     onClick={() => clickWire(id)}
                                   />
                                 </group>
@@ -2200,7 +2299,7 @@ export default function BuildLab() {
                                   key={`header-${sp}`} partId={`header:${sp}`}
                                   position={headerPos(sp, 0.014)}
                                   size={panel ? 0.0085 : 0.016}
-                                  label={headerLabel(sp, headers)}
+                                  label={help.labels ? headerLabel(sp, headers) : null}
                                   labelAt={panel ? [0, below ? -0.012 : 0.012, 0.004] : side}
                                   fontSize={panel ? 0.0055 : 0.0085}
                                   hit={panel ? [0.022, 0.0115] : null}
@@ -2227,13 +2326,15 @@ export default function BuildLab() {
                           />
                         )}
                         {m2.cover === "off" && !exploding && (
-                          <M2CoverOnBench
-                            look={m2Look}
-                            position={trayPosition("m2cover")}
-                            label={hintsOn ? "M.2 cover" : null}
-                            waiting={m2Wait.bench}
-                            onClick={clickM2Cover}
-                          />
+                          <Suspense fallback={null}>
+                            <M2CoverOnBench
+                              look={m2Look}
+                              position={trayPosition("m2cover")}
+                              label={hintsOn ? "M.2 cover" : null}
+                              waiting={m2Wait.bench}
+                              onClick={clickM2Cover}
+                            />
+                          </Suspense>
                         )}
 
                         {!arLike && mode === "assemble" && !exploding && ramPicking && !installed[ramPicking] &&
@@ -2241,6 +2342,7 @@ export default function BuildLab() {
                             <RamSlotMarker
                               key={t.slot}
                               number={t.slot + 1}
+                              showNumber={help.ramNumbers}
                               mark={ramSlotMarks[t.slot]}
                               good={hintsOn && dualSlot(ramPicking, t.slot)}
                               onPlace={selectedPart === ramPicking ? () => install(ramPicking, t.slot) : undefined}
@@ -2272,7 +2374,7 @@ export default function BuildLab() {
                 {!arLite && (
                   <OrbitControls
                     makeDefault enabled={!inAR} target={HOME_TARGET} enableDamping dampingFactor={0.08}
-                    minDistance={1} maxDistance={25} maxPolarAngle={Math.PI / 2.05}
+                    minDistance={0.2} maxDistance={25} maxPolarAngle={Math.PI / 2.05}
                     zoomToCursor zoomSpeed={1.3}
                   />
                 )}
@@ -2291,7 +2393,10 @@ export default function BuildLab() {
             <div className={`lab-ar-top ${showPicker ? "is-beside-picker" : ""}`}>
               {arLike && (
                 <div className="lab-ar-top__status">
-                  <span className="lab-pill is-strong">{scored ? `SCORE ${official}/${outOf} · ` : ""}PARTS LEFT {partsLeft}</span>
+                  <span className="lab-pill is-strong">
+                    {scored && scoreShown ? `SCORE ${official}/${outOf} · ` : ""}
+                    {trouble ? (help.faultsLeft ? `FIXED ${fixedIds.length}/${faultIds.length}` : "FIND WHAT'S WRONG") : `PARTS LEFT ${partsLeft}`}
+                  </span>
                   <span className="lab-pill">
                     {mode === "disassemble"
                       ? "Tap a part to remove it"
@@ -2371,7 +2476,7 @@ export default function BuildLab() {
                 cables={cables} psuCables={psuCables} installed={installed} picks={picks} active={cableTask?.cable}
                 besidePicker={showPicker}
                 onPick={startCable} onClose={() => setCableDrawer(false)}
-                wires={wires} headers={headers} activeWire={wireTask?.wire} onPickWire={startWire}
+                wires={wires} headers={headers} activeWire={wireTask?.wire} onPickWire={startWire} labels={help.labels}
               />
             </div>
           )}
@@ -2430,7 +2535,7 @@ export default function BuildLab() {
                 <p>
                   {WIRES[wireTask.wire].polar
                     ? "Line the + mark on the plug up with + on the board, then push it on."
-                    : `Push it straight down onto the ${headerLabel(wireTask.at, headers)} pins.`}
+                    : `Push it straight down onto the ${headerName(wireTask.at, headers)} pins.`}
                   {hintsOn && WIRES[wireTask.wire].polar && (wireTask.flipped ? " The + mark is over the − pin right now." : " The + mark is over the + pin.")}
                 </p>
               ) : (
@@ -2479,7 +2584,14 @@ export default function BuildLab() {
               {taskOpen && (
                 <div className="lab-task__body">
                   {task?.instructions && <p className="lab-task__text">{task.instructions}</p>}
-                  {hintsOn && (
+                  {help.steps && trouble && (
+                    <ol className="lab-steps">
+                      {troubleSteps({ ...troubleLog, fixed: !!taskDone }).map((s) => (
+                        <li key={s.label} className={s.done ? "is-done" : ""}>{s.label}</li>
+                      ))}
+                    </ol>
+                  )}
+                  {help.steps && !trouble && (
                     <>
                       <ol className="lab-steps">
                         {orderedSteps.map((s) => (
@@ -2502,14 +2614,51 @@ export default function BuildLab() {
                   )}
                   {task && (
                   <ul className="lab-task__chips">
-                    <li>{task.mode === "assemble" ? "Build it and power it on" : "Shut down, unplug, take every part out"}</li>
+                    <li>
+                      {trouble
+                        ? "Find what's wrong, fix it, power it on"
+                        : task.mode === "assemble"
+                        ? "Build it and power it on"
+                        : "Shut down, unplug, take every part out"}
+                    </li>
                     <li>{PLATFORM_LABEL[task.platform]} parts</li>
                     <li>Target {task.parMin} min</li>
                   </ul>
                   )}
+                  {trouble && help.faultsLeft && !taskDone && (
+                    <p className="lab-task__faults">
+                      {faultIds.length
+                        ? `Fixed ${fixedIds.length} of ${faultIds.length} faults.`
+                        : "Check it over: some PCs have nothing wrong. Power it on to see."}
+                    </p>
+                  )}
+                  {preview && trouble && (
+                    <div className="lab-preview">
+                      <p className="lab-preview__head">Instructor preview: what's wrong (students don't see this)</p>
+                      <ul className="lab-preview__list">
+                        {startFaults.map((f) => (
+                          <li key={f.id} className={fixedIds.includes(f.id) ? "is-done" : ""}>
+                            <span>{f.text}</span>
+                            <b>{task.faultPoints[f.id]} pts</b>
+                          </li>
+                        ))}
+                        {faultsNow.filter((f) => !faultIds.includes(f.id)).map((f) => (
+                          <li key={f.id} className="is-new">
+                            <span>New: {f.text}</span>
+                            <b>0 pts</b>
+                          </li>
+                        ))}
+                        <li className={taskDone ? "is-done" : ""}>
+                          <span>Starts with nothing wrong</span>
+                          <b>{task.bootPoints} pts</b>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
                   {taskDone && (
                     <p className="lab-task__done">
-                      Finished in {formatClock(taskDone.ms)} · score {official}/{outOf}. Your instructor can see your result.
+                      Finished in {formatClock(taskDone.ms)} · score {official}/{outOf}.{" "}
+                      {preview ? "This is a preview: nothing was saved." : "Your instructor can see your result."}
                     </p>
                   )}
                 </div>
@@ -2527,7 +2676,9 @@ export default function BuildLab() {
                     <span>Final score</span>
                     <strong>{official}/{outOf}</strong>
                     <small>
-                      {officialCard[taskMode]} of {maxPts} points · Penalties -{scoreInfo.penalty} · {mistakes} mistakes
+                      {trouble
+                        ? `${fixedIds.length} of ${faultIds.length} faults fixed · ${mistakes} mistakes`
+                        : `${officialCard[taskMode]} of ${maxPts} points · Penalties -${scoreInfo.penalty} · ${mistakes} mistakes`}
                     </small>
                   </div>
                 </>
@@ -2557,14 +2708,18 @@ export default function BuildLab() {
               style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", padding: "24px 32px", borderRadius: 16, background: "rgba(15, 23, 42, 0.92)", color: "#fff", textAlign: "center", pointerEvents: "auto", maxWidth: 340 }}
             >
               <h2 style={{ margin: 0 }}>
-                {task && taskDone && mode === task.mode ? "Task complete!" : mode === "disassemble" ? "Teardown complete!" : "Build complete!"}
+                {trouble ? "PC fixed!" : task && taskDone && mode === task.mode ? "Task complete!" : mode === "disassemble" ? "Teardown complete!" : "Build complete!"}
               </h2>
               <p style={{ margin: "8px 0 16px" }}>
-                {mode === "disassemble" ? "Every part is on the bench." : "The PC booted."}
-                {scored ? <> Score so far: <strong>{official}/{outOf}</strong></> : " Nice work."}
+                {trouble
+                  ? `It starts and everything works${faultIds.length ? `: all ${faultIds.length} faults fixed` : ""}.`
+                  : mode === "disassemble"
+                  ? "Every part is on the bench."
+                  : "The PC booted."}
+                {scored ? <> {trouble ? "Score" : "Score so far"}: <strong>{official}/{outOf}</strong></> : " Nice work."}
               </p>
               <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                {cfg.modeControl === "student" && (
+                {cfg.modeControl === "student" && !trouble && (
                   <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={() => forceMode(mode === "disassemble" ? "assemble" : "disassemble")}>
                     {mode === "disassemble" ? "Start rebuilding" : "Take it apart"}
                   </button>

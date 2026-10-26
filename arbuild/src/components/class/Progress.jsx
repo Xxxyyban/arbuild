@@ -2,7 +2,7 @@
 // mistakes), with each student's average. The instructor's gradebook. Styles: styles/Classes.css.
 import { useEffect, useState } from "react";
 import { subscribeClassLabs, toMs } from "../../lab/Classes";
-import { subscribeStudents, sessionPhase, formatMs } from "../../lab/Sessions";
+import { subscribeStudents, sessionPhase, formatMs, workLeft } from "../../lab/Sessions";
 import { scoreText, cappedScore } from "../../lab/Scoring";
 import { taskFor } from "../../lab/Tasks";
 
@@ -129,7 +129,7 @@ export default function Progress({ cls, members, onOpenLab }) {
                       <td key={l.code} className={r.taskDone ? "cls-grades__done" : ""}>
                         <b>{scoreText(r, outOf(l, r))}</b>
                         <small>
-                          {r.taskDone ? `✓ ${formatMs(r.taskMs || 0)}` : `${r.partsLeft ?? "?"} parts left`}
+                          {r.taskDone ? `✓ ${formatMs(r.taskMs || 0)}` : workLeft(r)}
                           {r.mistakes ? ` · ${r.mistakes} mistakes` : ""}
                         </small>
                       </td>

@@ -15,9 +15,9 @@ import {
   fixUrl,
   toMs,
 } from "../../lab/Classes";
-import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs } from "../../lab/Sessions";
+import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs, workLeft } from "../../lab/Sessions";
 import { scoreText } from "../../lab/Scoring";
-import { taskFor } from "../../lab/Tasks";
+import { taskFor, progressHidden } from "../../lab/Tasks";
 import Icon from "../Icon";
 
 const KIND = {
@@ -329,6 +329,9 @@ function LabStatus({ code, me, isInstructor, onOpen }) {
   if (session === undefined) return <div className="cls-lab"><span className="ins-muted">Checking the lab…</span></div>;
   const phase = session ? sessionPhase(session) : "ended";
   const label = { waiting: "Open, waiting for the instructor to start", running: "Running now", ended: "Closed" }[phase];
+  // a troubleshooting task may keep the student's own progress from them until they finish
+  const myTask = mine ? taskFor(session, mine) : null;
+  const quiet = !!myTask && progressHidden(myTask, mine);
   return (
     <div className={`cls-lab cls-lab--${phase}`}>
       <span className={`ins-badge ins-badge--${phase === "running" ? "live" : phase === "waiting" ? "done" : "idle"}`}>{label}</span>
@@ -339,8 +342,8 @@ function LabStatus({ code, me, isInstructor, onOpen }) {
       </button>
       {mine && (
         <div className="cls-myresult">
-          <span>Your score <b>{scoreText(mine, taskFor(session, mine).points)}</b></span>
-          <span>{mine.taskDone ? `Task done in ${formatMs(mine.taskMs || 0)} ✓` : `${mine.partsLeft ?? "?"} parts left`}</span>
+          <span>Your score <b>{quiet ? "shows when you finish" : scoreText(mine, myTask.points)}</b></span>
+          <span>{mine.taskDone ? `Task done in ${formatMs(mine.taskMs || 0)} ✓` : quiet ? "In progress" : workLeft(mine)}</span>
           {mine.mistakes ? <span>{mine.mistakes} {mine.mistakes === 1 ? "mistake" : "mistakes"}</span> : null}
         </div>
       )}

@@ -2,7 +2,7 @@
 // class name (schedule, room, students, join code) and the section tabs.
 // Styles: styles/AppShell.css (.class-meta, .ctabs, .copy-btn).
 import { useState } from "react";
-import { formatDays, formatRange } from "../../lab/Schedule";
+import { formatWhen } from "../../lab/Schedule";
 import Icon from "../Icon";
 
 /** Copies `text` (a code or an invite link). iconOnly shows just the icon, with `label` for screen readers. */
@@ -33,14 +33,13 @@ export function CopyButton({ text, label = "Copy", iconOnly = false, className =
 /** Schedule, room and (for the instructor) students and the join code, as one wrapping row. */
 export function ClassMeta({ cls, children }) {
   const s = cls.schedule || {};
-  const days = formatDays(s.days);
-  const time = s.start ? formatRange(s.start, s.end) : "";
+  const when = formatWhen(s); // "MWF · 9:00–10:30 AM", or each day's own time
   return (
     <div className="class-meta">
-      {(days || time) && (
+      {when && (
         <span className="class-meta__item">
           <Icon name="calendar" size={16} />
-          {[days, time].filter(Boolean).join(" · ")}
+          {when}
         </span>
       )}
       {s.room && (

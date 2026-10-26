@@ -16,26 +16,29 @@ export const CABLE_EXIT = {
   atx24: { x: 0.335, y: null }, // the upper grommet, level with the 24-pin header
   eps8: { x: -0.51, y: 2.08 }, // the cut-out above the board's top-left corner
   pcie: { x: 0.355, y: 0.9 }, // the lower grommet, under the graphics card
+  pcie6: { x: 0.355, y: 0.9 },
 };
 
 // Cables, case space. Every plug goes in along -Z (into the board or card); its wires leave along +Z.
-export const CABLE_IDS = ["atx24", "eps8", "pcie"];
-export const STUB_TYPE = { atx24: "atx24", eps8: "eps8", pcie: "pcie8" };
-export const PORT_ROT = { atx24: [Math.PI / 2, Math.PI / 2, 0], eps8: [Math.PI / 2, 0, 0], pcie: [Math.PI / 2, 0, 0] };
-export const PORT_LATCH = { atx24: [1, 0, 0], eps8: [0, -1, 0], pcie: [0, -1, 0] }; // which side the clip hooks over
-export const GHOST_COLOR = { atx24: "#f2a33a", eps8: "#f2d24a", pcie: "#f2d24a" }; // see-through guide wires
-export const PORT_LABEL = { atx24: "24-pin header", eps8: "8-pin CPU header", pcie: "GPU power socket" };
+export const CABLE_IDS = ["atx24", "eps8", "pcie", "pcie6"];
+export const STUB_TYPE = { atx24: "atx24", eps8: "eps8", pcie: "pcie8", pcie6: "pcie6" };
+export const PORT_ROT = { atx24: [Math.PI / 2, Math.PI / 2, 0], eps8: [Math.PI / 2, 0, 0], pcie: [Math.PI / 2, 0, 0], pcie6: [Math.PI / 2, 0, 0] };
+export const PORT_LATCH = { atx24: [1, 0, 0], eps8: [0, -1, 0], pcie: [0, -1, 0], pcie6: [0, -1, 0] }; // which side the clip hooks over
+export const GHOST_COLOR = { atx24: "#f2a33a", eps8: "#f2d24a", pcie: "#f2d24a", pcie6: "#f2d24a" }; // see-through guide wires
+export const PORT_LABEL = { atx24: "24-pin header", eps8: "8-pin CPU header", pcie: "GPU power socket (8-pin)", pcie6: "GPU power socket (6-pin)" };
 // a fixed PSU's cables: the marking on each plug, and how to tell them apart
-export const FIXED_MARK = { atx24: "MB 24-pin", eps8: "CPU 4+4", pcie: "PCI-E 6+2" };
+export const FIXED_MARK = { atx24: "MB 24-pin", eps8: "CPU 4+4", pcie: "PCI-E 6+2", pcie6: "PCI-E 6" };
 export const PLUG_LOOK = {
   atx24: "widest plug, 24 pins in 2 rows of 12",
   eps8: "8-pin plug marked CPU, which splits 4 + 4",
   pcie: "8-pin plug marked PCI-E, which splits 6 + 2",
+  pcie6: "6-pin plug marked PCI-E (2 rows of 3)",
 };
 export const PORT_WHERE = {
   atx24: "the long 24-pin header on the right edge of the board",
   eps8: "the 8-pin header at the top-left, next to the CPU",
-  pcie: "the power socket on the top edge of the graphics card",
+  pcie: "the 8-pin power socket on the top edge of the graphics card",
+  pcie6: "the 6-pin power socket beside the 8-pin one, toward the end of the card",
 };
 export const PSU_FIXED_OUT = [-0.3, 0.3, 0.1]; // where a non-modular PSU's cables come out (case space)
 
@@ -64,7 +67,7 @@ export function cableRoute(c, a, b) {
   const ey = e.y ?? b[1];
   const fromPsu = [a, [a[0] + 0.06, a[1] - 0.05, a[2] - 0.15], [e.x, 0.4, TRAY_BACK], [e.x, ey, TRAY_BACK], [e.x, ey, TRAY_OUT]];
   let toPlug;
-  if (c === "pcie") {
+  if (c === "pcie" || c === "pcie6") {
     // forward under the card, up past its front end, and along its top edge to the plug
     toPlug = [[e.x + 0.03, ey, -0.22], [0.39, ey + 0.06, 0.06], [0.37, b[1] + 0.03, b[2] - 0.06], [b[0] + 0.12, b[1] + 0.04, b[2] + 0.03]];
   } else if (c === "eps8") {

@@ -3,23 +3,26 @@
 // bundle), then the part end. Under them, the case's and the fans' wires (lab/Wires.js): pick one,
 // then the header it goes on. Styles: styles/BuildLabParts.css (.cable-drawer*); the option cards
 // reuse .picker__*.
-import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed } from "../../lab/Rules";
-import { WIRES, WIRE_GROUPS, WIRE_IDS, wireBlock, headerLabel } from "../../lab/Wires";
+import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, cableNeeded } from "../../lab/Rules";
+import { WIRES, WIRE_GROUPS, WIRE_IDS, wireBlock, headerName } from "../../lab/Wires";
 
 // wire colours shown on each card, so students learn to recognise the cables
 const SWATCH = {
   atx24: ["#f07c00", "#d42020", "#f2c200", "#141414", "#7a3fb0", "#1f9d45", "#8a8a8a", "#2457c5"],
   eps8: ["#f2c200", "#141414"],
   pcie: ["#f2c200", "#141414"],
+  pcie6: ["#f2c200", "#141414"],
 };
 const PINS = {
   atx24: "24 pins, 2 rows of 12. The widest plug.",
   eps8: "8 pins, splits into 4 + 4.",
   pcie: "8 pins, splits into 6 + 2.",
+  pcie6: "6 pins in 2 rows of 3, for the card's 6-pin socket. Any of the PSUs can supply it.",
 };
-const PART_END = { atx24: "Motherboard", eps8: "Motherboard", pcie: "Graphics card" };
+const PART_END = { atx24: "Motherboard", eps8: "Motherboard", pcie: "Graphics card", pcie6: "Graphics card" };
 
-export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose, wires, headers, activeWire, onPickWire }) {
+// labels: false when the instructor hides the board's labels (a wire's header isn't named then)
+export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose, wires, headers, activeWire, onPickWire, labels = true }) {
   const modular = psuModular(picks);
   const anyFixed = Object.keys(CABLES).some((c) => psuCableFixed(c, picks));
   return (
@@ -39,7 +42,8 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
             : "Fixed cables: they're already attached to this PSU. Route each one out of the bundle on the bench, then plug its other end into the part."}
         </p>
         <ul className="picker__list">
-          {Object.keys(CABLES).map((c) => {
+          {/* the 6-pin PCIe cable only for a card with a 6-pin socket */}
+          {Object.keys(CABLES).filter((c) => c !== "pcie6" || cableNeeded(c, picks)).map((c) => {
             const psuDone = psuEndDone(c, picks, psuCables);
             const partDone = !!cables[c];
             // no graphics card (yet): the PCIe cable can still go into the PSU, ready for one
@@ -97,7 +101,7 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
                       </span>
                       <span className="picker__state">
                         {w
-                          ? `On ${headerLabel(w.at, headers)} (click its plug to pull it off)` // no tick: right or wrong shows at power on
+                          ? `${labels ? `On ${headerName(w.at, headers)}` : "Plugged in"} (click its plug to pull it off)` // no tick: right or wrong shows at power on
                           : activeWire === id
                           ? "Connecting…"
                           : block

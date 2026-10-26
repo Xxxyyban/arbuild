@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { PLATFORM_LABEL, PLATFORMS } from "../../lab/Catalog";
 import { defaultTitle, MAX_TASK_POINTS } from "../../lab/Tasks";
+import { HELP_DEFAULTS } from "../../lab/Setup";
+import { BOOT_POINTS, scenarioFaults, workingScenario } from "../../lab/Faults";
 import { MAX_MINUTES } from "../../lab/Sessions";
+import TroubleshootEditor from "../instructor/TroubleshootEditor";
+import { HELP_OPTIONS } from "../instructor/helpOptions";
+
+const MODES = [
+  { id: "assemble", label: "Build a PC" },
+  { id: "disassemble", label: "Take one apart" },
+  { id: "troubleshoot", label: "Fix a faulty PC" },
+];
 
 export default function LabActivityForm({ busy, onCreate, onCancel }) {
   const [mode, setMode] = useState("assemble");
@@ -12,32 +22,53 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
   const [instructions, setInstructions] = useState("");
   const [parMin, setParMin] = useState(15);
   const [hints, setHints] = useState(true);
+  const [help, setHelp] = useState({ ...HELP_DEFAULTS });
   const [autoPick, setAutoPick] = useState(false);
   const [partInfo, setPartInfo] = useState(true);
   const [points, setPoints] = useState(100);
   const [requireGpu, setRequireGpu] = useState(true);
   const [ramSticks, setRamSticks] = useState(2);
   const [mustBoot, setMustBoot] = useState(true);
+  // troubleshooting: the PC students get, and its faults' points (TroubleshootEditor)
+  const [fix, setFix] = useState(() => ({ scenario: workingScenario("am4"), faultPoints: {}, bootPoints: BOOT_POINTS }));
+  const trouble = mode === "troubleshoot";
+
+  const task = {
+    title: title.trim() || defaultTitle(mode, platform),
+    instructions,
+    mode,
+    platform,
+    parMin: Math.min(MAX_MINUTES, Math.max(1, Math.floor(Number(parMin)) || 15)),
+    hints,
+    help,
+    partPicking: autoPick && mode === "assemble" ? "auto" : "student",
+    partInfo,
+    points: Math.min(MAX_TASK_POINTS, Math.max(1, Math.floor(Number(points)) || 100)),
+    requireGpu,
+    ramSticks,
+    mustBoot,
+    ...(trouble ? fix : {}),
+  };
+
+  // the faulty PC is built on the platform's board: a new platform starts it over from a working PC
+  function choosePlatform(p) {
+    if (p === platform) return;
+    const faults = scenarioFaults(fix.scenario, { platform, ramSticks, requireGpu }).length;
+    if (trouble && faults > 0 && !window.confirm(`Switch to ${PLATFORM_LABEL[p]}? The PC you set up starts over as a working ${PLATFORM_LABEL[p]} PC.`)) return;
+    setPlatform(p);
+    setFix((f) => ({ ...f, scenario: workingScenario(p), faultPoints: {} }));
+  }
+
+  function changeFix(patch) {
+    const { ramSticks: sticks, requireGpu: gpu, ...rest } = patch;
+    if (sticks !== undefined) setRamSticks(sticks);
+    if (gpu !== undefined) setRequireGpu(gpu);
+    setFix((f) => ({ ...f, ...rest }));
+  }
 
   function submit(e) {
     e.preventDefault();
-    onCreate({
-      title: title.trim() || defaultTitle(mode, platform),
-      task: {
-        title: title.trim() || defaultTitle(mode, platform),
-        instructions,
-        mode,
-        platform,
-        parMin: Math.min(MAX_MINUTES, Math.max(1, Math.floor(Number(parMin)) || 15)),
-        hints,
-        partPicking: autoPick ? "auto" : "student",
-        partInfo,
-        points: Math.min(MAX_TASK_POINTS, Math.max(1, Math.floor(Number(points)) || 100)),
-        requireGpu,
-        ramSticks,
-        mustBoot,
-      },
-    });
+    onCreate({ title: task.title, task });
   }
 
   return (
@@ -48,22 +79,21 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
       </p>
 
       <div className="ins-grid">
-        <div className="ins-field">
+        <div className="ins-field ins-field--wide">
           <span>Students will</span>
           <div className="cls-seg" role="radiogroup" aria-label="Students will">
-            <button type="button" role="radio" aria-checked={mode === "assemble"} className={mode === "assemble" ? "is-on" : ""} onClick={() => setMode("assemble")}>
-              Build a PC
-            </button>
-            <button type="button" role="radio" aria-checked={mode === "disassemble"} className={mode === "disassemble" ? "is-on" : ""} onClick={() => setMode("disassemble")}>
-              Take one apart
-            </button>
+            {MODES.map((m) => (
+              <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} className={mode === m.id ? "is-on" : ""} onClick={() => setMode(m.id)}>
+                {m.label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="ins-field">
           <span>Platform</span>
           <div className="cls-seg" role="radiogroup" aria-label="Platform">
             {PLATFORMS.map((p) => (
-              <button key={p} type="button" role="radio" aria-checked={platform === p} className={platform === p ? "is-on" : ""} onClick={() => setPlatform(p)}>
+              <button key={p} type="button" role="radio" aria-checked={platform === p} className={platform === p ? "is-on" : ""} onClick={() => choosePlatform(p)}>
                 {PLATFORM_LABEL[p]}
               </button>
             ))}
@@ -80,18 +110,31 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
             onChange={(e) => setInstructions(e.target.value)}
             rows={3}
             maxLength={2000}
-            placeholder="e.g. Build a PC that boots, using dual-channel RAM. Explain your PSU choice in the comments."
+            placeholder={
+              trouble
+                ? "e.g. This PC won't start properly. Find out why, fix it, and list what you fixed in the comments."
+                : "e.g. Build a PC that boots, using dual-channel RAM. Explain your PSU choice in the comments."
+            }
           />
         </label>
         <label className="ins-field">
           <span>Target time (minutes)</span>
           <input type="number" min="1" max={MAX_MINUTES} value={parMin} onChange={(e) => setParMin(e.target.value)} />
         </label>
-        <label className="ins-field">
-          <span>Worth (points, up to {MAX_TASK_POINTS})</span>
-          <input type="number" min="1" max={MAX_TASK_POINTS} value={points} onChange={(e) => setPoints(e.target.value)} />
-        </label>
+        {!trouble && (
+          <label className="ins-field">
+            <span>Worth (points, up to {MAX_TASK_POINTS})</span>
+            <input type="number" min="1" max={MAX_TASK_POINTS} value={points} onChange={(e) => setPoints(e.target.value)} />
+          </label>
+        )}
       </div>
+
+      {trouble && (
+        <fieldset className="cls-switches tse-box">
+          <legend>The faulty PC</legend>
+          <TroubleshootEditor task={task} onChange={changeFix} />
+        </fieldset>
+      )}
 
       {mode === "assemble" && (
         <fieldset className="cls-switches">
@@ -122,6 +165,15 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
           title="Show answers"
           desc={hints ? "Hints and \"Fix:\" lines tell students what went wrong." : "Answers hidden: students troubleshoot on their own."}
         />
+        {HELP_OPTIONS.filter((o) => !o.trouble || trouble).map((o) => (
+          <Switch
+            key={o.key}
+            on={help[o.key]}
+            onChange={(on) => setHelp((h) => ({ ...h, [o.key]: on }))}
+            title={o.title}
+            desc={help[o.key] ? o.on : o.off}
+          />
+        ))}
         {mode === "assemble" && (
           <Switch
             on={autoPick}

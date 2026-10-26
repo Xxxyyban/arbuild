@@ -36,7 +36,7 @@ import ClassForm from "../components/class/ClassForm";
 import { ClassMeta, CopyButton, Tabs } from "../components/class/ClassBits";
 import AppShell from "../components/AppShell";
 import Icon from "../components/Icon";
-import { nextMeeting, formatRange, CLASS_COLORS } from "../lab/Schedule";
+import { nextMeeting, formatRange, dayId, dayTime, CLASS_COLORS } from "../lab/Schedule";
 import "../styles/BuildLab.css";
 import "../styles/Instructor.css";
 import "../styles/InstructorClass.css";
@@ -99,10 +99,12 @@ function Dashboard() {
 
   const active = (classes || []).filter((c) => !c.archived);
   const archived = (classes || []).filter((c) => c.archived);
+  // today's classes, at today's time (each day can have its own)
+  const todayId = dayId(new Date(now));
   const today = active
-    .map((c) => ({ c, next: nextMeeting(c.schedule, new Date(now)) }))
+    .map((c) => ({ c, next: nextMeeting(c.schedule, new Date(now)), time: dayTime(c.schedule, todayId) }))
     .filter(({ next }) => next && (next.now || next.label.startsWith("Today")))
-    .sort((x, y) => (x.c.schedule?.start || "").localeCompare(y.c.schedule?.start || ""));
+    .sort((x, y) => x.time.start.localeCompare(y.time.start));
   const showForm = making || (classes !== null && active.length === 0);
   const hour = new Date(now).getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -134,10 +136,10 @@ function Dashboard() {
             Today
           </h2>
           <ul className="today__list">
-            {today.map(({ c, next }) => (
+            {today.map(({ c, next, time }) => (
               <li key={c.id}>
                 <button type="button" style={{ "--class-color": c.color || CLASS_COLORS[0] }} onClick={() => navigate(`/instructor/c/${c.id}`)}>
-                  <span className="today__time">{formatRange(c.schedule.start, c.schedule.end)}</span>
+                  <span className="today__time">{formatRange(time.start, time.end)}</span>
                   <span className="today__name">{c.name}</span>
                   <span className="today__meta">{[c.section, c.schedule.room].filter(Boolean).join(" · ")}</span>
                   {next.now && <span className="chip chip--live">In class now</span>}
@@ -377,7 +379,7 @@ function LabsTab({ cls, me, onOpenLab, now }) {
       ) : (
         <button type="button" className="cls-compose-open" onClick={() => setMaking(true)}>
           <Icon name="plus" />
-          New lab activity: build or take apart a PC in the Build Lab
+          New lab activity: build, take apart or fix a PC in the Build Lab
         </button>
       )}
       {error && <div className="ins-alert" role="alert">{error}</div>}

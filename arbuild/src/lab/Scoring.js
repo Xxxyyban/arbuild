@@ -29,9 +29,11 @@ export const POINTS = {
   cable_atx24: 15,
   cable_eps8: 15,
   cable_pcie: 10,
+  cable_pcie6: 10, // a card with a 6-pin socket as well: the 6-pin PCIe cable
   psu_atx24: 10, // a cable's PSU end: plugged into a modular PSU, or routed out of a fixed one
   psu_eps8: 10,
   psu_pcie: 10,
+  psu_pcie6: 10,
   screws: 20,
   m2screw: 5, // the SSD's own screw
   m2cover: 10, // the M.2 cover back on and screwed down
@@ -69,9 +71,11 @@ export const REMOVE_POINTS = {
   cable_atx24: 10,
   cable_eps8: 10,
   cable_pcie: 10,
+  cable_pcie6: 10,
   psu_atx24: 5,
   psu_eps8: 5,
   psu_pcie: 5,
+  psu_pcie6: 5,
   screws: 15,
   m2screw: 5, // the SSD's screw out
   m2cover: 5, // the M.2 cover off
@@ -195,7 +199,7 @@ export function taskRequirements(task, socketed = []) {
   const gpu = build ? task.requireGpu !== false : true;
   const dualRam = build ? Number(task.ramSticks) !== 1 : true;
   const slots = ["motherboard", "cpu", "ram1", ...(dualRam ? ["ram2"] : []), "cpu_cooler", "storage", "psu", ...(gpu ? ["gpu"] : [])];
-  return { slots, gpu, dualRam, psuEnds: build ? ["atx24", "eps8", "pcie"] : socketed, boot: build ? task.mustBoot !== false : false };
+  return { slots, gpu, dualRam, psuEnds: build ? ["atx24", "eps8", "pcie", "pcie6"] : socketed, boot: build ? task.mustBoot !== false : false };
 }
 
 /** The most boot points a task counts (booting with parts the task doesn't ask for earns no more). */
@@ -210,6 +214,7 @@ export function taskLedger(ledger, req) {
   for (const [k, v] of Object.entries(ledger)) {
     const name = k.slice(k.indexOf(":") + 1);
     if (!req.gpu && (name === "gpu" || name === "cable_pcie" || name === "psu_pcie")) continue;
+    if (!(req.gpu && req.gpu6) && (name === "cable_pcie6" || name === "psu_pcie6")) continue;
     if (!req.dualRam && name === "ram2") continue;
     if (k === "assemble:boot") {
       if (!req.boot) continue;
@@ -222,11 +227,12 @@ export function taskLedger(ledger, req) {
 }
 
 /** The most points a perfect run of a task can earn (what full marks means). req: taskRequirements(). */
-export function maxPoints(mode, { slots, gpu, dualRam, psuEnds = [], boot = true }) {
+// gpu6: the picked card has a 6-pin socket as well, so the 6-pin PCIe cable counts too (the lab adds it to req)
+export function maxPoints(mode, { slots, gpu, dualRam, gpu6 = false, psuEnds = [], boot = true }) {
   const T = mode === "disassemble" ? REMOVE_POINTS : POINTS;
   let max = slots.reduce((s, slot) => s + perfect(T[slot] ?? 0), 0);
   // cables: the board's two, the graphics card's one; their PSU ends (see taskRequirements); the screws
-  const cables = ["atx24", "eps8", ...(gpu ? ["pcie"] : [])];
+  const cables = ["atx24", "eps8", ...(gpu ? ["pcie"] : []), ...(gpu && gpu6 ? ["pcie6"] : [])];
   max += cables.reduce((s, c) => s + perfect(T[`cable_${c}`] ?? 0), 0);
   max += cables.filter((c) => psuEnds.includes(c)).reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
   max += perfect(T.screws ?? 0);

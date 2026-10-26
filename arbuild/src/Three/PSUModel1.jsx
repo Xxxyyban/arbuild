@@ -19,13 +19,14 @@ const FIT = {
 
 // It is semi-modular. The front face (the side that faces into the case) is z = -0.399 in the PSU's
 // own frame: the file's front is 79 mm from its centre, times the fit scale, plus the nudge.
-// MODULAR: its four PCI-E sockets (printed on the model, so `printed` skips our labels), measured by
-// ray-casting the fitted model; like MODULAR in PSUModel.jsx. The PCI-E cable takes the top-left one.
+// MODULAR: its four PCI-E sockets (printed on the model, so `printed` skips our labels), the centres of
+// their red housings found by ray-casting the fitted model and reading its texture; like MODULAR in PSUModel.jsx. The PCI-E cable takes the top-left one.
 export const MODULAR = {
   face: -0.399,
   printed: true,
   sockets: {
-    pcie: { label: "PCI-E", at: [[0.041, 0.221]], spare: [[-0.04, 0.221], [0.041, 0.168], [-0.04, 0.168]] },
+    pcie: { label: "PCI-E", at: [[0.009, 0.184]], spare: [[0.009, 0.132], [-0.076, 0.132]] },
+    pcie6: { label: "PCI-E", at: [[-0.076, 0.184]] }, // the 6-pin PCIe cable's
   },
 };
 

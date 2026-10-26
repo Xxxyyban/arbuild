@@ -246,10 +246,14 @@ export async function joinSession(rawCode, user, profile) {
 /** 95000 -> "1:35" (blank when there is no time yet) */
 export const formatMs = (ms) => (ms > 0 ? formatClock(ms) : "");
 
+/** What a student has left, in words: "3 of 5 faults fixed" (troubleshooting) or "4 parts left". */
+export const workLeft = (row) =>
+  row?.faultsTotal != null ? `${row.faultsFixed ?? 0} of ${row.faultsTotal} faults fixed` : `${row?.partsLeft ?? "?"} parts left`;
+
 export function resultsToCsv(students, session) {
   const head = [
     "Name", "Student ID", "Section", "Task", "Platform", "Task done", "Task time", "Score", "Out of", "Assemble pts",
-    "Assemble time", "Disassemble pts", "Disassemble time", "Penalties", "Parts left", "Mistakes", "Rejoins",
+    "Assemble time", "Disassemble pts", "Disassemble time", "Penalties", "Parts left", "Faults fixed", "Mistakes", "Rejoins",
     "Joined", "Last active",
   ];
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -259,7 +263,9 @@ export function resultsToCsv(students, session) {
       s.name, s.studentId, s.section, task.title, task.platform.toUpperCase(),
       s.taskDone ? "yes" : "no", formatMs(s.taskMs),
       s.scoreScale ? cappedScore(s, task.points) : s.score, s.scoreScale ? task.points : "", s.assemble, formatMs(s.assembleMs), s.disassemble, formatMs(s.disassembleMs),
-      s.penalty, s.partsLeft, s.mistakes, Math.max(0, (s.joins || 1) - 1), s.joinedAt, s.lastActive,
+      // "3 of 5", not "3/5", which a spreadsheet would read as a date
+      s.penalty, s.partsLeft, s.faultsTotal != null ? `${s.faultsFixed ?? 0} of ${s.faultsTotal}` : "", s.mistakes,
+      Math.max(0, (s.joins || 1) - 1), s.joinedAt, s.lastActive,
     ].map(esc).join(",");
   });
   return [head.map(esc).join(","), ...rows].join("\n");

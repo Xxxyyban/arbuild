@@ -15,7 +15,8 @@ export const MODULAR = {
   sockets: {
     mb: { label: "MB", at: [[0.1425, 0.181], [0.1425, 0.251]] },
     cpu: { label: "CPU", at: [[0.02, 0.181]], spare: [[0.02, 0.251]] },
-    pcie: { label: "PCI-E", at: [[-0.1, 0.181]], spare: [[-0.1, 0.251]] },
+    pcie: { label: "PCI-E", at: [[-0.1, 0.181]] },
+    pcie6: { label: "PCI-E", at: [[-0.1, 0.251]], unlabelled: true }, // the 6-pin PCIe cable's
     sata: { label: "SATA", at: [[-0.2325, 0.181]], spare: [[-0.2325, 0.251]] },
   },
 };

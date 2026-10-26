@@ -139,6 +139,66 @@
   color: var(--lab-text);
 }
 
+/* troubleshooting: how many of the faults are fixed */
+.lab-task__faults {
+  margin: 10px 0 0;
+  color: var(--lab-text);
+  font-weight: 600;
+}
+
+/* the instructor's preview: the set-up's faults, ticked off as they're fixed */
+.lab-preview {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--lab-line-strong);
+}
+
+.lab-preview__head {
+  margin: 0 0 6px;
+  color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lab-preview__list {
+  display: grid;
+  gap: 3px;
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.lab-preview__list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--lab-text-soft);
+}
+
+.lab-preview__list li b {
+  flex-shrink: 0;
+  color: var(--lab-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-preview__list li.is-done span {
+  text-decoration: line-through;
+  text-decoration-color: var(--lab-accent);
+}
+
+.lab-preview__list li.is-done b {
+  color: var(--lab-accent);
+}
+
+.lab-preview__list li.is-new {
+  color: var(--lab-danger);
+}
+
 /* the task on the "waiting for your instructor" screen */
 .lab-gate__task {
   display: flex;

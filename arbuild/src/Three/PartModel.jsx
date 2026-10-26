@@ -1,6 +1,7 @@
 // Which component draws each catalog option. Every option has a `variant` number in
 // lab/Catalog.js: 0 is the base component (MotherboardModel), 1 the next one (MotherboardModel1)...
 // To add a third board: make MotherboardModel2.jsx, add it to the list, give the option variant: 2.
+import { Suspense } from "react";
 import MotherboardModel, { MOUNTS as MOUNTS_0, M2_COVER as M2_COVER_0, SOCKET as SOCKET_0 } from "./MotherboardModel";
 import MotherboardModel1, { MOUNTS as MOUNTS_1, SOCKET as SOCKET_1 } from "./MotherboardModel1";
 import CPUModel from "./CPUModel";
@@ -43,5 +44,11 @@ export const PSU_FIXED = [null, PSU_FIXED_1, null];
 export default function PartModel({ category, variant = 0, ...props }) {
   const list = MODELS[category];
   const Model = list[variant] || list[0];
-  return <Model {...props} />;
+  // its own loading boundary: a part whose file is still loading shows nothing for now, and the rest of
+  // the bench stays on screen instead of all of it waiting behind the loading ring
+  return (
+    <Suspense fallback={null}>
+      <Model {...props} />
+    </Suspense>
+  );
 }

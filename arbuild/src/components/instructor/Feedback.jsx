@@ -86,9 +86,26 @@ export function StudentReport({ student, task, events, onClose }) {
           <span>Task</span>
           <b className={student.taskDone ? "is-good" : ""}>{student.taskDone ? `Done in ${formatMs(student.taskMs)}` : "Not finished"}</b>
         </div>
-        <div><span>Assemble</span><b>{student.assemble ?? 0} pts</b><small>{formatMs(student.assembleMs) || "0:00"}</small></div>
-        <div><span>Disassemble</span><b>{student.disassemble ?? 0} pts</b><small>{formatMs(student.disassembleMs) || "0:00"}</small></div>
-        <div><span>Penalties</span><b className={student.penalty ? "is-bad" : ""}>-{student.penalty ?? 0}</b></div>
+        {task?.mode === "troubleshoot" ? (
+          // fixing a PC is scored by the faults fixed, timed as one job
+          <>
+            <div>
+              <span>Faults fixed</span>
+              <b>{student.faultsFixed ?? 0} of {student.faultsTotal ?? Object.keys(task.faultPoints).length}</b>
+            </div>
+            <div>
+              <span>Time</span>
+              <b>{formatMs((student.assembleMs || 0) + (student.disassembleMs || 0)) || "0:00"}</b>
+              <small>{formatMs(student.disassembleMs) || "0:00"} of it taking apart</small>
+            </div>
+          </>
+        ) : (
+          <>
+            <div><span>Assemble</span><b>{student.assemble ?? 0} pts</b><small>{formatMs(student.assembleMs) || "0:00"}</small></div>
+            <div><span>Disassemble</span><b>{student.disassemble ?? 0} pts</b><small>{formatMs(student.disassembleMs) || "0:00"}</small></div>
+            <div><span>Penalties</span><b className={student.penalty ? "is-bad" : ""}>-{student.penalty ?? 0}</b></div>
+          </>
+        )}
         <div><span>Mistakes</span><b className={summary.total ? "is-bad" : ""}>{summary.total}</b><small>{summary.safety} safety</small></div>
       </div>
 

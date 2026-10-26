@@ -406,7 +406,7 @@ const _z = new THREE.Vector3();
  * of it). `good` (hints on) marks the slots that run in dual channel. With onPlace the whole slot
  * takes the click; without it (while a stick is dragged) the bar only shows the way.
  */
-export function RamSlotMarker({ number, mark, good, onPlace }) {
+export function RamSlotMarker({ number, showNumber = true, mark, good, onPlace }) {
   const [hover, setHover] = useState(false);
   const quaternion = useMemo(() => {
     _y.set(...mark.along).normalize();
@@ -445,11 +445,13 @@ export function RamSlotMarker({ number, mark, good, onPlace }) {
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       )}
-      <Billboard position={[0, -RAM_SLOT_LENGTH / 2 - 0.045, 0.02]}>
-        <Text fontSize={0.05} color={color} outlineWidth={0.005} outlineColor="#111827" anchorX="center" anchorY="middle" renderOrder={999}>
-          {String(number)}
-        </Text>
-      </Billboard>
+      {showNumber && (
+        <Billboard position={[0, -RAM_SLOT_LENGTH / 2 - 0.045, 0.02]}>
+          <Text fontSize={0.05} color={color} outlineWidth={0.005} outlineColor="#111827" anchorX="center" anchorY="middle" renderOrder={999}>
+            {String(number)}
+          </Text>
+        </Billboard>
+      )}
     </group>
   );
 }

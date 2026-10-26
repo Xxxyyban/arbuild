@@ -35,6 +35,10 @@ export const HEADERS = {
 /** The header's label as printed on this board (some number theirs: CHA_FAN2, U32G1_12). */
 export const headerLabel = (id, headers) => headers?.[id]?.label ?? HEADERS[id].label;
 
+// in a sentence, without the "+ −" polarity mark the labels carry: "POWER LED", "PLED"
+const plain = (label) => label.replace(/\s*\+ −$/, "");
+export const headerName = (id, headers) => plain(headerLabel(id, headers));
+
 /**
  * The wires, in the order the drawer lists them.
  *   colors  its wires' colours (the + wire first on an LED plug)
@@ -56,6 +60,7 @@ export const WIRES = {
   argb: { colors: ["#dc2626", "#16a34a", "#f5f5f4"], label: "Fan lights (ARGB 5 V)", plug: "argb3", from: "fans", goes: "add_gen2", fits: ["argb", "rgb"], offer: ["add_gen2", "rgb"], group: "fans", look: "3-pin 5 V lights plug" },
 };
 export const WIRE_IDS = Object.keys(WIRES);
+export const wireName = (id) => plain(WIRES[id].label);
 
 export const WIRE_GROUPS = [
   { id: "panel", label: "Front panel (2-pin)" },
@@ -101,13 +106,13 @@ export function wireFitBlock(id, spot, wires) {
   const w = WIRES[id];
   const h = HEADERS[spot];
   const taken = wireOn(wires, spot);
-  if (taken && taken !== id) return `The ${WIRES[taken].label} wire is already on the ${h.label} pins.`;
+  if (taken && taken !== id) return `The ${wireName(taken)} wire is already on the ${plain(h.label)} pins.`;
   if (w.fits.includes(h.kind)) return null;
   if (id === "hd_audio" && spot === "usb2") {
     return "It won't go on: the HD AUDIO plug's blocked hole is in a different place from the USB 2.0 header's missing pin. Find the AAFP header.";
   }
   if (id === "usb3") return "It won't go on: the USB 3.0 plug has 19 pins in a wider, keyed block. It only fits the U32G1 header.";
-  return `The ${w.label} plug doesn't fit the ${h.label} header.`;
+  return `The ${wireName(id)} plug doesn't fit the ${plain(h.label)} header.`;
 }
 
 /**
@@ -116,16 +121,16 @@ export function wireFitBlock(id, spot, wires) {
  */
 export function wireFault(id, w, headers) {
   if (wireRight(id, w)) return null;
-  const at = w ? headerLabel(w.at, headers) : null;
+  const at = w ? headerName(w.at, headers) : null;
   const where = WIRE_WHERE[id];
-  if (!w) return `The ${WIRES[id].label} wire isn't plugged in. It goes on ${where}.`;
-  if (WIRES[id].polar && w.at === WIRES[id].goes) return `The ${WIRES[id].label} plug is the wrong way round: an LED only lights with + on +.`;
+  if (!w) return `The ${wireName(id)} wire isn't plugged in. It goes on ${where}.`;
+  if (WIRES[id].polar && w.at === WIRES[id].goes) return `The ${wireName(id)} plug is the wrong way round: an LED only lights with + on +.`;
   if (id === "argb" && w.at === "rgb") {
     return "The 3-pin 5 V lights are on the 4-pin 12 V RGB header. They stay dark here; on a real PC, 12 V can burn them out. They go on ADD_GEN2.";
   }
   if (id === "cpu_fan") return `The cooler's fan is on ${at}. The board watches CPU_FAN for the CPU's fan.`;
   if (id === "case_fans" && w.at === "cpu_opt") return "The case fans are on CPU_OPT, which is meant for a second CPU fan. They go on a CHA_FAN header.";
-  return `The ${WIRES[id].label} wire is on the ${at} pins. It goes on ${where}.`;
+  return `The ${wireName(id)} wire is on the ${at} pins. It goes on ${where}.`;
 }
 
 /**

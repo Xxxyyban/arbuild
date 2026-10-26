@@ -165,6 +165,7 @@ export const CABLE_TYPES = {
   atx24: { label: "24-pin ATX power", build: () => miniFit(ATX24) },
   eps8: { label: "8-pin CPU power (4 + 4)", build: () => pair(miniFit(EPS4), miniFit(EPS4)) },
   pcie8: { label: "8-pin PCIe power (6 + 2)", build: () => pair(miniFit(PCIE6), miniFit(PCIE2, { latch: false })) },
+  pcie6: { label: "6-pin PCIe power (a 6 + 2 cable's 6)", build: () => miniFit(PCIE6) },
   sata: { label: "SATA power", build: () => sata() },
   psu8: { label: "PSU end, 8-pin (CPU or PCIe cable)", build: () => miniFit(PSU8) },
   psu_mb: { label: "PSU end, 24-pin cable (one of its two plugs)", build: () => miniFit(PSU_MB) },

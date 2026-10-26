@@ -736,12 +736,16 @@
   white-space: nowrap;
 }
 
+/* section and schedule: up to two lines, as days with their own times make it longer */
 .ccard__line {
+  display: -webkit-box;
   overflow: hidden;
   color: var(--text-muted);
   font-size: 0.82rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .ccard__next {
@@ -924,6 +928,41 @@
   border-color: var(--primary-btn);
   background: var(--primary-btn);
   color: #fff;
+}
+
+/* each day it meets, with its own start and end time */
+.cform__times {
+  display: grid;
+  gap: 8px;
+}
+
+.cform__time {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  max-width: 440px;
+}
+
+.cform__time-day {
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.cform__time-to {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.cform__same {
+  justify-self: start;
+}
+
+.cform__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
 }
 
 .cform__colors {

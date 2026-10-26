@@ -11,7 +11,7 @@ import { bootWires, wireSteps, anyWire } from "./Wires";
 //   3. Install the PSU, then plug the 24-pin and the 8-pin CPU cable into the board.
 //   4. The case's wires (front panel, USB, audio) and the fans' wires onto the board's small headers
 //      (lab/Wires.js), while the bottom of the board is still easy to reach.
-//   5. Graphics card last (it covers the M.2 slot), then plug in its PCIe power cable.
+//   5. Graphics card last (it covers the M.2 slot), then its PCIe power cables (8-pin, and 6-pin if it has the socket).
 //   6. Power on.
 // A teardown has no fixed order: after power off, unplug and drain, parts can come out in any order
 // as long as nothing is physically in the way (REMOVE_NEEDS). The board may come out with its
@@ -104,8 +104,22 @@ export function installBlock(name, installed, picks = null, psuCables = null, m2
 export const CABLES = {
   atx24: { label: "24-pin cable", needs: ["motherboard", "psu"], psuSocket: "mb" },
   eps8: { label: "8-pin CPU cable", needs: ["motherboard", "psu"], psuSocket: "cpu" },
-  pcie: { label: "PCIe power cable", needs: ["gpu", "psu"], psuSocket: "pcie" },
+  pcie: { label: "8-pin PCIe power cable", needs: ["gpu", "psu"], psuSocket: "pcie" },
+  // a card with a 6-pin power socket as well (8-pin + 6-pin) takes a 6-pin PCIe cable for it; every PSU
+  // can supply one from a PCI-E socket
+  pcie6: { label: "6-pin PCIe power cable", needs: ["gpu", "psu"], psuSocket: "pcie6" },
 };
+
+/** The graphics card's power cables: the 8-pin one, and the 6-pin one when the picked card has a 6-pin socket. */
+export const gpuSixPin = (picks) => !!itemFor("gpu", picks)?.powerPort6;
+export const isGpuCable = (c) => c === "pcie" || c === "pcie6";
+
+/** Does this build use the cable? The board's two always; the 8-pin PCIe with a card; the 6-pin with a card that has a 6-pin socket. */
+export function cableNeeded(c, picks) {
+  if (c === "pcie") return !!picks?.gpu;
+  if (c === "pcie6") return gpuSixPin(picks);
+  return true;
+}
 
 /** Does the picked PSU take any cables in sockets (modular or semi-modular)? */
 export const psuModular = (picks) => !!itemFor("psu", picks)?.modular;
@@ -119,17 +133,35 @@ export function psuCableFixed(cable, picks) {
 /** The cables that plug into the picked PSU's sockets (and so come off it when taking apart). */
 export const psuSocketed = (picks) => Object.keys(CABLES).filter((c) => !psuCableFixed(c, picks));
 
+// What each of a modular PSU's sockets is wired for (both PCI-E sockets are alike). Its CPU and
+// PCI-E sockets take look-alike 8-pin plugs but are wired differently: a mix-up shorts the PSU.
+export const PSU_SOCKET_KIND = { mb: "MB", cpu: "CPU", pcie: "PCI-E", pcie6: "PCI-E" };
+
+/**
+ * The cables whose PSU end is plugged into another kind of socket than their own (a CPU cable in a
+ * PCI-E socket). psuSockOf: the socket each socketed cable went into, when not its own.
+ */
+export function psuMixUps(picks, psuCables, psuSockOf) {
+  return Object.keys(CABLES).filter((c) => {
+    const sock = psuSockOf?.[c];
+    return !!sock && !!psuCables?.[c] && !psuCableFixed(c, picks) && PSU_SOCKET_KIND[sock] !== PSU_SOCKET_KIND[CABLES[c].psuSocket];
+  });
+}
+
 /** Is this cable's PSU end done: plugged into a modular PSU, or routed out of a fixed PSU's bundle? */
 export const psuEndDone = (cable, picks, psuCables) => !!psuCables?.[cable];
 
 /** The cables this build needs on its PSU: the board's two, and the PCIe one if there's a graphics card. */
-export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => c !== "pcie" || !!picks?.gpu);
+export const psuCablesNeeded = (picks) => Object.keys(CABLES).filter((c) => cableNeeded(c, picks));
 
 /** Can this cable's PSU end be plugged in now? null, or { key, msg }. */
 // The PCIe cable can go into the PSU even with no graphics card picked: plugged in on the bench, it's
 // ready if one is added later (a PSU's sockets are hard to reach once it's in the case).
 export function psuPlugBlock(cable, picks) {
   if (!picks?.psu) return { key: `psu_${cable}`, msg: "Pick a PSU first." };
+  if (cable === "pcie6" && !gpuSixPin(picks)) {
+    return { key: "psu_pcie6", msg: "Only a graphics card with a 6-pin power socket (like the RX 6700 XT) needs the 6-pin PCIe cable." };
+  }
   return null;
 }
 export const SCREW_COUNT = 9;
@@ -138,7 +170,7 @@ export const SCREW_COUNT = 9;
 export function plugBlock(cable, installed, picks = null, psuCables = null) {
   const missing = CABLES[cable].needs.filter((p) => !installed[p]);
   if (missing.length > 0) {
-    const what = cable === "pcie" ? "the graphics card" : "the motherboard";
+    const what = isGpuCable(cable) ? "the graphics card" : "the motherboard";
     return { key: `cable_${cable}`, msg: `Install ${what} and the PSU first. The ${CABLES[cable].label} runs between them.` };
   }
   if (picks && psuCables && !psuEndDone(cable, picks, psuCables)) {
@@ -175,8 +207,8 @@ export function removeBlock(name, installed, power, links = null) {
     if (name === "storage" && m2?.ssdScrew) {
       return { key: "m2screw", msg: "Unscrew the SSD first: the small screw at its end holds it down." };
     }
-    if (name === "gpu" && cables.pcie) {
-      return { key: name, msg: "Unplug the PCIe power cable from the graphics card first." };
+    if (name === "gpu" && (cables.pcie || cables.pcie6)) {
+      return { key: name, msg: cables.pcie && cables.pcie6 ? "Unplug the 8-pin and the 6-pin PCIe cables from the graphics card first." : `Unplug the ${cables.pcie ? "8-pin" : "6-pin"} PCIe cable from the graphics card first.` };
     }
     if (name === "motherboard" && (cables.atx24 || cables.eps8)) {
       return { key: name, msg: "Unplug the 24-pin and the 8-pin CPU cables from the board first." };
@@ -207,17 +239,20 @@ export function removeBlock(name, installed, power, links = null) {
 
 /**
  * Decides what the monitor shows when the student presses POWER ON.
- * state = { installed, pasteApplied, ramSlot: { ram1, ram2 }, picks, cables, wires, headers }
- * (wires: lab/Wires.js, headers: the board's MOUNTS.headers; without wires they aren't checked).
+ * state = { installed, pasteApplied, ramSlot: { ram1, ram2 }, picks, cables, wires, headers, psuSockOf }
+ * (wires: lab/Wires.js, headers: the board's MOUNTS.headers; without wires they aren't checked;
+ * psuSockOf: the PSU socket each cable is in, when not its own).
  * `hints` false hides the "fix" text so students must troubleshoot on their own. A running PC's
  * `symptoms` ([{ text, cause }]: a dark power light, dead front USB...) always show, they're what
  * you'd notice; only with hints on does each come with its cause.
  */
 export function evaluateBoot(state, { hints = true } = {}) {
-  const { installed, pasteApplied, ramSlot, picks = null, cables = null, wires = null, headers = null } = state;
+  const { installed, pasteApplied, ramSlot, picks = null, cables = null, wires = null, headers = null, psuSockOf = null } = state;
   const ramCount = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   const lowRes = !installed.gpu;
   const fix = (text) => (hints ? text : "");
+  // an overheating PC: with hints off the crash screen only says it got too hot (cause: for the log)
+  const hot = (cause) => ({ detail: hints ? cause : "The CPU got too hot, and the PC shut itself down to protect it.", cause });
 
   if (!installed.motherboard) return { status: "dead", message: "Nothing happens, there is no motherboard in the case." };
   if (!installed.psu) return { status: "dead", message: "Nothing happens, there's no power supply installed." };
@@ -233,6 +268,18 @@ export function evaluateBoot(state, { hints = true } = {}) {
     return {
       status: "dead", part: "wire_pwr_sw",
       message: hints ? `You press the case's power button: nothing happens. ${wired.off}` : "You press the case's power button: nothing happens.",
+    };
+  }
+  // a cable in the wrong kind of socket on a modular PSU, plugged in at both ends (cables are the
+  // live ones): the PSU's short-circuit protection trips the moment it starts
+  const mixed = cables && picks ? psuMixUps(picks, cables, psuSockOf) : [];
+  if (mixed.length > 0) {
+    const c = mixed[0];
+    return {
+      status: "dead", part: `psu_${c}`,
+      message: hints
+        ? `You press the power button: the PSU clicks and shuts straight off. The ${CABLES[c].label} is in the ${PSU_SOCKET_KIND[psuSockOf[c]]} socket on the PSU. Its CPU and PCI-E sockets look alike but are wired differently.`
+        : "You press the power button: the PSU clicks and shuts straight off.",
     };
   }
   if (!installed.cpu) {
@@ -262,10 +309,10 @@ export function evaluateBoot(state, { hints = true } = {}) {
     };
   }
   if (!installed.cpu_cooler) {
-    return { status: "overheat", lowRes, ramCount, detail: "The CPU cooler is missing, so the CPU overheated.", fix: fix("Fix: install a CPU cooler (with thermal paste) before powering on.") };
+    return { status: "overheat", lowRes, ramCount, ...hot("The CPU cooler is missing, so the CPU overheated."), fix: fix("Fix: install a CPU cooler (with thermal paste) before powering on.") };
   }
   if (!pasteApplied) {
-    return { status: "overheat", lowRes, ramCount, detail: "The cooler has no thermal paste, so heat could not leave the CPU.", fix: fix("Fix: power off, apply thermal paste on the CPU, then mount the cooler.") };
+    return { status: "overheat", lowRes, ramCount, ...hot("The cooler has no thermal paste, so heat could not leave the CPU."), fix: fix("Fix: power off, apply thermal paste on the CPU, then mount the cooler.") };
   }
   // the board checks for the CPU's fan on CPU_FAN, and stops before it starts Windows if there's none
   if (wired?.fanError) {
@@ -278,15 +325,23 @@ export function evaluateBoot(state, { hints = true } = {}) {
   if (cables && installed.gpu && !cables.pcie) {
     return {
       status: "post", lowRes: true, title: "No signal from the graphics card",
-      detail: fix("The graphics card has no power. Plug the PCIe power cable into the top edge of the card."),
+      detail: fix("The graphics card has no power. Plug the 8-pin PCIe cable into the top edge of the card."),
       code: "GPU power missing",
+    };
+  }
+  // a card with an 8-pin and a 6-pin socket needs both: with the 6-pin empty, it refuses to start
+  if (cables && installed.gpu && gpuSixPin(picks) && !cables.pcie6) {
+    return {
+      status: "post", lowRes: true, title: "No signal from the graphics card",
+      detail: fix("The card has an 8-pin and a 6-pin power socket, and the 6-pin is empty. Plug the 6-pin PCIe cable into it."),
+      code: "GPU power missing (6-pin)",
     };
   }
   const cooler = picks ? itemFor("cpu_cooler", picks) : null;
   if (cooler && cpu && cooler.cooling < cpu.tdp) {
     return {
       status: "overheat", lowRes, ramCount,
-      detail: `The ${cooler.short} cooler can only move ${cooler.cooling} W of heat, but the ${cpu.short} puts out ${cpu.tdp} W.`,
+      ...hot(`The ${cooler.short} cooler can only move ${cooler.cooling} W of heat, but the ${cpu.short} puts out ${cpu.tdp} W.`),
       fix: fix("Fix: power off and fit a cooler rated for this CPU's heat output."),
     };
   }
@@ -443,7 +498,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       { label: "Shut the PC down", done: power.shutdown },
       { label: "Unplug the power cable", done: power.unplugged },
       { label: "Hold the power button to drain leftover power", done: power.discharged },
-      any("PCIe cable unplugged (before the graphics card comes out)", !cables.pcie),
+      any(gpuSixPin(picks) ? "8-pin and 6-pin PCIe cables unplugged (before the graphics card comes out)" : "PCIe cable unplugged (before the graphics card comes out)", !cables.pcie && !cables.pcie6),
       any("Graphics card out (it covers the M.2 slot)", out("gpu")),
       any("24-pin and 8-pin CPU cables unplugged (before the board comes out)", !cables.atx24 && !cables.eps8),
       any("Front-panel, USB, audio and fan wires unplugged (before the cooler and the board come out)", !anyWire(wires)),
@@ -493,7 +548,9 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     ...(has("gpu")
       ? [
           { label: "Install the graphics card last", done: !!installed.gpu },
-          { label: "Plug PCIe power into the graphics card", done: !!cables.pcie },
+          gpuSixPin(picks)
+            ? { label: "Plug the 8-pin and the 6-pin PCIe cables into the graphics card", done: !!cables.pcie && !!cables.pcie6 }
+            : { label: "Plug PCIe power into the graphics card", done: !!cables.pcie },
         ]
       : []),
     { label: "Power on and check it boots", done: !!booted },

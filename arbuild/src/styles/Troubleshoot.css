@@ -1,0 +1,252 @@
+/* A troubleshooting task's editor: the PC students get, and each fault's points
+   (components/instructor/TroubleshootEditor.jsx). Its form puts it in a fieldset. Uses the --lab-* variables.
+   It lays itself out by its own width (container queries), as it sits in forms of different widths. */
+
+.tse {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* the fieldset around it: a fieldset is as wide as its content unless told otherwise */
+.tse-box {
+  min-width: 0;
+}
+
+.tse > .ins-small {
+  margin: 0;
+}
+
+/* compact selects: a row holds a part and where it is */
+.tse select.ins-select {
+  min-height: 34px;
+  padding: 5px 26px 5px 8px;
+  font-size: 0.82rem;
+}
+
+@media (pointer: coarse) {
+  .tse select.ins-select {
+    min-height: 44px;
+  }
+}
+
+.tse-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tse-tools__label {
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tse-note {
+  margin: 0;
+  color: var(--lab-danger);
+  font-size: 0.82rem;
+}
+
+.tse-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.tse-sec {
+  display: grid;
+  gap: 6px;
+}
+
+.tse-sec + .tse-sec {
+  margin-top: 14px;
+}
+
+.tse-sec h4 {
+  margin: 0 0 2px;
+  color: var(--lab-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* one part, cable or wire: its name, then where it is */
+.tse-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+}
+
+.tse-row--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 2px;
+}
+
+.tse-row__name {
+  color: var(--lab-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.tse-row__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tse-row__fixed {
+  color: var(--lab-muted);
+  font-size: 0.82rem;
+}
+
+.tse-row__note {
+  grid-column: 2;
+  color: var(--lab-muted);
+  font-size: 0.76rem;
+  font-style: italic;
+}
+
+.tse-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lab-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tse-group {
+  display: grid;
+  gap: 6px;
+}
+
+.tse-group__head {
+  margin-top: 4px;
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* the faults, each with its difficulty and points: under the fault in a narrow column, beside it in a wide one */
+.tse-side {
+  container-type: inline-size;
+}
+
+.tse-faults {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tse-faults li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+}
+
+@container (min-width: 420px) {
+  .tse-faults li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.tse-faults li.tse-faults__boot {
+  border-style: dashed;
+}
+
+.tse-faults__text {
+  color: var(--lab-text);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.tse-faults__text em {
+  display: block;
+  color: var(--lab-muted);
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tse-faults__pts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+}
+
+.tse-faults__pts input {
+  width: 56px;
+  min-height: 34px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line-strong);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.tse-faults__pts input:focus {
+  outline: none;
+  border-color: var(--lab-accent);
+  box-shadow: 0 0 0 3px var(--lab-accent-soft);
+}
+
+.tse-total {
+  margin: 4px 0 0;
+  color: var(--lab-text);
+  font-weight: 700;
+}
+
+.tse-total.is-over {
+  color: var(--lab-danger);
+  font-weight: 600;
+}
+
+/* wide enough: the faults beside the PC, in view while it's set up */
+@container (min-width: 760px) {
+  .tse-cols {
+    grid-template-columns: minmax(0, 1.65fr) minmax(250px, 1fr);
+  }
+
+  .tse-side {
+    position: sticky;
+    top: 12px;
+  }
+}
+
+/* narrow (a phone): each name above its settings */
+@container (max-width: 480px) {
+  .tse-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tse-row__note {
+    grid-column: 1;
+  }
+}

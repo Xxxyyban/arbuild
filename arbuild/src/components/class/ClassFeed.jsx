@@ -18,7 +18,8 @@ import {
   markStreamSeen,
   toMs,
 } from "../../lab/Classes";
-import { subscribeSession, subscribeStudentRow, sessionPhase } from "../../lab/Sessions";
+import { subscribeSession, subscribeStudentRow, sessionPhase, workLeft } from "../../lab/Sessions";
+import { taskFor, progressHidden } from "../../lab/Tasks";
 
 export default function ClassFeed({ user, profile, children }) {
   const uid = user?.uid;
@@ -102,7 +103,15 @@ function StudentSource({ classId, uid, report }) {
           kind: "lab",
           unread: at > seen,
           todo: !!open && !done,
-          detail: !lab ? "" : done ? "Done ✓" : lab.row ? `In progress · ${lab.row.partsLeft ?? "?"} parts left` : lab.phase === "running" ? "Running now · not started" : "Opens soon",
+          detail: !lab
+            ? ""
+            : done
+            ? "Done ✓"
+            : lab.row
+            ? lab.quiet ? "In progress" : `In progress · ${workLeft(lab.row)}`
+            : lab.phase === "running"
+            ? "Running now · not started"
+            : "Opens soon",
           to: open ? `/lab?lab=${p.sessionCode}&class=${classId}` : `/classes/${classId}?tab=labs`,
         });
       } else if (at > seen) {
@@ -137,7 +146,8 @@ function LabSource({ code, uid, onChange }) {
   useEffect(() => subscribeStudentRow(code, uid, setRow, () => setRow(null)), [code, uid]);
   useEffect(() => {
     if (session === undefined) return;
-    onChange(code, { phase: session ? sessionPhase(session) : "ended", row });
+    // quiet: the task keeps the student's progress from them until they finish
+    onChange(code, { phase: session ? sessionPhase(session) : "ended", row, quiet: !!row && progressHidden(taskFor(session, row), row) });
   }, [code, session, row, onChange]);
   return null;
 }

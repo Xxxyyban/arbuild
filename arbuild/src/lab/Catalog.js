@@ -56,6 +56,7 @@ export const CATALOG = {
     socket: "am5",
     memory: "ddr5",
     variant: 1, // motherboard1.glb
+    lacksHeaders: ["rgb"], // no 12 V RGB header (lab/Wires.js HEADERS); its model's MOUNTS.headers has none either
     specs: [["Socket", "AM5 (LGA 1718)"], ["Chipset", "B650"], ["Memory", "DDR5, 4 slots"], ["Size", "ATX"]],
     note: "AM5 boards have the pins in the socket. Keep the plastic cover on until the CPU goes in.",
   },
@@ -168,6 +169,7 @@ export const CATALOG = {
     // the 8-pin socket in the recess at the end of its top edge (the 6-pin one is beside it, toward the
     // end), from the card's mount point (case space); the plug sits a little down into it
     powerPort: [0.418, 0.038, 0.566],
+    powerPort6: [0.497, 0.038, 0.566], // its 6-pin socket, beside the 8-pin: it takes the 6-pin PCIe cable
     specs: [["Slot", "PCIe x16"], ["Power draw", "230 W"], ["Needs", "8-pin + 6-pin PCIe power"]],
     note: "Draws more power than the RTX 3060 Ti. Check the PSU can handle it with your CPU.",
   },

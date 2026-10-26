@@ -285,7 +285,10 @@ export default function LabMonitor({ code, back }) {
                 <tbody>
                   {sorted.map((s) => {
                     const [tone, label] = studentState(s, phase, now);
-                    const time = s.mode === "disassemble" ? s.disassembleMs : s.assembleMs;
+                    const task = taskFor(session, s);
+                    // fixing a PC is timed as one job: taking parts out and putting them back
+                    const trouble = task.mode === "troubleshoot";
+                    const time = trouble ? (s.assembleMs || 0) + (s.disassembleMs || 0) : s.mode === "disassemble" ? s.disassembleMs : s.assembleMs;
                     return (
                       <tr key={s.id} className={picked === s.id ? "is-picked" : ""} onClick={() => setPicked(picked === s.id ? null : s.id)}>
                         <td className="ins-tick" onClick={(e) => e.stopPropagation()}>
@@ -310,11 +313,13 @@ export default function LabMonitor({ code, back }) {
                         <td>
                           {s.taskDone ? (
                             <span className="ins-badge ins-badge--done">Done · {formatMs(s.taskMs)}</span>
+                          ) : trouble ? (
+                            <>{`${s.faultsFixed ?? 0} of ${s.faultsTotal ?? Object.keys(task.faultPoints).length} faults fixed`}{s.mode ? ` · ${MODE_LABEL[s.mode]}` : ""}</>
                           ) : (
                             <>{MODE_LABEL[s.mode] || "—"}{s.partsLeft != null ? ` · ${s.partsLeft} parts left` : ""}</>
                           )}
                         </td>
-                        <td className="ins-num">{scoreText(s, taskFor(session, s).points)}</td>
+                        <td className="ins-num">{scoreText(s, task.points)}</td>
                         <td className="ins-num" title={`Assemble ${formatMs(s.assembleMs) || "0:00"} · Disassemble ${formatMs(s.disassembleMs) || "0:00"}`}>
                           {formatMs(time) || "—"}
                         </td>
