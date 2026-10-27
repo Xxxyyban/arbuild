@@ -2,7 +2,7 @@
 // initials in its colour, its section and schedule, when it next meets, and what's new.
 // Each card keeps itself up to date. Styles: styles/AppShell.css (.ccard*).
 import { useEffect, useState } from "react";
-import { subscribeClass, subscribeMember, subscribeThread, subscribeThreads, threadUnread, when, toMs } from "../../lab/Classes";
+import { subscribeClass, subscribeMember, shownName, when, toMs } from "../../lab/Classes";
 import { classLine, nextMeeting, initials, CLASS_COLORS } from "../../lab/Schedule";
 import Icon from "../Icon";
 
@@ -51,37 +51,31 @@ function Card({ cls, fallbackName, onOpen, children }) {
 export function StudentClassCard({ entry, uid, onOpen }) {
   const [cls, setCls] = useState(null);
   const [member, setMember] = useState(undefined);
-  const [thread, setThread] = useState(null);
   useEffect(() => subscribeClass(entry.id, setCls, () => {}), [entry.id]);
   useEffect(() => subscribeMember(entry.id, uid, setMember, () => setMember(null)), [entry.id, uid]);
-  useEffect(() => subscribeThread(entry.id, uid, setThread, () => {}), [entry.id, uid]);
 
   const newPosts = cls && member && toMs(cls.lastPostAt) > toMs(member.seenStreamAt);
-  const newMsg = threadUnread(thread, uid);
   return (
     <Card cls={cls || { name: entry.name, section: entry.section }} fallbackName={entry.name} onOpen={onOpen}>
-      <span className="ccard__who">
-        <Icon name="user" size={14} />
-        {cls?.instructorName || entry.instructorName}
-      </span>
+      {shownName(cls?.instructorName || entry.instructorName) && (
+        <span className="ccard__who">
+          <Icon name="user" size={14} />
+          {shownName(cls?.instructorName || entry.instructorName)}
+        </span>
+      )}
       {member === null ? (
         <span className="chip">Not in this class</span>
       ) : (
         <>
-          {newPosts && <span className="chip chip--alert">New posts</span>}
-          {newMsg && <span className="chip chip--alert">New message</span>}
-          {!newPosts && !newMsg && <span className="chip">Up to date</span>}
+          {newPosts ? <span className="chip chip--alert">New posts</span> : <span className="chip">Up to date</span>}
         </>
       )}
     </Card>
   );
 }
 
-/** A class an instructor teaches, with its code and how many students wrote to them. */
-export function TeachingClassCard({ cls, uid, now, onOpen }) {
-  const [threads, setThreads] = useState([]);
-  useEffect(() => subscribeThreads(cls.id, setThreads, () => {}), [cls.id]);
-  const unread = threads.filter((t) => threadUnread(t, uid)).length;
+/** A class an instructor teaches, with its code and when it was last posted to. */
+export function TeachingClassCard({ cls, now, onOpen }) {
   return (
     <Card cls={cls} onOpen={onOpen}>
       <span className="ccard__who">
@@ -89,11 +83,7 @@ export function TeachingClassCard({ cls, uid, now, onOpen }) {
         {cls.studentCount || 0} {cls.studentCount === 1 ? "student" : "students"}
         <code>{cls.code}</code>
       </span>
-      {unread > 0 ? (
-        <span className="chip chip--alert">{unread} new {unread === 1 ? "message" : "messages"}</span>
-      ) : (
-        <span className="chip">{cls.lastPostAt ? `Posted ${when(cls.lastPostAt, now)}` : "No posts yet"}</span>
-      )}
+      <span className="chip">{cls.lastPostAt ? `Posted ${when(cls.lastPostAt, now)}` : "No posts yet"}</span>
     </Card>
   );
 }

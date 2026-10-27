@@ -3,15 +3,13 @@
 //
 //   classes/{classId}                          name (the subject), section, schedule, color, code, instructorUid, instructorName,
 //                                              joinOpen, archived, createdAt, lastPostAt, studentCount
-//   classes/{classId}/members/{uid}            a student: name, email, studentId, section, joinedAt, seenStreamAt
+//   classes/{classId}/members/{uid}            a student: name, email, studentId, section, contactNumber, photo (their
+//                                              card, lab/People.js), joinedAt, seenStreamAt
 //   classes/{classId}/posts/{postId}           the stream: kind "announcement" | "material" | "lab",
 //                                              title, body, links[], files[], sessionCode (lab), pinned,
 //                                              authorUid, authorName, createdAt, commentCount
 //   classes/{classId}/posts/{postId}/comments  questions and answers under a post (the whole class sees them)
-//   classes/{classId}/threads/{studentUid}     a private conversation between the instructor and one
-//                                              student: lastAt, lastText, lastFrom, readAt { [uid]: time }
-//   classes/{classId}/threads/{uid}/messages   text, from, fromName, createdAt
-//   classCodes/{code}                          { classId }: finds a class from its code (read one by one only)
+//   classCodes/{code}                         { classId }: finds a class from its code (read one by one only)
 //   userClasses/{uid}/classes/{classId}        a student's own list of their classes
 //
 // Lab activities are the live lab sessions (lab/Sessions.js) made from inside a class: the session
@@ -39,11 +37,11 @@ import { db, storage } from "../firebase/config";
 import { generateJoinCode, normalizeCode } from "./Setup";
 import { normalizeSchedule, CLASS_COLORS } from "./Schedule";
 import { sessionRef, sessionPhase } from "./Sessions";
+import { studentCard } from "./People";
 
 export const classRef = (id) => doc(db, "classes", id);
 export const memberRef = (id, uid) => doc(db, "classes", id, "members", uid);
 export const postRef = (id, postId) => doc(db, "classes", id, "posts", postId);
-export const threadRef = (id, uid) => doc(db, "classes", id, "threads", uid);
 const codeRef = (code) => doc(db, "classCodes", code);
 const myClassRef = (uid, id) => doc(db, "userClasses", uid, "classes", id);
 
@@ -52,13 +50,21 @@ export const MAX_FILE_MB = 20;
 /** Firestore time -> ms (pending server times read as "now"). */
 export const toMs = (t) => (t?.toMillis ? t.toMillis() : typeof t === "number" ? t : t ? Date.parse(t) || 0 : 0);
 
-/** A friendly name from a profile. */
-export function personName(profile, user, withTitle = false) {
-  const parts = [withTitle ? profile?.facultyTitle : null, profile?.firstName, profile?.lastName].filter(Boolean);
-  return parts.join(" ") || user?.email || (withTitle ? "Instructor" : "Student");
+// Names are shown without a title. Older classes and posts saved the instructor's name
+// with one ("Prof. Rosa Santos"), or only the title ("Prof.") when setup hadn't kept their name;
+// a bare title counts as no name until they add theirs (pages/Instructor.jsx NamePrompt).
+const TITLE = /^(prof|professor|dr|engr|mr|mrs|ms|sir|ma'?am)\.?(\s+|$)/i;
+
+/** A saved name as shown: without a title in front, "" when it was only a title. */
+export const shownName = (name) => (name ? name.trim().replace(TITLE, "").trim() : "");
+
+/** A person's whole name from their profile; without one, their email or `fallback`. No title ("Prof."). */
+export function personName(profile, user, fallback = "Student") {
+  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
+  return name || user?.email || fallback;
 }
 
-// Snapshots read pending server timestamps as an estimate, so a message just sent sorts in place.
+// Snapshots read pending server timestamps as an estimate, so a post or comment just sent sorts in place.
 const rows = (snap) =>
   snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: "estimate" }), pending: d.metadata.hasPendingWrites }));
 
@@ -111,6 +117,15 @@ export const subscribeMyClasses = (uid, cb, onError) =>
 
 export const updateClass = (id, patch) => updateDoc(classRef(id), patch);
 
+/**
+ * Puts the instructor's name, as their profile has it now, on each of their classes that shows
+ * another: one from before they changed it, or a bare "Prof." from before setup saved names.
+ */
+export async function syncInstructorName(uid, name) {
+  const stale = (await listMyClasses(uid)).filter((c) => c.instructorName !== name);
+  await Promise.all(stale.map((c) => updateClass(c.id, { instructorName: name })));
+}
+
 /** A new code (for example after the old one was shared too widely). The old code stops working. */
 export async function newClassCode(id, oldCode, instructorUid) {
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -155,10 +170,8 @@ export async function joinClass(rawCode, user, profile) {
       const batch = writeBatch(db);
       batch.set(memberRef(classId, user.uid), {
         uid: user.uid,
-        name: personName(profile, user),
+        ...studentCard(profile), // name, student ID, section, contact number, photo: what the instructor sees
         email: user.email || "",
-        studentId: profile?.studentId || "",
-        section: profile?.section || "",
         joinedAt: serverTimestamp(),
         seenStreamAt: serverTimestamp(),
       });
@@ -272,22 +285,6 @@ export const subscribeComments = (id, postId, cb, onError) =>
     onError
   );
 
-/** Every conversation in a class (instructor). */
-export const subscribeThreads = (id, cb, onError) =>
-  onSnapshot(collection(db, "classes", id, "threads"), (snap) => cb(rows(snap)), onError);
-
-export const subscribeThread = (id, uid, cb, onError) =>
-  onSnapshot(threadRef(id, uid), (snap) => cb(snap.exists() ? snap.data({ serverTimestamps: "estimate" }) : null), onError);
-
-/** Messages of one conversation, oldest first. includeMetadataChanges shows "sending" -> "sent". */
-export const subscribeMessages = (id, uid, cb, onError) =>
-  onSnapshot(
-    query(collection(db, "classes", id, "threads", uid, "messages"), orderBy("createdAt", "asc"), limit(300)),
-    { includeMetadataChanges: true },
-    (snap) => cb(rows(snap)),
-    onError
-  );
-
 /** The lab sessions made in this class by its instructor (newest first). The rules only let an
  * instructor list their own labs, so the query says whose. */
 export const subscribeClassLabs = (id, instructorUid, cb, onError) =>
@@ -371,46 +368,6 @@ export async function deleteComment(id, postId, commentId) {
 
 /** The student has seen the stream up to now (clears the "new" badge). */
 export const markStreamSeen = (id, uid) => updateDoc(memberRef(id, uid), { seenStreamAt: serverTimestamp() }).catch(() => {});
-
-/* ---------- private messages ---------- */
-
-/**
- * Sends a message in the conversation between the instructor and student `studentUid`.
- * Firestore keeps unsent writes and retries them when the connection is back, so a message
- * typed offline still arrives; the UI shows it as "Sending…" until the server has it.
- */
-export async function sendMessage(id, studentUid, { text, from }) {
-  const clean = text.trim();
-  if (!clean) return;
-  const batch = writeBatch(db);
-  batch.set(doc(collection(db, "classes", id, "threads", studentUid, "messages")), {
-    text: clean,
-    from: from.uid,
-    fromName: from.name,
-    createdAt: serverTimestamp(),
-  });
-  batch.set(
-    threadRef(id, studentUid),
-    {
-      studentUid,
-      studentName: from.student ? from.name : from.studentName || "",
-      lastAt: serverTimestamp(),
-      lastText: clean.slice(0, 140),
-      lastFrom: from.uid,
-      readAt: { [from.uid]: serverTimestamp() },
-    },
-    { merge: true }
-  );
-  await batch.commit();
-}
-
-/** Marks a conversation read by `uid` up to now. */
-export const markThreadRead = (id, studentUid, uid) =>
-  setDoc(threadRef(id, studentUid), { readAt: { [uid]: serverTimestamp() } }, { merge: true }).catch(() => {});
-
-/** Does `uid` have unread messages in this conversation? */
-export const threadUnread = (thread, uid) =>
-  !!thread && !!thread.lastFrom && thread.lastFrom !== uid && toMs(thread.lastAt) > toMs(thread.readAt?.[uid]);
 
 /* ---------- small helpers for the pages ---------- */
 

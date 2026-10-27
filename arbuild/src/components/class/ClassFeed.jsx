@@ -1,37 +1,34 @@
-// What's new across all of someone's classes, live.
-//   students:    lab activities still to do, new announcements / materials / labs, unread messages
-//   instructors: unread messages from students
+// What's new across a student's classes, live: lab activities still to do, and new announcements,
+// materials and labs. (Instructors have no feed: what they'd hear about, they post themselves.)
 // <ClassFeed user profile>{(feed) => ...}</ClassFeed> hands its children
 //   feed = { ready, items, todo, fresh, count, markAllSeen }
-// Each item: { key, classId, className, kind, title, detail, at, unread, todo, to }.
+// Each item: { key, classId, className, kind, title, detail, at, unread, todo, to, who }; who: who it's
+// from, { name, photo } (a student's class: the instructor, from their profile card, lab/People.js).
 // One invisible listener component per class (and per lab activity) keeps its slice up to date.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   subscribeMyMemberships,
-  subscribeMyClasses,
   subscribeClass,
   subscribeMember,
   subscribePosts,
-  subscribeThread,
-  subscribeThreads,
-  threadUnread,
   markStreamSeen,
+  shownName,
   toMs,
 } from "../../lab/Classes";
+import { subscribeInstructorCard } from "../../lab/People";
 import { subscribeSession, subscribeStudentRow, sessionPhase, workLeft } from "../../lab/Sessions";
 import { taskFor, progressHidden } from "../../lab/Tasks";
 
 export default function ClassFeed({ user, profile, children }) {
-  const uid = user?.uid;
-  const teacher = profile?.role === "faculty";
+  const student = profile?.role !== "faculty";
+  const uid = student ? user?.uid : null;
   const [classes, setClasses] = useState(null);
   const [slices, setSlices] = useState({}); // classId -> items
 
   useEffect(() => {
     if (!uid) return undefined;
-    const sub = teacher ? subscribeMyClasses : subscribeMyMemberships;
-    return sub(uid, (list) => setClasses(list.filter((c) => !c.archived)), () => setClasses([]));
-  }, [uid, teacher]);
+    return subscribeMyMemberships(uid, (list) => setClasses(list.filter((c) => !c.archived)), () => setClasses([]));
+  }, [uid]);
 
   const report = useCallback((classId, items) => setSlices((s) => ({ ...s, [classId]: items })), []);
 
@@ -47,7 +44,7 @@ export default function ClassFeed({ user, profile, children }) {
       fresh,
       count: new Set([...todo, ...fresh].map((i) => i.key)).size,
       markAllSeen: () => {
-        const unseen = new Set(fresh.filter((i) => i.kind !== "message").map((i) => i.classId));
+        const unseen = new Set(fresh.map((i) => i.classId));
         unseen.forEach((id) => markStreamSeen(id, uid));
       },
     };
@@ -56,14 +53,7 @@ export default function ClassFeed({ user, profile, children }) {
 
   return (
     <>
-      {uid &&
-        (classes || []).map((c) =>
-          teacher ? (
-            <TeacherSource key={c.id} cls={c} uid={uid} report={report} />
-          ) : (
-            <StudentSource key={c.id} classId={c.id} uid={uid} report={report} />
-          )
-        )}
+      {uid && (classes || []).map((c) => <StudentSource key={c.id} classId={c.id} uid={uid} report={report} />)}
       {children(feed)}
     </>
   );
@@ -75,13 +65,13 @@ function StudentSource({ classId, uid, report }) {
   const [cls, setCls] = useState(null);
   const [member, setMember] = useState(undefined);
   const [posts, setPosts] = useState([]);
-  const [thread, setThread] = useState(null);
   const [labs, setLabs] = useState({}); // code -> { phase, row }
+  const [instructor, setInstructor] = useState(null); // the instructor's card: their name and photo
 
   useEffect(() => subscribeClass(classId, setCls, () => setCls(null)), [classId]);
   useEffect(() => subscribeMember(classId, uid, setMember, () => setMember(null)), [classId, uid]);
   useEffect(() => subscribePosts(classId, setPosts, () => setPosts([])), [classId]);
-  useEffect(() => subscribeThread(classId, uid, setThread, () => setThread(null)), [classId, uid]);
+  useEffect(() => (cls?.instructorUid ? subscribeInstructorCard(cls.instructorUid, setInstructor) : undefined), [cls?.instructorUid]);
   const setLab = useCallback((code, v) => setLabs((l) => ({ ...l, [code]: v })), []);
 
   const inClass = !!member;
@@ -89,10 +79,11 @@ function StudentSource({ classId, uid, report }) {
     if (!cls || !inClass) return report(classId, []);
     const seen = toMs(member.seenStreamAt);
     const name = cls.name;
+    const who = { name: shownName(instructor?.name || cls.instructorName) || "Your instructor", photo: instructor?.photo || "" };
     const items = [];
     posts.forEach((p) => {
       const at = toMs(p.createdAt);
-      const base = { classId, className: name, at, title: p.title || firstLine(p.body) };
+      const base = { classId, className: name, at, title: p.title || firstLine(p.body), who };
       if (p.kind === "lab" && p.sessionCode) {
         const lab = labs[p.sessionCode];
         const open = lab && lab.phase !== "ended";
@@ -118,15 +109,9 @@ function StudentSource({ classId, uid, report }) {
         items.push({ ...base, key: `${classId}/${p.id}`, kind: p.kind, unread: true, todo: false, detail: "", to: `/classes/${classId}` });
       }
     });
-    if (threadUnread(thread, uid)) {
-      items.push({
-        key: `${classId}/msg`, classId, className: name, kind: "message", title: thread.lastText, detail: "",
-        at: toMs(thread.lastAt), unread: true, todo: false, to: `/classes/${classId}?tab=messages`,
-      });
-    }
     report(classId, items);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cls, member, posts, thread, labs, inClass]);
+  }, [cls, member, posts, labs, inClass, instructor]);
 
   return (
     <>
@@ -149,26 +134,6 @@ function LabSource({ code, uid, onChange }) {
     // quiet: the task keeps the student's progress from them until they finish
     onChange(code, { phase: session ? sessionPhase(session) : "ended", row, quiet: !!row && progressHidden(taskFor(session, row), row) });
   }, [code, session, row, onChange]);
-  return null;
-}
-
-/* ---------- an instructor's class ---------- */
-
-function TeacherSource({ cls, uid, report }) {
-  const [threads, setThreads] = useState([]);
-  useEffect(() => subscribeThreads(cls.id, setThreads, () => setThreads([])), [cls.id]);
-  useEffect(() => {
-    report(
-      cls.id,
-      threads
-        .filter((t) => threadUnread(t, uid))
-        .map((t) => ({
-          key: `${cls.id}/msg/${t.id}`, classId: cls.id, className: cls.name, kind: "message",
-          title: `${t.studentName || "A student"}: ${t.lastText}`, detail: "", at: toMs(t.lastAt), unread: true, todo: false,
-          to: `/instructor/c/${cls.id}?tab=messages&student=${t.id}`,
-        }))
-    );
-  }, [cls.id, cls.name, threads, uid, report]);
   return null;
 }
 

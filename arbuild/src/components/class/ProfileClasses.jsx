@@ -6,6 +6,7 @@ import { joinByCode, subscribeMyMemberships, subscribeMyClasses, toMs } from "..
 import { normalizeCode, isValidCode, CODE_LENGTH } from "../../lab/Setup";
 import { StudentClassCard, TeachingClassCard } from "./ClassCards";
 import ClassFeed from "./ClassFeed";
+import Avatar from "./Avatar";
 import Icon from "../Icon";
 import "../../styles/Classes.css";
 
@@ -79,12 +80,11 @@ function Enrolled({ user, profile }) {
                 {feed.todo.map((i) => (
                   <li key={i.key}>
                     <button type="button" onClick={() => navigate(i.to)}>
-                      <span className="profile-todo__icon" aria-hidden="true">
-                        <Icon name="wrench" size={16} />
-                      </span>
+                      {/* from their instructor: their picture, with the task's wrench on it */}
+                      <Avatar name={i.who?.name} photo={i.who?.photo} size={34} badge="wrench" />
                       <span>
                         {i.title}
-                        <small>{[i.className, i.detail].filter(Boolean).join(" · ")}</small>
+                        <small>{[i.who && `From ${i.who.name}`, i.className, i.detail].filter(Boolean).join(" · ")}</small>
                       </span>
                     </button>
                   </li>
@@ -109,7 +109,7 @@ function Enrolled({ user, profile }) {
       ) : sorted.length === 0 ? (
         <div className="cls-empty">
           <strong>You're not in a class yet</strong>
-          <span>Join one with the code above. Its announcements, materials, lab activities and messages will be here.</span>
+          <span>Join one with the code above. Its announcements, materials and lab activities will be here.</span>
         </div>
       ) : (
         <div className="cgrid">
@@ -163,7 +163,7 @@ function Teaching({ user }) {
       ) : (
         <div className="cgrid">
           {active.map((c) => (
-            <TeachingClassCard key={c.id} cls={c} uid={user.uid} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
+            <TeachingClassCard key={c.id} cls={c} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
           ))}
         </div>
       )}

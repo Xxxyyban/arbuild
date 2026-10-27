@@ -15,6 +15,7 @@ import svdSrc from "js-aruco2/src/svd.js?raw";
 import arucoSrc from "js-aruco2/src/aruco.js?raw";
 import positSrc from "js-aruco2/src/posit1.js?raw";
 import { ARContext } from "./xrSetup";
+import { renderSettings } from "./graphics";
 
 function loadAruco() {
   // Run each file as a real classic <script>, in order, so CV / SVD / AR / POS become globals
@@ -37,14 +38,17 @@ const { AR, POS } = loadAruco();
 // If it is never detected, try "ARUCO" (and a marker made with ?dictionary=ARUCO).
 const DICTIONARY = "ARUCO_MIP_36h12";
 const DETECT_W = 480;               // detection runs on a small copy of the frame
-const SCALE = 0.18;                 // 1 unit = marker width; the bench is 5.4 wide
+const SCALE = 0.18;                 // 1 unit = marker width; the bench is 5.4 wide (MarkerAR's scale)
 // Rotates the scene so its "up" points out of the marker.
 // If the PC appears lying on its side or upside down, change this.
 const ORIENTATION = [Math.PI / 2, 0, 0];
 const KEEP_MS = 400;                // keep showing the last pose briefly if tracking blips
 const ONE = new THREE.Vector3(1, 1, 1);
 
-function Tracker({ videoRef, onFound, children }) {
+/** The marker this looks for (id 0), as an SVG to print or show on another screen. */
+export const markerSVG = (id = 0) => new AR.Dictionary(DICTIONARY).generateSVG(id);
+
+function Tracker({ videoRef, onFound, scale, children }) {
   const group = useRef();
   const { camera, size } = useThree();
   const work = useMemo(() => document.createElement("canvas"), []);
@@ -134,14 +138,15 @@ function Tracker({ videoRef, onFound, children }) {
 
   return (
     <group ref={group} visible={false}>
-      <group rotation={ORIENTATION} scale={SCALE}>
+      <group rotation={ORIENTATION} scale={scale}>
         {children}
       </group>
     </group>
   );
 }
 
-export default function MarkerAR({ children, overlay = null, onExit }) {
+// scale: scene units to marker widths (the scene stands on the marker, its +Y out of it)
+export default function MarkerAR({ children, overlay = null, onExit, scale = SCALE }) {
   const videoRef = useRef(null);
   const [found, setFound] = useState(false);
   const [camError, setCamError] = useState(null);
@@ -181,8 +186,8 @@ export default function MarkerAR({ children, overlay = null, onExit }) {
 
       <Canvas
         camera={{ position: [0, 0, 0], fov: 50, near: 0.01, far: 100 }}
-        gl={{ alpha: true, antialias: true }}
-        dpr={[1, 2]}
+        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+        dpr={renderSettings().dpr} // fewer pixels on phones (graphics.js): the camera's tracking needs the time too
         style={{ position: "absolute", inset: 0 }}
       >
         <hemisphereLight skyColor="#ffffff" groundColor="#b0bec5" intensity={1.8} />
@@ -192,7 +197,7 @@ export default function MarkerAR({ children, overlay = null, onExit }) {
           <Environment preset="studio" environmentIntensity={1.2} />
         </Suspense>
         <ARContext.Provider value={true}>
-          <Tracker videoRef={videoRef} onFound={setFound}>
+          <Tracker videoRef={videoRef} onFound={setFound} scale={scale}>
             <Suspense fallback={null}>{children}</Suspense>
           </Tracker>
         </ARContext.Provider>

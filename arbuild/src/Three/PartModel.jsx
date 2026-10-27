@@ -28,6 +28,18 @@ const MODELS = {
   psu: [PSUModel, PSUModel1, PSUModel2],
 };
 
+// Each component's .glb, the same way round (the Rig Studio loads its build's files all at once, up
+// front). null: no file shipped yet (PSUModel2 draws the base PSU's instead).
+export const MODEL_FILES = {
+  motherboard: ["/models/motherboard.glb", "/models/motherboard1.glb"],
+  cpu: ["/models/cpu.glb", "/models/cpu1.glb"],
+  ram: ["/models/ram.glb", "/models/ram1.glb"],
+  cpu_cooler: ["/models/cpu_cooler.glb", "/models/cpu_cooler1.glb"],
+  storage: ["/models/ssd.glb", "/models/ssd1.glb"],
+  gpu: ["/models/gpu.glb", "/models/gpu1.glb"],
+  psu: ["/models/psu.glb", "/models/psu1.glb", null],
+};
+
 // Where the CPU, RAM and SSD sit on each board, by board variant.
 export const BOARD_MOUNTS = [MOUNTS_0, MOUNTS_1];
 // Each board's M.2 cover, by board variant (null: the lab's built one, Hardware.jsx BUILT_M2_COVER).

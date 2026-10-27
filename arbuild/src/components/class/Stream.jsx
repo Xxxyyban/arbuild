@@ -13,12 +13,14 @@ import {
   when,
   fileSize,
   fixUrl,
+  shownName,
   toMs,
 } from "../../lab/Classes";
 import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs, workLeft } from "../../lab/Sessions";
 import { scoreText } from "../../lab/Scoring";
 import { taskFor, progressHidden } from "../../lab/Tasks";
 import Icon from "../Icon";
+import Avatar from "./Avatar";
 
 const KIND = {
   announcement: { label: "Announcement", icon: "megaphone" },
@@ -50,10 +52,12 @@ export function RichText({ text }) {
 
 /**
  * classId, me ({ uid, name }), isInstructor
+ * author: the class's instructor { uid, name, photo } (their profile card, lab/People.js): their
+ *   picture and name head each of their posts, and the box they post from
  * onOpenLab(code): instructor opens the lab monitor / student opens the lab
  * filter: null (everything) or a kind, e.g. "material"
  */
-export default function Stream({ classId, me, isInstructor, onOpenLab, filter = null, now }) {
+export default function Stream({ classId, me, author = null, isInstructor, onOpenLab, filter = null, now }) {
   const [posts, setPosts] = useState(null);
   const [error, setError] = useState("");
 
@@ -65,7 +69,7 @@ export default function Stream({ classId, me, isInstructor, onOpenLab, filter = 
 
   return (
     <div className="cls-stream">
-      {isInstructor && filter !== "lab" && <Composer classId={classId} me={me} defaultKind={filter || "announcement"} />}
+      {isInstructor && filter !== "lab" && <Composer classId={classId} me={me} author={author} defaultKind={filter || "announcement"} />}
       {error && <div className="ins-alert" role="alert">Couldn't load the stream ({error}).</div>}
       {posts === null ? (
         <p className="ins-muted">Loading…</p>
@@ -82,7 +86,7 @@ export default function Stream({ classId, me, isInstructor, onOpenLab, filter = 
         </div>
       ) : (
         shown.map((p) => (
-          <PostCard key={p.id} classId={classId} post={p} me={me} isInstructor={isInstructor} onOpenLab={onOpenLab} now={now} />
+          <PostCard key={p.id} classId={classId} post={p} me={me} author={author} isInstructor={isInstructor} onOpenLab={onOpenLab} now={now} />
         ))
       )}
     </div>
@@ -91,7 +95,8 @@ export default function Stream({ classId, me, isInstructor, onOpenLab, filter = 
 
 /* ---------- writing a post (instructor) ---------- */
 
-function Composer({ classId, me, defaultKind }) {
+function Composer({ classId, me, author, defaultKind }) {
+  const name = shownName(author?.name) || me.name;
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState(defaultKind);
   const [title, setTitle] = useState("");
@@ -144,7 +149,7 @@ function Composer({ classId, me, defaultKind }) {
   if (!open) {
     return (
       <button type="button" className="cls-compose-open" onClick={() => setOpen(true)}>
-        <Icon name="edit" />
+        <Avatar name={name} photo={author?.photo} size={36} />
         Announce something or share a learning material…
       </button>
     );
@@ -152,6 +157,11 @@ function Composer({ classId, me, defaultKind }) {
 
   return (
     <form className="ins-panel cls-compose" onSubmit={submit}>
+      {/* who it's from, as students will see it */}
+      <div className="cls-compose__who">
+        <Avatar name={name} photo={author?.photo} size={36} />
+        <strong>{name}</strong>
+      </div>
       <div className="cls-seg" role="radiogroup" aria-label="Kind of post">
         {["announcement", "material"].map((k) => (
           <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? "is-on" : ""} onClick={() => setKind(k)}>
@@ -238,21 +248,22 @@ function Composer({ classId, me, defaultKind }) {
 
 /* ---------- one post ---------- */
 
-function PostCard({ classId, post, me, isInstructor, onOpenLab, now }) {
+function PostCard({ classId, post, me, author, isInstructor, onOpenLab, now }) {
   const [showComments, setShowComments] = useState(false);
   const k = KIND[post.kind] || KIND.announcement;
   const mine = post.authorUid === me.uid;
+  // the class's instructor as they are now (their card); anyone else by the name saved with the post
+  const theirs = author && post.authorUid === author.uid;
+  const name = (theirs && shownName(author.name)) || shownName(post.authorName) || "Instructor";
 
   return (
     <article className={`ins-panel cls-post cls-post--${post.kind} ${post.pinned ? "is-pinned" : ""}`}>
       <header className="cls-post__head">
-        <span className="cls-post__icon" aria-hidden="true">
-          <Icon name={k.icon} size={18} />
-        </span>
+        <Avatar name={name} photo={theirs ? author.photo : ""} size={40} badge={k.icon} />
         <div className="cls-post__meta">
-          <span className="cls-post__kind">{k.label}{post.pinned ? " · Pinned" : ""}</span>
+          <strong className="cls-post__author">{name}</strong>
           <span className="ins-muted ins-small">
-            {post.authorName} · {post.pending ? "posting…" : when(post.createdAt, now)}
+            <span className="cls-post__kind">{k.label}{post.pinned ? " · Pinned" : ""}</span> · {post.pending ? "posting…" : when(post.createdAt, now)}
           </span>
         </div>
         {isInstructor && mine && (
@@ -382,7 +393,7 @@ function Comments({ classId, postId, me, isInstructor, now }) {
         list.map((c) => (
           <div key={c.id} className={`cls-comment ${c.fromInstructor ? "is-instructor" : ""}`}>
             <div>
-              <strong>{c.authorName}</strong>
+              <strong>{shownName(c.authorName) || (c.fromInstructor ? "Instructor" : "Student")}</strong>
               {c.fromInstructor && <span className="cls-tag">Instructor</span>}
               <span className="ins-muted ins-small"> · {c.pending ? "sending…" : when(c.createdAt, now)}</span>
             </div>

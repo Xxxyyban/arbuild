@@ -10,8 +10,41 @@
 //   8-pin PCIe     6 + 2, to the graphics card
 //   SATA power     15-pin flat plug, to SATA drives
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 export const MM = 1.467 / 305; // scene units per millimetre
+
+/**
+ * The same look as one mesh per material, every little box and cylinder baked in place: a 24-pin plug
+ * is a hundred meshes otherwise, each its own draw call. Keeps the group's name and transform; the
+ * group as it was if its pieces can't be merged.
+ */
+function merged(group) {
+  group.updateMatrixWorld(true);
+  const toGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const byMaterial = new Map();
+  group.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(toGroup, o.matrixWorld));
+    if (!byMaterial.has(o.material)) byMaterial.set(o.material, []);
+    byMaterial.get(o.material).push(g);
+  });
+  const out = new THREE.Group();
+  out.name = group.name;
+  out.position.copy(group.position);
+  out.quaternion.copy(group.quaternion);
+  out.scale.copy(group.scale);
+  for (const [material, parts] of byMaterial) {
+    const geometry = mergeGeometries(parts, false);
+    parts.forEach((g) => g.dispose());
+    if (!geometry) return group;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    out.add(mesh);
+  }
+  return out;
+}
 
 // ATX wire colours
 const C = {
@@ -196,13 +229,7 @@ export function buildPcieSocket() {
   g.add(box(ox - slot[1], h, wall, black, (slot[1] + ox) / 2, base + h / 2, oz - wall / 2));
   g.add(box(slot[1] - slot[0], 1.6, 1.4, black, (slot[0] + slot[1]) / 2, 2.4, oz + 0.2)); // the ramp
   g.scale.setScalar(MM);
-  g.traverse((o) => {
-    if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
-  });
-  return g;
+  return merged(g);
 }
 
 /* ---------- plugs for the board's small headers (lab/Wires.js) ---------- */
@@ -258,10 +285,7 @@ export function buildHeaderPlug(kind, colors = []) {
     }
   }
   g.scale.setScalar(MM);
-  g.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
-  return g;
+  return merged(g);
 }
 
 /** How far a header plug's wires reach out of the board (scene units): where its run starts. */
@@ -276,13 +300,7 @@ export function buildCableStub(type) {
   g.name = `cable_${type}`;
   inner.scale.setScalar(MM);
   g.add(inner);
-  g.traverse((o) => {
-    if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
-  });
-  return g;
+  return merged(g);
 }
 
 /* ---------- motherboard screw ---------- */
@@ -313,8 +331,5 @@ export function buildScrew() {
     g.add(ring);
   }
   g.scale.setScalar(MM);
-  g.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
-  return g;
+  return merged(g);
 }

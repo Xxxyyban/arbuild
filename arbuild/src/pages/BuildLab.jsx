@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { useAuth } from "../context/AuthContext";
 import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
+import { renderSettings } from "../Three/graphics";
 import { CablePlug, HeaderPlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, SocketSlide, SocketCapOnBench, LeverHook, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
 import { MM, headerPlugReach } from "../Three/cableStubs";
@@ -2160,8 +2161,8 @@ export default function BuildLab() {
 
             <Canvas
               style={{ position: "absolute", inset: 0, zIndex: 1, touchAction: "none" }}
-              dpr={[1, 2]}
-              gl={{ alpha: true, antialias: true }}
+              dpr={renderSettings().dpr} // fewer pixels on phones and weak computers (Three/graphics.js)
+              gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
               camera={{ position: HOME_CAM, fov: 45, near: 0.02, far: 200 }}
               onCreated={({ gl }) => gl.setClearAlpha(0)}
             >

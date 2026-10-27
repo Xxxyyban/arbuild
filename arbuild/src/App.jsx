@@ -46,7 +46,7 @@ import "./styles/ThemeToggle.css";
 import "./styles/Classes.css";
 import "./styles/Main.css";
 import "./styles/AppShell.css";
-import "./styles/ar.css";
+import "./styles/RigStudio.css";
 import "./styles/Profile.css";
 import "./styles/BuildLab.css";
 import "./styles/BuildLabParts.css";
@@ -334,7 +334,7 @@ export default function App() {
             <Route path="/instructor/c/:classId/lab/:code" element={<InstructorGate><Instructor page="classLab" /></InstructorGate>} />
             <Route path="/instructor/lab/:code" element={<InstructorGate><Instructor page="oldLab" /></InstructorGate>} />
 
-            {/* Classes (students): join with a code, then announcements, materials, labs, messages */}
+            {/* Classes (students): join with a code, then announcements, materials, labs */}
             <Route path="/classes" element={<Gate><Classes /></Gate>} />
             <Route path="/classes/:classId" element={<Gate><Classes page="class" /></Gate>} />
 

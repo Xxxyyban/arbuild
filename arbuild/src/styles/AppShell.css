@@ -141,6 +141,27 @@
   color: var(--primary-strong);
 }
 
+/* the Graphics setting (Three/graphics.js) */
+.sidebar__select {
+  height: 34px;
+  max-width: 132px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.sidebar__select:hover,
+.sidebar__select:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary-strong);
+  outline: none;
+}
+
 /* ---------- page header ---------- */
 .main__header-tools {
   display: flex;

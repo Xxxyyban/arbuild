@@ -420,6 +420,22 @@ export function AuthProvider({ children }) {
         const facultyData = {
           ...commonData,
 
+          // the name the setup form asks for (classes show it to students)
+          firstName:
+            profileData.firstName ||
+            existingData.firstName ||
+            "",
+
+          middleName:
+            profileData.middleName ||
+            existingData.middleName ||
+            "",
+
+          lastName:
+            profileData.lastName ||
+            existingData.lastName ||
+            "",
+
           facultyTitle:
             profileData.facultyTitle ||
             existingData.facultyTitle ||
@@ -445,6 +461,15 @@ export function AuthProvider({ children }) {
           doc(db, "users", uid),
           {
             ...commonData,
+
+            firstName:
+              facultyData.firstName,
+
+            middleName:
+              facultyData.middleName,
+
+            lastName:
+              facultyData.lastName,
 
             facultyTitle:
               facultyData.facultyTitle,

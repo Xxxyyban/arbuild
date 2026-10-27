@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ProfileClasses from "../components/class/ProfileClasses";
 import AppShell from "../components/AppShell";
+import { makeThumb } from "../lab/People";
 import "../styles/Profile.css";
 
 // Simple avatar used when the account has no photo
@@ -215,8 +216,9 @@ export default function Profile() {
 
     reader.onloadend = async () => {
       try {
-        // only the photo is saved, so unsaved edits in the form aren't pushed along with it
-        await updateUserProfile({ photoURL: reader.result });
+        // only the photo is saved (with the small copy profile cards show, lab/People.js), so unsaved
+        // edits in the form aren't pushed along with it
+        await updateUserProfile({ photoURL: reader.result, photoThumb: await makeThumb(reader.result) });
         setProfileSuccess("Profile picture updated successfully!");
       } catch (err) {
         setProfileError(err.message || "Failed to update profile picture.");

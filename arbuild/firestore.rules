@@ -111,6 +111,27 @@ service cloud.firestore {
       allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
     }
 
+    // ---------- profile cards (src/lab/People.js) ----------
+
+    // An instructor's card: what their students see of them, exactly as their own profile has it.
+    // Anyone signed in can look one up by its uid (an instructor's name is on every class they
+    // teach); nobody can list them. A student's card is their member record in each class (below).
+    match /instructors/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if isOwner(uid) && isInstructor()
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'department', 'email', 'photo', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.name == (profileOf(uid).get('firstName', '') + ' ' + profileOf(uid).get('lastName', '')).trim()
+        && request.resource.data.name.size() > 0
+        && request.resource.data.department == profileOf(uid).get('department', '')
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.photo == profileOf(uid).get('photoThumb', '')
+        && request.resource.data.photo.size() <= 40000
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
     // ---------- notifications ----------
 
     match /notifications/{id} {
@@ -170,7 +191,6 @@ service cloud.firestore {
     //   classes/{classId}                     the class (instructor, code, name...)
     //     members/{uid}                       students in it
     //     posts/{postId}, .../comments/{id}   stream: announcements, materials, lab activities
-    //     threads/{studentUid}, .../messages  private instructor <-> student conversations
     //   userClasses/{uid}/classes/{classId}   each student's own list of classes
 
     // A code can be read one at a time (to join), never listed, and only points at your own class.
@@ -197,10 +217,6 @@ service cloud.firestore {
       function member() {
         return signedIn() && exists(memberPath(request.auth.uid));
       }
-      // the instructor, or the student whose conversation this is (while still in the class)
-      function inThread(studentUid) {
-        return teaches() || (isOwner(studentUid) && member());
-      }
       // the head count moves by one, in the same write as the student joining or leaving
       function joiningOrLeaving() {
         return onlyChanges(['studentCount'])
@@ -222,21 +238,35 @@ service cloud.firestore {
       allow delete: if signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin());
 
       match /members/{uid} {
+        // the student's card, which only the class's instructor sees: name, ID, section, contact
+        // number and photo, exactly as their own profile has them
+        function cardFromProfile() {
+          let p = profileOf(uid);
+          let d = request.resource.data;
+          return d.name == (p.get('firstName', '') + ' ' + p.get('lastName', '')).trim()
+            && d.studentId == p.get('studentId', '')
+            && d.section == p.get('section', '')
+            && d.get('contactNumber', '') == p.get('contactNumber', '')
+            && d.get('photo', '') == p.get('photoThumb', '')
+            && d.get('photo', '').size() <= 40000;
+        }
+
         allow get: if isOwner(uid) || teaches();
         allow list: if teaches();
-        // join yourself, as yourself (name, ID, section and email from your own profile), while
-        // the class takes new students
+        // join yourself, as yourself (your card and email from your own profile), while the class
+        // takes new students
         allow create: if isOwner(uid)
           && classDoc().get('joinOpen', true) != false
           && classDoc().get('archived', false) != true
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'studentId', 'section', 'joinedAt', 'seenStreamAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'studentId', 'section', 'contactNumber', 'photo', 'joinedAt', 'seenStreamAt'])
           && request.resource.data.uid == uid
           && request.resource.data.email == request.auth.token.email
-          && request.resource.data.name == (profileOf(uid).get('firstName', '') + ' ' + profileOf(uid).get('lastName', '')).trim()
-          && request.resource.data.studentId == profileOf(uid).get('studentId', '')
-          && request.resource.data.section == profileOf(uid).get('section', '')
+          && cardFromProfile()
           && request.resource.data.joinedAt == request.time;
-        allow update: if isOwner(uid) && onlyChanges(['seenStreamAt']) && request.resource.data.seenStreamAt == request.time;
+        // the stream seen, or the card brought up to date with the profile
+        allow update: if isOwner(uid)
+          && ((onlyChanges(['seenStreamAt']) && request.resource.data.seenStreamAt == request.time)
+              || (onlyChanges(['name', 'studentId', 'section', 'contactNumber', 'photo']) && cardFromProfile()));
         allow delete: if teaches() || isOwner(uid);
       }
 
@@ -264,31 +294,9 @@ service cloud.firestore {
         }
       }
 
-      // one private conversation per student, between that student and the instructor
-      match /threads/{studentUid} {
-        allow read: if inThread(studentUid);
-        // you mark only your own side read, and only you can be the one who sent the last message
-        allow create: if inThread(studentUid)
-          && request.resource.data.studentUid == studentUid
-          && request.resource.data.get('readAt', {}).keys().hasOnly([request.auth.uid])
-          && request.resource.data.get('lastFrom', request.auth.uid) == request.auth.uid;
-        allow update: if inThread(studentUid)
-          && request.resource.data.studentUid == studentUid
-          && request.resource.data.get('readAt', {}).diff(resource.data.get('readAt', {})).affectedKeys().hasOnly([request.auth.uid])
-          && (!changed().hasAny(['lastFrom', 'lastAt', 'lastText']) || request.resource.data.lastFrom == request.auth.uid);
-        allow delete: if teaches();
-
-        match /messages/{messageId} {
-          allow read: if inThread(studentUid);
-          allow create: if inThread(studentUid)
-            && request.resource.data.keys().hasOnly(['text', 'from', 'fromName', 'createdAt'])
-            && request.resource.data.from == request.auth.uid
-            && text(request.resource.data.text, 4000)
-            && text(request.resource.data.fromName, 120)
-            && request.resource.data.createdAt == request.time;
-          allow update, delete: if false;
-        }
-      }
+      // There are no private messages in a class (instructors and students use their own
+      // messenger): the old conversations, classes/{classId}/threads/..., match no rule, so nobody
+      // can read or write them.
     }
 
     match /userClasses/{uid}/classes/{classId} {

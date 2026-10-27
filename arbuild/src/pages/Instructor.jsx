@@ -1,6 +1,6 @@
 // Instructor pages.
 //   /instructor                         your classes: make one (it gets a join code), open one
-//   /instructor/c/:classId?tab=...      one class: stream, materials, lab activities, students, messages, settings
+//   /instructor/c/:classId?tab=...      one class: stream, materials, lab activities, progress, students, settings
 //   /instructor/c/:classId/lab/:code    a lab activity, live (LabMonitor)
 //   /instructor/lab/:code               an older lab session made before classes existed
 import { useEffect, useMemo, useState } from "react";
@@ -11,29 +11,30 @@ import {
   subscribeMyClasses,
   subscribeClass,
   subscribeMembers,
-  subscribeThreads,
   subscribeClassLabs,
   updateClass,
   newClassCode,
   removeMember,
   createPost,
-  threadUnread,
   inviteLink,
   attachLab,
   personName,
+  syncInstructorName,
   when,
   toMs,
 } from "../lab/Classes";
 import { createSession, listMySessions, sessionPhase, formatClock } from "../lab/Sessions";
+import { instructorCard, syncInstructorCard, ensureThumb } from "../lab/People";
 import { sessionTasks, taskSummary } from "../lab/Tasks";
 import LabMonitor, { useNow } from "../components/instructor/LabMonitor";
 import LabActivityForm from "../components/class/LabActivityForm";
 import Stream from "../components/class/Stream";
-import Chat from "../components/class/Chat";
 import Progress from "../components/class/Progress";
 import { TeachingClassCard } from "../components/class/ClassCards";
 import ClassForm from "../components/class/ClassForm";
 import { ClassMeta, CopyButton, Tabs } from "../components/class/ClassBits";
+import PersonCard from "../components/class/PersonCard";
+import Avatar from "../components/class/Avatar";
 import AppShell from "../components/AppShell";
 import Icon from "../components/Icon";
 import { nextMeeting, formatRange, dayId, dayTime, CLASS_COLORS } from "../lab/Schedule";
@@ -44,7 +45,62 @@ import "../styles/Classes.css";
 
 function useMe() {
   const { user, profile } = useAuth();
-  return useMemo(() => ({ uid: user?.uid, name: personName(profile, user, true) }), [user, profile]);
+  return useMemo(() => ({ uid: user?.uid, name: personName(profile, user, "Instructor") }), [user, profile]);
+}
+
+/**
+ * Asks an instructor whose profile has no name for it (accounts set up before setup saved names): it's
+ * what students see on their classes and posts. Saved, it goes onto their classes too.
+ */
+function NamePrompt() {
+  const { updateUserProfile } = useAuth();
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(e) {
+    e.preventDefault();
+    if (!first.trim() || !last.trim()) return setError("Enter your first and last name.");
+    setBusy(true);
+    setError("");
+    try {
+      await updateUserProfile({ firstName: first.trim(), lastName: last.trim() });
+    } catch (err) {
+      setError(err.code === "permission-denied" ? "Couldn't save your name: the Firestore rules didn't allow it." : err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="ins-panel name-ask">
+      <div className="panel-head">
+        <h2 className="panel-title">
+          <Icon name="user" />
+          Add your name
+        </h2>
+        <p className="ins-muted ins-small">Your students see it on your classes and posts. Your profile doesn't have it yet.</p>
+      </div>
+      <form className="name-ask__form" onSubmit={save}>
+        <label className="cform__field">
+          <span>First name</span>
+          <input value={first} onChange={(e) => setFirst(e.target.value)} autoComplete="given-name" maxLength={40} required />
+        </label>
+        <label className="cform__field">
+          <span>Last name</span>
+          <input value={last} onChange={(e) => setLast(e.target.value)} autoComplete="family-name" maxLength={40} required />
+        </label>
+        <button type="submit" className="btn btn--primary" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </form>
+      {error && (
+        <div className="ins-alert" role="alert">
+          {error}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /* ====================================================================== */
@@ -52,7 +108,7 @@ function useMe() {
 /* ====================================================================== */
 
 function Dashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const me = useMe();
   const navigate = useNavigate();
   const [classes, setClasses] = useState(null);
@@ -108,9 +164,10 @@ function Dashboard() {
   const showForm = making || (classes !== null && active.length === 0);
   const hour = new Date(now).getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const hello = profile?.firstName || profile?.lastName ? `${greeting}, ${me.name}` : greeting; // no name yet: NamePrompt asks
   const summary = active.length
-    ? `${greeting}, ${me.name}. You teach ${active.length} ${active.length === 1 ? "class" : "classes"}${today.length ? `, ${today.length} today` : ""}.`
-    : `${greeting}, ${me.name}. Make a class, give your students its code, and teach from here.`;
+    ? `${hello}. You teach ${active.length} ${active.length === 1 ? "class" : "classes"}${today.length ? `, ${today.length} today` : ""}.`
+    : `${hello}. Make a class, give your students its code, and teach from here.`;
 
   return (
     <AppShell
@@ -128,6 +185,8 @@ function Dashboard() {
       }
     >
       {error && <div className="ins-alert" role="alert">{error}</div>}
+
+      {profile && !profile.firstName && !profile.lastName && <NamePrompt />}
 
       {today.length > 0 && (
         <section className="ins-panel today">
@@ -171,7 +230,7 @@ function Dashboard() {
             <h2 className="section-label">Classes</h2>
             <div className="cgrid">
               {active.map((c) => (
-                <TeachingClassCard key={c.id} cls={c} uid={me.uid} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
+                <TeachingClassCard key={c.id} cls={c} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
               ))}
             </div>
           </section>
@@ -188,7 +247,7 @@ function Dashboard() {
           {showArchived && (
             <div className="cgrid">
               {archived.map((c) => (
-                <TeachingClassCard key={c.id} cls={c} uid={me.uid} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
+                <TeachingClassCard key={c.id} cls={c} now={now} onOpen={() => navigate(`/instructor/c/${c.id}`)} />
               ))}
             </div>
           )}
@@ -256,7 +315,6 @@ const TABS = [
   { id: "labs", label: "Lab activities", icon: "wrench" },
   { id: "progress", label: "Progress", icon: "chart" },
   { id: "students", label: "Students", icon: "users" },
-  { id: "messages", label: "Messages", icon: "chat" },
   { id: "settings", label: "Settings", icon: "settings" },
 ];
 
@@ -266,20 +324,20 @@ function ClassPage() {
   const { classId } = useParams();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const me = useMe();
+  const author = { uid: me.uid, name: me.name, photo: profile?.photoThumb || "" }; // on their posts, as students see them
   const now = useNow(30000);
   const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "stream";
-  const setTab = (t, extra = {}) => setParams({ tab: t, ...extra }, { replace: true });
+  const setTab = (t) => setParams({ tab: t }, { replace: true });
 
   const [cls, setCls] = useState(undefined);
   const [members, setMembers] = useState([]);
-  const [threads, setThreads] = useState([]);
   const [error, setError] = useState("");
   const fail = (err) => setError(err.code || err.message);
 
   useEffect(() => subscribeClass(classId, setCls, fail), [classId]);
   useEffect(() => subscribeMembers(classId, setMembers, fail), [classId]);
-  useEffect(() => subscribeThreads(classId, setThreads, fail), [classId]);
 
   if (cls === undefined) {
     return (
@@ -296,17 +354,8 @@ function ClassPage() {
     );
   }
 
-  const unread = threads.filter((t) => threadUnread(t, me.uid)).length;
   const openLab = (code) => navigate(`/instructor/c/${classId}/lab/${code}`);
-  const tabs = TABS.map((t) => ({
-    ...t,
-    badge:
-      t.id === "messages" && unread > 0 ? (
-        <span className="cls-dot">{unread}</span>
-      ) : t.id === "students" ? (
-        <span className="cls-count">{cls.studentCount || 0}</span>
-      ) : null,
-  }));
+  const tabs = TABS.map((t) => ({ ...t, badge: t.id === "students" ? <span className="cls-count">{cls.studentCount || 0}</span> : null }));
 
   return (
     <AppShell
@@ -333,14 +382,11 @@ function ClassPage() {
 
       {error && <div className="ins-alert" role="alert">{error}</div>}
 
-      {tab === "stream" && <Stream classId={classId} me={me} isInstructor onOpenLab={openLab} now={now} />}
-      {tab === "materials" && <Stream classId={classId} me={me} isInstructor filter="material" onOpenLab={openLab} now={now} />}
+      {tab === "stream" && <Stream classId={classId} me={me} author={author} isInstructor onOpenLab={openLab} now={now} />}
+      {tab === "materials" && <Stream classId={classId} me={me} author={author} isInstructor filter="material" onOpenLab={openLab} now={now} />}
       {tab === "labs" && <LabsTab cls={cls} me={me} onOpenLab={openLab} now={now} />}
       {tab === "progress" && <Progress cls={cls} members={members} onOpenLab={openLab} />}
-      {tab === "students" && (
-        <StudentsTab cls={cls} members={members} threads={threads} me={me} now={now} onMessage={(uid) => setTab("messages", { student: uid })} />
-      )}
-      {tab === "messages" && <MessagesTab cls={cls} members={members} threads={threads} me={me} now={now} />}
+      {tab === "students" && <StudentsTab cls={cls} members={members} now={now} />}
       {tab === "settings" && <SettingsTab cls={cls} me={me} />}
     </AppShell>
   );
@@ -420,13 +466,14 @@ function LabsTab({ cls, me, onOpenLab, now }) {
 
 /* ---------- students ---------- */
 
-function StudentsTab({ cls, members, threads, me, now, onMessage }) {
+function StudentsTab({ cls, members, now }) {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(null); // the student whose card is showing
+  const shown = members.find((m) => m.id === open);
   const sorted = [...members]
     .filter((m) => !filter || `${m.name} ${m.studentId} ${m.section} ${m.email}`.toLowerCase().includes(filter.toLowerCase()))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  const byUid = Object.fromEntries(threads.map((t) => [t.id, t]));
 
   function exportCsv() {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -469,31 +516,23 @@ function StudentsTab({ cls, members, threads, me, now, onMessage }) {
         <div className="ins-table-wrap">
           <table className="ins-table">
             <thead>
-              <tr><th>Student</th><th>Section</th><th>Joined</th><th>Last message</th><th /></tr>
+              <tr><th>Student</th><th>Section</th><th>Joined</th><th /></tr>
             </thead>
             <tbody>
-              {sorted.map((m) => {
-                const t = byUid[m.id];
-                return (
+              {sorted.map((m) => (
                   <tr key={m.id}>
                     <td>
-                      <strong>{m.name}</strong>
-                      <small>{[m.studentId, m.email].filter(Boolean).join(" · ")}</small>
+                      <button type="button" className="person-link" aria-haspopup="dialog" onClick={() => setOpen(m.id)}>
+                        <Avatar name={m.name} photo={m.photo} size={32} />
+                        <span>
+                          <strong>{m.name}</strong>
+                          <small>{[m.studentId, m.email].filter(Boolean).join(" · ")}</small>
+                        </span>
+                      </button>
                     </td>
                     <td>{m.section || "—"}</td>
                     <td>{when(m.joinedAt, now)}</td>
-                    <td>
-                      {t ? (
-                        <span className={threadUnread(t, me.uid) ? "cls-unread" : ""}>{t.lastText}</span>
-                      ) : (
-                        <span className="ins-muted">—</span>
-                      )}
-                    </td>
                     <td className="cls-actions">
-                      <button className="btn btn--soft btn--sm" onClick={() => onMessage(m.id)}>
-                        <Icon name="chat" size={15} />
-                        Message
-                      </button>
                       <button
                         className="btn btn--ghost btn--sm"
                         disabled={busy}
@@ -511,78 +550,29 @@ function StudentsTab({ cls, members, threads, me, now, onMessage }) {
                       </button>
                     </td>
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
       )}
-    </section>
-  );
-}
 
-/* ---------- messages: one inbox for the class ---------- */
-
-function MessagesTab({ cls, members, threads, me, now }) {
-  const [params, setParams] = useSearchParams();
-  const picked = params.get("student");
-  const byUid = Object.fromEntries(threads.map((t) => [t.id, t]));
-  // everyone in the class, people who wrote most recently first, then the rest by name
-  const people = members
-    .map((m) => ({ uid: m.id, name: m.name, thread: byUid[m.id] }))
-    .sort((a, b) => toMs(b.thread?.lastAt) - toMs(a.thread?.lastAt) || (a.name || "").localeCompare(b.name || ""));
-  const current = people.find((p) => p.uid === picked);
-
-  return (
-    <div className={`cls-inbox ${current ? "is-chatting" : ""}`}>
-      <aside className="ins-panel cls-inbox__list" aria-label="Students">
-        <h2 className="panel-title">Messages</h2>
-        {people.length === 0 && <p className="ins-muted ins-small">Students appear here once they join.</p>}
-        <ul>
-          {people.map((p) => {
-            const unread = threadUnread(p.thread, me.uid);
-            return (
-              <li key={p.uid}>
-                <button
-                  type="button"
-                  className={`${picked === p.uid ? "is-on" : ""} ${unread ? "is-unread" : ""}`}
-                  onClick={() => setParams({ tab: "messages", student: p.uid }, { replace: true })}
-                >
-                  <span className="cls-inbox__name">{p.name}{unread && <span className="cls-dot" aria-label="unread" />}</span>
-                  <span className="cls-inbox__last">
-                    {p.thread ? `${p.thread.lastFrom === me.uid ? "You: " : ""}${p.thread.lastText}` : "No messages yet"}
-                  </span>
-                  {p.thread && <span className="cls-inbox__when">{when(p.thread.lastAt, now)}</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </aside>
-      {current && (
-        <button type="button" className="btn btn--ghost cls-inbox__back" onClick={() => setParams({ tab: "messages" }, { replace: true })}>
-          <Icon name="back" size={16} />
-          All students
-        </button>
-      )}
-      {current ? (
-        <Chat
-          key={current.uid}
-          classId={cls.id}
-          studentUid={current.uid}
-          studentName={current.name}
-          me={me}
-          otherName={current.name}
-          isInstructor
-          now={now}
+      {shown && (
+        <PersonCard
+          name={shown.name}
+          photo={shown.photo}
+          kind="Student"
+          sub={[shown.section, cls.name].filter(Boolean).join(" · ")}
+          details={[
+            { icon: "idCard", label: "Student ID", value: shown.studentId },
+            { icon: "users", label: "Section", value: shown.section },
+            { icon: "mail", label: "Email", value: shown.email, href: shown.email && `mailto:${shown.email}` },
+            { icon: "phone", label: "Contact number", value: shown.contactNumber, href: shown.contactNumber && `tel:${shown.contactNumber.replace(/[^\d+]/g, "")}` },
+            { icon: "calendar", label: "Joined", value: shown.joinedAt && new Date(toMs(shown.joinedAt)).toLocaleDateString() },
+          ]}
+          onClose={() => setOpen(null)}
         />
-      ) : (
-        <div className="ins-panel cls-empty">
-          <strong>Pick a student</strong>
-          <span>Private messages between you and one student. Use the stream for things the whole class should see.</span>
-        </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -680,7 +670,29 @@ function OldLab() {
 }
 
 /** Which instructor page the URL asks for (see the routes in App.jsx). */
+/**
+ * What students see of the instructor, kept the same as their profile: their whole name on each of
+ * their classes, and their card (lab/People.js). Tried again on the next visit if it fails.
+ */
+function useMyCard() {
+  const { user, profile, updateUserProfile } = useAuth();
+  const card = instructorCard(profile, user);
+  const key = JSON.stringify(card);
+  useEffect(() => {
+    if (!user?.uid) return;
+    ensureThumb(profile, updateUserProfile)
+      .then((saved) => {
+        if (saved || !card) return; // a new thumbnail: this runs again with it
+        syncInstructorName(user.uid, card.name).catch(() => {});
+        syncInstructorCard(card).catch(() => {});
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, key]);
+}
+
 export default function Instructor({ page = "dashboard" }) {
+  useMyCard();
   if (page === "class") return <ClassPage />;
   if (page === "classLab") return <ClassLab />;
   if (page === "oldLab") return <OldLab />;

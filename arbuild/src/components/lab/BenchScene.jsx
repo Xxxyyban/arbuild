@@ -114,78 +114,86 @@ export function Blast({ active, position = [0, 0, 0], rotation = [0, 0, 0], outZ
   );
 }
 
-export function CaseFans({ box }) {
-  const fans = useMemo(() => {
-    const { min, max } = box;
-    const lenX = max.x - min.x;
-    const lenY = max.y - min.y;
-    const cx = (min.x + max.x) / 2;
-    const cy = (min.y + max.y) / 2;
-    const cz = (min.z + max.z) / 2;
-    const { gap, margin, clearance } = FAN_CONFIG;
+/**
+ * Where the case's fans go, from the case's measured box (case space): two on top, three at the front,
+ * one at the back. Each: { key, role (top | front | rear), size, dims, position, rotation, flow }, flow
+ * being the way its air moves (the front fans pull it in, the others push it out).
+ */
+export function caseFanLayout(box) {
+  const { min, max } = box;
+  const lenX = max.x - min.x;
+  const lenY = max.y - min.y;
+  const cx = (min.x + max.x) / 2;
+  const cy = (min.y + max.y) / 2;
+  const cz = (min.z + max.z) / 2;
+  const { gap, margin, clearance } = FAN_CONFIG;
 
-    const dimsOf = (g) => ({ ...FAN_CONFIG.dims, ...(g.dims || {}) });
-    const fitSize = (want, len, count, w) =>
-      Math.max(0.15, Math.min(want, (len - 2 * margin - (count - 1) * gap) / (count * w)));
-    const centered = (i, count) => i - (count - 1) / 2;
-    const inset = (size, d) => size * 0.104 * d.thickness + clearance;
-    const sideRot = (flip) => {
-      const a = FRONT_SIGN > 0 ? Math.PI / 2 : -Math.PI / 2;
-      return [0, 0, flip ? a + Math.PI : a];
-    };
-    const list = [];
+  const dimsOf = (g) => ({ ...FAN_CONFIG.dims, ...(g.dims || {}) });
+  const fitSize = (want, len, count, w) =>
+    Math.max(0.15, Math.min(want, (len - 2 * margin - (count - 1) * gap) / (count * w)));
+  const centered = (i, count) => i - (count - 1) / 2;
+  const inset = (size, d) => size * 0.104 * d.thickness + clearance;
+  const sideRot = (flip) => {
+    const a = FRONT_SIGN > 0 ? Math.PI / 2 : -Math.PI / 2;
+    return [0, 0, flip ? a + Math.PI : a];
+  };
+  const back = [-FRONT_SIGN, 0, 0]; // from the front of the case toward its back
+  const list = [];
 
-    {
-      const g = FAN_GROUPS.top;
-      const d = dimsOf(g);
-      const size = fitSize(g.size ?? FAN_CONFIG.size, lenX, g.count, d.width);
-      for (let i = 0; i < g.count; i++) {
-        list.push({
-          key: `top${i}`, size, dims: d,
-          position: [cx + centered(i, g.count) * (size * d.width + gap) + g.nudge[0], max.y - inset(size, d) + g.nudge[1], cz + g.nudge[2]],
-          rotation: [g.flip ? Math.PI : 0, 0, 0],
-        });
-      }
+  {
+    const g = FAN_GROUPS.top;
+    const d = dimsOf(g);
+    const size = fitSize(g.size ?? FAN_CONFIG.size, lenX, g.count, d.width);
+    for (let i = 0; i < g.count; i++) {
+      list.push({
+        key: `top${i}`, role: "top", size, dims: d, flow: [0, 1, 0],
+        position: [cx + centered(i, g.count) * (size * d.width + gap) + g.nudge[0], max.y - inset(size, d) + g.nudge[1], cz + g.nudge[2]],
+        rotation: [g.flip ? Math.PI : 0, 0, 0],
+      });
     }
-    {
-      const g = FAN_GROUPS.front;
-      const d = dimsOf(g);
-      const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
-      const x = FRONT_SIGN > 0 ? max.x - inset(size, d) : min.x + inset(size, d);
-      for (let i = 0; i < g.count; i++) {
-        list.push({
-          key: `front${i}`, size, dims: d,
-          position: [x + g.nudge[0], cy + centered(i, g.count) * (size * d.width + gap) + g.nudge[1], cz + g.nudge[2]],
-          rotation: sideRot(g.flip),
-        });
-      }
+  }
+  {
+    const g = FAN_GROUPS.front;
+    const d = dimsOf(g);
+    const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
+    const x = FRONT_SIGN > 0 ? max.x - inset(size, d) : min.x + inset(size, d);
+    for (let i = 0; i < g.count; i++) {
+      list.push({
+        key: `front${i}`, role: "front", size, dims: d, flow: back,
+        position: [x + g.nudge[0], cy + centered(i, g.count) * (size * d.width + gap) + g.nudge[1], cz + g.nudge[2]],
+        rotation: sideRot(g.flip),
+      });
     }
-    {
-      const g = FAN_GROUPS.rear;
-      const d = dimsOf(g);
-      const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
-      const x = FRONT_SIGN > 0 ? min.x + inset(size, d) : max.x - inset(size, d);
-      const step = size * d.width + gap;
-      const span = ((g.count - 1) * step) / 2;
-      const lo = min.y + margin + (size * d.width) / 2 + span;
-      const hi = max.y - margin - (size * d.width) / 2 - span;
-      const y0 = Math.min(hi, Math.max(lo, CPU_SOCKET_ABS[1]));
-      for (let i = 0; i < g.count; i++) {
-        list.push({
-          key: `rear${i}`, size, dims: d,
-          position: [x + g.nudge[0], y0 + centered(i, g.count) * step + g.nudge[1], cz + g.nudge[2]],
-          rotation: sideRot(g.flip),
-        });
-      }
+  }
+  {
+    const g = FAN_GROUPS.rear;
+    const d = dimsOf(g);
+    const size = fitSize(g.size ?? FAN_CONFIG.size, lenY, g.count, d.width);
+    const x = FRONT_SIGN > 0 ? min.x + inset(size, d) : max.x - inset(size, d);
+    const step = size * d.width + gap;
+    const span = ((g.count - 1) * step) / 2;
+    const lo = min.y + margin + (size * d.width) / 2 + span;
+    const hi = max.y - margin - (size * d.width) / 2 - span;
+    const y0 = Math.min(hi, Math.max(lo, CPU_SOCKET_ABS[1]));
+    for (let i = 0; i < g.count; i++) {
+      list.push({
+        key: `rear${i}`, role: "rear", size, dims: d, flow: back,
+        position: [x + g.nudge[0], y0 + centered(i, g.count) * step + g.nudge[1], cz + g.nudge[2]],
+        rotation: sideRot(g.flip),
+      });
     }
-    return list;
-  }, [box]);
+  }
+  return list;
+}
 
+/** The case's fans. spin: turns per second of their blades (0: still). */
+export function CaseFans({ box, spin = 0 }) {
+  const fans = useMemo(() => caseFanLayout(box), [box]);
   return (
     <>
       {fans.map((f) => (
         <group key={f.key} position={f.position} rotation={f.rotation}>
-          <CaseFanModel size={f.size} width={f.dims.width} thickness={f.dims.thickness} length={f.dims.length} />
+          <CaseFanModel size={f.size} width={f.dims.width} thickness={f.dims.thickness} length={f.dims.length} spin={spin} />
         </group>
       ))}
     </>

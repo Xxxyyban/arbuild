@@ -16,11 +16,11 @@ const env = await initializeTestEnvironment({
 
 const people = {
   admin: { role: "admin", email: "admin@udd.edu.ph" },
-  profA: { role: "faculty", email: "profa@udd.edu.ph", firstName: "Rosa", lastName: "Santos", facultyTitle: "Prof.", profileCompleted: true },
+  profA: { role: "faculty", email: "profa@udd.edu.ph", firstName: "Rosa", lastName: "Santos", facultyTitle: "Prof.", department: "SITE", photoThumb: "data:image/jpeg;base64,cHJvZkE=", profileCompleted: true },
   profB: { role: "faculty", email: "profb@udd.edu.ph", firstName: "Ben", lastName: "Cruz", profileCompleted: true },
-  juan: { role: "student", email: "juan@cdd.edu.ph", firstName: "Juan", lastName: "Dela Cruz", studentId: "2023-0142", section: "BSIT 3A", profileCompleted: true },
+  juan: { role: "student", email: "juan@cdd.edu.ph", firstName: "Juan", lastName: "Dela Cruz", studentId: "2023-0142", section: "BSIT 3A", contactNumber: "0917 123 4567", photoThumb: "data:image/jpeg;base64,anVhbg==", profileCompleted: true },
   maria: { role: "student", email: "maria@cdd.edu.ph", firstName: "Maria", lastName: "Reyes", studentId: "2023-0177", section: "BSIT 3A", profileCompleted: true },
-  eve: { role: "student", email: "eve@cdd.edu.ph", firstName: "Eve", lastName: "Hacker", studentId: "2023-0666", section: "BSIT 3A", profileCompleted: true },
+  eve: { role: "student", email: "eve@cdd.edu.ph", firstName: "Eve", lastName: "Hacker", studentId: "2023-0666", section: "BSIT 3A", contactNumber: "0999 000 1111", photoThumb: "data:image/jpeg;base64,ZXZl", profileCompleted: true },
 };
 const as = (uid) => env.authenticatedContext(uid, { email: people[uid].email }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
@@ -63,7 +63,9 @@ const joinBatch = (db, uid, data) => {
 };
 const goodJoin = (uid) => ({
   uid, name: `${people[uid].firstName} ${people[uid].lastName}`, email: people[uid].email,
-  studentId: people[uid].studentId, section: people[uid].section, joinedAt: serverTimestamp(), seenStreamAt: serverTimestamp(),
+  studentId: people[uid].studentId, section: people[uid].section,
+  contactNumber: people[uid].contactNumber || "", photo: people[uid].photoThumb || "", // their card (src/lab/People.js)
+  joinedAt: serverTimestamp(), seenStreamAt: serverTimestamp(),
 });
 
 /* ---------- strangers ---------- */
@@ -117,25 +119,17 @@ await check("student fakes the Instructor badge", "BLOCKS", () => comment(as("ju
 await check("student comments as a classmate", "BLOCKS", () => comment(as("juan"), { ...goodComment, authorUid: "maria" }));
 await check("student posts a giant comment", "BLOCKS", () => comment(as("juan"), { ...goodComment, text: "x".repeat(5000) }));
 
-/* ---------- private messages ---------- */
-await check("classmate reads someone's conversation", "BLOCKS", () => getDocs(collection(as("maria"), "classes", "c1", "threads", "juan", "messages")));
-await check("student reads their own conversation", "ALLOWS", () => getDocs(collection(as("juan"), "classes", "c1", "threads", "juan", "messages")));
-await check("instructor lists every conversation", "ALLOWS", () => getDocs(collection(as("profA"), "classes", "c1", "threads")));
-await check("student lists every conversation", "BLOCKS", () => getDocs(collection(as("juan"), "classes", "c1", "threads")));
+/* ---------- private messages: off (classes use their own messenger) ---------- */
+// The old conversations stay in the database, closed to everyone: the two people in them included.
 const msg = (db, who, data) => setDoc(doc(db, "classes", "c1", "threads", who, "messages", "new"), data);
-await check("student messages the instructor", "ALLOWS", () => msg(as("juan"), "juan", { text: "hi", from: "juan", fromName: "Juan", createdAt: serverTimestamp() }));
-await check("student sends a message as the instructor", "BLOCKS", () => msg(as("juan"), "juan", { text: "you get 100", from: "profA", fromName: "Prof", createdAt: serverTimestamp() }));
-await check("student writes into a classmate's conversation", "BLOCKS", () => msg(as("juan"), "maria", { text: "hi", from: "juan", fromName: "Juan", createdAt: serverTimestamp() }));
-await check("student edits a sent message", "BLOCKS", () => updateDoc(doc(as("juan"), "classes", "c1", "threads", "juan", "messages", "m1"), { text: "changed" }));
-await check("student deletes a sent message", "BLOCKS", () => deleteDoc(doc(as("juan"), "classes", "c1", "threads", "juan", "messages", "m1")));
-await check("student marks the instructor's side read", "BLOCKS", () =>
-  setDoc(doc(as("juan"), "classes", "c1", "threads", "juan"), { readAt: { profA: serverTimestamp() } }, { merge: true }));
-await check("student marks their own side read", "ALLOWS", () =>
+await check("student reads their old conversation", "BLOCKS", () => getDocs(collection(as("juan"), "classes", "c1", "threads", "juan", "messages")));
+await check("instructor reads an old conversation", "BLOCKS", () => getDoc(doc(as("profA"), "classes", "c1", "threads", "juan")));
+await check("instructor lists the old conversations", "BLOCKS", () => getDocs(collection(as("profA"), "classes", "c1", "threads")));
+await check("classmate reads someone's conversation", "BLOCKS", () => getDocs(collection(as("maria"), "classes", "c1", "threads", "juan", "messages")));
+await check("student sends a message", "BLOCKS", () => msg(as("juan"), "juan", { text: "hi", from: "juan", fromName: "Juan", createdAt: serverTimestamp() }));
+await check("instructor sends a message", "BLOCKS", () => msg(as("profA"), "juan", { text: "hi", from: "profA", fromName: "Rosa Santos", createdAt: serverTimestamp() }));
+await check("student marks a conversation read", "BLOCKS", () =>
   setDoc(doc(as("juan"), "classes", "c1", "threads", "juan"), { readAt: { juan: serverTimestamp() } }, { merge: true }));
-await check("removed student keeps reading messages", "BLOCKS", async () => {
-  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), "classes", "c1", "members", "juan")));
-  return getDocs(collection(as("juan"), "classes", "c1", "threads", "juan", "messages"));
-});
 
 /* ---------- labs and grades ---------- */
 await check("student lists every lab session", "BLOCKS", () => getDocs(collection(as("juan"), "sessions")));
@@ -197,16 +191,6 @@ await check("app: instructor comments with the badge", "ALLOWS", () => {
   b.update(doc(db, "classes", "c1", "posts", "p1"), { commentCount: increment(1) });
   return b.commit();
 });
-const sendMsg = (who, thread) => {
-  const db = as(who); const b = writeBatch(db);
-  b.set(doc(db, "classes", "c1", "threads", thread, "messages", "n" + who), { text: "hello", from: who, fromName: "Someone", createdAt: serverTimestamp() });
-  b.set(doc(db, "classes", "c1", "threads", thread), { studentUid: thread, studentName: "Juan Dela Cruz", lastAt: serverTimestamp(), lastText: "hello", lastFrom: who, readAt: { [who]: serverTimestamp() } }, { merge: true });
-  return b.commit();
-};
-await check("app: student sends a message", "ALLOWS", () => sendMsg("juan", "juan"));
-await check("app: instructor replies", "ALLOWS", () => sendMsg("profA", "juan"));
-await check("app: student starts a new conversation", "ALLOWS", () => sendMsg("maria", "maria"));
-await check("app: instructor marks a conversation read", "ALLOWS", () => setDoc(doc(as("profA"), "classes", "c1", "threads", "juan"), { readAt: { profA: serverTimestamp() } }, { merge: true }));
 await check("app: student clears the new-posts badge", "ALLOWS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { seenStreamAt: serverTimestamp() }));
 await check("app: student leaves the class", "ALLOWS", () => {
   const db = as("juan"); const b = writeBatch(db);
@@ -242,6 +226,53 @@ await check("app: new student finishes first-time setup", "ALLOWS", async () => 
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users", "eve"), { uid: "eve", role: "student", email: "eve@cdd.edu.ph", profileCompleted: false }));
   return updateDoc(doc(as("eve"), "users", "eve"), { firstName: "Eve", lastName: "H", studentId: "2023-0666", section: "BSIT 3A", profileCompleted: true });
 });
+
+/* ---------- profile cards (src/lab/People.js) ---------- */
+// an instructor's card: anyone signed in reads it; only they write it, exactly as their profile has it
+const profACard = (extra = {}) => ({ uid: "profA", name: "Rosa Santos", department: "SITE", email: people.profA.email, photo: people.profA.photoThumb, updatedAt: serverTimestamp(), ...extra });
+const putProfACard = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "instructors", "profA"), profACard({ updatedAt: Timestamp.now() })));
+await check("app: instructor puts up their card", "ALLOWS", () => setDoc(doc(as("profA"), "instructors", "profA"), profACard()));
+await check("app: student opens their instructor's card", "ALLOWS", async () => {
+  await putProfACard();
+  return getDoc(doc(as("juan"), "instructors", "profA"));
+});
+await check("instructor's card under a made-up name", "BLOCKS", () => setDoc(doc(as("profA"), "instructors", "profA"), profACard({ name: "Dr. Somebody Else" })));
+await check("instructor's card with a photo not in their profile", "BLOCKS", () => setDoc(doc(as("profA"), "instructors", "profA"), profACard({ photo: "data:image/jpeg;base64,ZmFrZQ==" })));
+await check("instructor's card with an extra field", "BLOCKS", () => setDoc(doc(as("profA"), "instructors", "profA"), profACard({ role: "admin" })));
+await check("instructor's card backdated", "BLOCKS", () => setDoc(doc(as("profA"), "instructors", "profA"), profACard({ updatedAt: Timestamp.fromMillis(0) })));
+await check("instructor writes another instructor's card", "BLOCKS", () =>
+  setDoc(doc(as("profA"), "instructors", "profB"), profACard({ uid: "profB", name: "Ben Cruz", department: "", email: people.profB.email, photo: "" })));
+await check("student puts up an instructor's card for themself", "BLOCKS", () =>
+  setDoc(doc(as("eve"), "instructors", "eve"), { uid: "eve", name: "Eve Hacker", department: "", email: people.eve.email, photo: people.eve.photoThumb, updatedAt: serverTimestamp() }));
+await check("student changes their instructor's card", "BLOCKS", async () => {
+  await putProfACard();
+  return updateDoc(doc(as("eve"), "instructors", "profA"), { name: "Eve Hacker" });
+});
+await check("signed-in user lists every instructor's card", "BLOCKS", () => getDocs(collection(as("eve"), "instructors")));
+await check("signed-out visitor opens an instructor's card", "BLOCKS", async () => {
+  await putProfACard();
+  return getDoc(doc(anon(), "instructors", "profA"));
+});
+
+// a student's card is their member record: only the class's instructor reads it; only they bring it up to date
+const juanCard = { name: "Juan Dela Cruz", studentId: "2023-0142", section: "BSIT 3A", contactNumber: people.juan.contactNumber, photo: people.juan.photoThumb };
+await check("app: student saves a photo with its thumbnail", "ALLOWS", () =>
+  updateDoc(doc(as("juan"), "users", "juan"), { photoURL: "data:image/png;base64,QUJD", photoThumb: "data:image/jpeg;base64,QUI=" }));
+await check("app: student brings their card up to date", "ALLOWS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), juanCard));
+await check("app: student's card follows a new photo and number", "ALLOWS", async () => {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), "users", "juan"), { contactNumber: "0920 555 0000", photoThumb: "data:image/jpeg;base64,bmV3" }));
+  return updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { ...juanCard, contactNumber: "0920 555 0000", photo: "data:image/jpeg;base64,bmV3" });
+});
+await check("app: instructor opens a student's card", "ALLOWS", () => getDoc(doc(as("profA"), "classes", "c1", "members", "juan")));
+await check("student's card under another name", "BLOCKS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { ...juanCard, name: "Maria Reyes" }));
+await check("student's card with another student's ID", "BLOCKS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { ...juanCard, studentId: "2023-0177" }));
+await check("student's card with a photo not in their profile", "BLOCKS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { ...juanCard, photo: "data:image/jpeg;base64,ZmFrZQ==" }));
+await check("student slips a join date into a card update", "BLOCKS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { ...juanCard, joinedAt: Timestamp.fromMillis(0) }));
+await check("student changes a classmate's card", "BLOCKS", () =>
+  updateDoc(doc(as("juan"), "classes", "c1", "members", "maria"), { name: "Maria Reyes", studentId: "2023-0177", section: "BSIT 3A", contactNumber: "", photo: "" }));
+await check("student reads a classmate's card", "BLOCKS", () => getDoc(doc(as("juan"), "classes", "c1", "members", "maria")));
+await check("another instructor reads a student's card", "BLOCKS", () => getDoc(doc(as("profB"), "classes", "c1", "members", "juan")));
+await check("student joins with a photo not in their profile", "BLOCKS", () => joinBatch(as("eve"), "eve", { ...goodJoin("eve"), photo: "data:image/jpeg;base64,ZmFrZQ==" }));
 
 /* ---------- report ---------- */
 const failed = results.filter((r) => r[0] === "FAIL");

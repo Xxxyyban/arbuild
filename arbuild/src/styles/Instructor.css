@@ -112,6 +112,26 @@
   font-size: 0.88rem;
 }
 
+/* an instructor with no name yet: first, last, save in a row (stacked on a phone) */
+.name-ask {
+  display: grid;
+  gap: 12px;
+  border-left: 4px solid var(--primary);
+}
+
+.name-ask__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .name-ask__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .ins-row {
   display: flex;
   align-items: center;

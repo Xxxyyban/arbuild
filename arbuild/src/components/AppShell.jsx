@@ -9,6 +9,7 @@ import Icon from "./Icon";
 import Logo from "./Logo";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./class/NotificationBell";
+import { graphicsChoice, setGraphicsChoice, weakDevice } from "../Three/graphics";
 import "../styles/Main.css";
 import "../styles/AppShell.css";
 
@@ -67,6 +68,15 @@ export function Sidebar({ open, onClose }) {
             <span className="sidebar__footer-label">Appearance</span>
             <ThemeToggle />
           </div>
+          {/* how detailed the 3D views are (Three/graphics.js); a change reloads the page */}
+          <label className="sidebar__footer-row">
+            <span className="sidebar__footer-label">Graphics</span>
+            <select className="sidebar__select" value={graphicsChoice()} onChange={(e) => setGraphicsChoice(e.target.value)}>
+              <option value="auto">Auto ({weakDevice() ? "Lite" : "Full"})</option>
+              <option value="full">Full</option>
+              <option value="lite">Lite</option>
+            </select>
+          </label>
           <Link to="/credits" className="sidebar__link sidebar__link--quiet" onClick={onClose}>
             <Icon name="award" />
             <span>3D model credits</span>

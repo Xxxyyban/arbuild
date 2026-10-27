@@ -1,5 +1,5 @@
-// Short, kid-friendly info for the in-scene cards.
-// Each part: what it does, a fun fact, install steps, do/don't, and a 1-tap quiz.
+// Short, kid-friendly info for the lab's part info panel (components/lab/PartInfoPanel.jsx).
+// Each part: what it does, a fun fact, install steps, do and don't.
 
 export const PARTS = {
   cpu: {
@@ -17,7 +17,6 @@ export const PARTS = {
     ],
     dos: ["Hold it by the edges.", "Match the triangles before it goes in."],
     donts: ["Never touch the gold pins underneath.", "Never press it down to make it fit."],
-    quiz: { q: "What do you line up before placing the CPU?", options: ["The gold triangles", "The logo", "The screws"], answer: 0, why: "Triangle meets triangle. It only fits one way." },
   },
   cpu_cooler: {
     tag: "COOLER",
@@ -34,7 +33,6 @@ export const PARTS = {
     ],
     dos: ["Remove the plastic film first.", "Tighten evenly, criss-cross."],
     donts: ["Never power on without a cooler.", "Don't use too much paste."],
-    quiz: { q: "Where does the cooler's fan cable plug in?", options: ["CPU fan header", "Power button pins", "Hard drive"], answer: 0, why: "The CPU fan header sits right next to the socket." },
   },
   motherboard: {
     tag: "MOTHERBOARD",
@@ -49,7 +47,6 @@ export const PARTS = {
     ],
     dos: ["Match standoffs to the screw holes.", "Follow the manual for front panel wires."],
     donts: ["Don't put it on carpet or bare metal.", "Don't overtighten the screws."],
-    quiz: { q: "Why do we use standoffs?", options: ["They lift the board so it can't short on the case", "They look cool"], answer: 0, why: "Metal touching the back of the board can short it." },
   },
   motherboard_rear: {
     tag: "REAR PORTS",
@@ -59,7 +56,6 @@ export const PARTS = {
     steps: ["Line the ports up with the I/O shield openings.", "Plug cables in gently and straight."],
     dos: ["Check the plug direction first."],
     donts: ["Don't force a plug in upside down.", "Don't use these video ports if you have a graphics card."],
-    quiz: { q: "Graphics card installed. Where does the monitor plug in?", options: ["Into the card", "Into the motherboard"], answer: 0, why: "The card does the drawing, so use its ports." },
   },
   ram: {
     tag: "RAM",
@@ -74,7 +70,6 @@ export const PARTS = {
     ],
     dos: ["Use matching pairs in alternating slots.", "Press evenly on both ends."],
     donts: ["Don't rock it in at an angle.", "Don't touch the gold contacts."],
-    quiz: { q: "How do you know RAM is seated?", options: ["The latches click shut", "It feels warm", "The LED blinks"], answer: 0, why: "Both latches snapping in means it's locked." },
   },
   storage: {
     tag: "SSD",
@@ -90,7 +85,6 @@ export const PARTS = {
     ],
     dos: ["Match the notch to the slot key.", "Always screw down the far end."],
     donts: ["Don't force it in.", "Don't leave the end loose."],
-    quiz: { q: "Which cables does an M.2 SSD need?", options: ["None", "A SATA data cable", "Two power cables"], answer: 0, why: "The slot supplies both power and data." },
   },
   psu: {
     tag: "PSU",
@@ -106,7 +100,6 @@ export const PARTS = {
     ],
     dos: ["Pick enough watts for your parts.", "Use the cables that came with it."],
     donts: ["Never open it. It holds a dangerous charge.", "Don't mix cables from other brands."],
-    quiz: { q: "Which cable powers the CPU?", options: ["8-pin CPU", "SATA", "HDMI"], answer: 0, why: "No 8-pin plugged in means the PC won't start." },
   },
   gpu: {
     tag: "GPU",
@@ -122,54 +115,5 @@ export const PARTS = {
     ],
     dos: ["Press evenly along the whole card.", "Plug your monitor into the card."],
     donts: ["Don't force it in at an angle.", "Don't carry it by the fan shroud."],
-    quiz: { q: "Where does your monitor cable go?", options: ["The graphics card", "The motherboard"], answer: 0, why: "The card's ports use the card's power." },
   },
 };
-
-const firstSentence = (t, max = 130) => {
-  const s = ((t || "").split(/(?<=[.!?])\s/)[0] || "").trim();
-  return s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s;
-};
-
-export function buildPartInfo(id) {
-  const p = PARTS[id];
-  if (!p) return null;
-  const rules = [];
-  const n = Math.max(p.dos.length, p.donts.length);
-  for (let i = 0; i < n; i++) {
-    if (p.dos[i]) rules.push({ head: "Do", tone: "good", body: p.dos[i] });
-    if (p.donts[i]) rules.push({ head: "Don't", tone: "bad", body: p.donts[i] });
-  }
-  return {
-    key: id,
-    tag: p.tag,
-    title: p.name,
-    tabs: [
-      { label: "About", steps: [{ head: "What it does", body: p.what }, { head: "Fun fact", body: p.fact }] },
-      { label: "Install", steps: p.steps.map((s, i) => ({ head: `Step ${i + 1} of ${p.steps.length}`, body: s })) },
-      { label: "Do / Don't", steps: rules },
-      { label: "Quiz", quiz: p.quiz },
-    ],
-  };
-}
-
-// Each motherboard quadrant gets its own card (data comes from boardQuadrants.js).
-export function buildQuadInfo(id, q) {
-  if (!q) return null;
-  return {
-    key: "q" + id,
-    tag: q.tag || "QUAD",
-    title: q.name || "Motherboard Region",
-    tabs: [
-      { label: "Overview", steps: [{ head: "What's here", body: firstSentence(q.summary, 150) }] },
-      {
-        label: "Parts",
-        steps: (q.items || []).map((it) => ({
-          head: it.name,
-          body: firstSentence(it.text),
-          extra: it.tip ? "Tip: " + firstSentence(it.tip, 90) : "",
-        })),
-      },
-    ],
-  };
-}

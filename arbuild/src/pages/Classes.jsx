@@ -1,6 +1,6 @@
 // Student pages.
 //   /classes                       my classes: join one with the instructor's code, open one
-//   /classes/:classId?tab=...      one class: stream, materials, lab activities, messages with the instructor
+//   /classes/:classId?tab=...      one class: stream, materials, lab activities
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { deleteDoc, doc } from "firebase/firestore";
@@ -12,16 +12,15 @@ import {
   subscribeMyMemberships,
   subscribeClass,
   subscribeMember,
-  subscribeThread,
   markStreamSeen,
-  threadUnread,
   personName,
+  shownName,
   toMs,
 } from "../lab/Classes";
 import { normalizeCode, isValidCode, CODE_LENGTH } from "../lab/Setup";
+import { studentCard, syncStudentCard, subscribeInstructorCard, ensureThumb } from "../lab/People";
 import { useNow } from "../components/instructor/LabMonitor";
 import Stream from "../components/class/Stream";
-import Chat from "../components/class/Chat";
 import { StudentClassCard } from "../components/class/ClassCards";
 import { ClassMeta, Tabs } from "../components/class/ClassBits";
 import AppShell from "../components/AppShell";
@@ -33,6 +32,29 @@ import "../styles/Classes.css";
 function useMe() {
   const { user, profile } = useAuth();
   return useMemo(() => ({ uid: user?.uid, name: personName(profile, user) }), [user, profile]);
+}
+
+/** The student's card in each of their classes (what the instructor sees), kept the same as their profile. */
+function useMyCards() {
+  const { user, profile, updateUserProfile } = useAuth();
+  const [classIds, setClassIds] = useState([]);
+  useEffect(() => {
+    if (!user?.uid || profile?.role !== "student") return undefined;
+    // the same list keeps the same array, so a snapshot that changes nothing syncs nothing
+    const keep = (list) => setClassIds((ids) => (ids.join() === list.map((c) => c.id).join() ? ids : list.map((c) => c.id)));
+    return subscribeMyMemberships(user.uid, keep, () => {});
+  }, [user?.uid, profile?.role]);
+  const card = JSON.stringify(studentCard(profile));
+  useEffect(() => {
+    if (!user?.uid || profile?.role !== "student" || !classIds.length) return;
+    ensureThumb(profile, updateUserProfile)
+      .then((saved) => {
+        if (saved) return; // the profile changes, and this runs again with the photo's thumbnail
+        for (const id of classIds) syncStudentCard(id, user.uid, JSON.parse(card)).catch(() => {});
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, card, classIds]);
 }
 
 /* ====================================================================== */
@@ -90,7 +112,7 @@ function MyClasses() {
       className="app-page--content"
       eyebrow="Classes"
       title="My classes"
-      subtitle="Announcements, learning materials, lab activities and messages from your instructors."
+      subtitle="Announcements, learning materials and lab activities from your instructors."
     >
       <form className="ins-panel cls-join" onSubmit={join}>
         <div>
@@ -123,7 +145,7 @@ function MyClasses() {
       ) : sorted.length === 0 ? (
         <div className="cls-empty cls-empty--big">
           <strong>You're not in a class yet</strong>
-          <span>Enter the code from your instructor above. Then your announcements, materials, lab activities and messages are all here.</span>
+          <span>Enter the code from your instructor above. Then your announcements, materials and lab activities are all here.</span>
         </div>
       ) : (
         <section className="page-section" aria-label="Your classes">
@@ -147,7 +169,6 @@ const TABS = [
   { id: "stream", label: "Stream", icon: "megaphone" },
   { id: "materials", label: "Materials", icon: "book" },
   { id: "labs", label: "Lab activities", icon: "wrench" },
-  { id: "messages", label: "Message instructor", icon: "chat" },
 ];
 
 const BACK = { to: "/classes", label: "My classes" };
@@ -162,11 +183,11 @@ function ClassPage() {
 
   const [cls, setCls] = useState(undefined);
   const [member, setMember] = useState(undefined);
-  const [thread, setThread] = useState(null);
+  const [teacher, setTeacher] = useState(null); // the instructor's card (lab/People.js)
 
   useEffect(() => subscribeClass(classId, setCls, () => setCls(null)), [classId]);
   useEffect(() => subscribeMember(classId, me.uid, setMember, () => setMember(null)), [classId, me.uid]);
-  useEffect(() => subscribeThread(classId, me.uid, setThread, () => {}), [classId, me.uid]);
+  useEffect(() => (cls?.instructorUid ? subscribeInstructorCard(cls.instructorUid, setTeacher) : undefined), [cls?.instructorUid]);
 
   // looking at the stream clears its "new" badge
   const lastPost = toMs(cls?.lastPostAt);
@@ -207,30 +228,29 @@ function ClassPage() {
     );
   }
 
-  const unread = threadUnread(thread, me.uid);
   const openLab = (code) => navigate(`/lab?lab=${code}&class=${classId}`);
 
-  const tabs = TABS.map((t) => ({ ...t, badge: t.id === "messages" && unread ? <span className="cls-dot">new</span> : null }));
+  // their name as their profile has it now (the class's copy until their card is there), and their
+  // photo: on the class and on each of their posts
+  const teacherName = shownName(teacher?.name || cls.instructorName);
+  const author = { uid: cls.instructorUid, name: teacherName, photo: teacher?.photo || "" };
 
   return (
     <AppShell className="app-page--content" back={BACK} eyebrow={cls.section || "Class"} title={cls.name}>
       <ClassMeta cls={cls}>
-        {cls.instructorName && (
+        {teacherName && (
           <span className="class-meta__item">
             <Icon name="user" size={16} />
-            {cls.instructorName}
+            {teacherName}
           </span>
         )}
       </ClassMeta>
 
-      <Tabs tabs={tabs} current={tab} onChange={(t) => setParams({ tab: t }, { replace: true })} />
+      <Tabs tabs={TABS} current={tab} onChange={(t) => setParams({ tab: t }, { replace: true })} />
 
-      {tab === "stream" && <Stream classId={classId} me={me} onOpenLab={openLab} now={now} />}
-      {tab === "materials" && <Stream classId={classId} me={me} filter="material" onOpenLab={openLab} now={now} />}
-      {tab === "labs" && <Stream classId={classId} me={me} filter="lab" onOpenLab={openLab} now={now} />}
-      {tab === "messages" && (
-        <Chat classId={classId} studentUid={me.uid} studentName={me.name} me={me} otherName={cls.instructorName || "Instructor"} now={now} />
-      )}
+      {tab === "stream" && <Stream classId={classId} me={me} author={author} onOpenLab={openLab} now={now} />}
+      {tab === "materials" && <Stream classId={classId} me={me} author={author} filter="material" onOpenLab={openLab} now={now} />}
+      {tab === "labs" && <Stream classId={classId} me={me} author={author} filter="lab" onOpenLab={openLab} now={now} />}
 
       <div className="cls-row cls-row--end">
         <button
@@ -250,5 +270,6 @@ function ClassPage() {
 }
 
 export default function Classes({ page = "list" }) {
+  useMyCards();
   return page === "class" ? <ClassPage /> : <MyClasses />;
 }
