@@ -15,7 +15,7 @@ export const POINTS = {
   psu: 60,
   gpu: 80,
   cpu_cooler: 40,
-  paste: 20,
+  paste: 40, // the most for the right amount in the right place (lab/Paste.js)
   bootBase: 60,
   bootDualRam: 20,
   bootGpu: 40,
@@ -98,6 +98,11 @@ export const basePoints = (mode, name) =>
 export function actionPoints(base, misses) {
   if (misses === 0) return Math.round(base * (1 + POINTS.perfectBonus));
   return Math.round(base * Math.max(POINTS.minShare, 1 - misses * POINTS.missPenalty));
+}
+
+/** The paste's points: what its quality (0-1, lab/Paste.js) earns, less for each time it was wiped and redone. */
+export function pastePoints(quality, misses) {
+  return Math.round(POINTS.paste * quality * Math.max(POINTS.minShare, 1 - misses * POINTS.missPenalty));
 }
 
 export const ledgerKey = (mode, name) => `${mode}:${name}`;
@@ -243,7 +248,7 @@ export function maxPoints(mode, { slots, gpu, dualRam, gpu6 = false, psuEnds = [
   // the case's and fans' wires on the board (every build has a board, a cooler and a case)
   if (slots.includes("motherboard")) max += WIRE_IDS.reduce((s, id) => s + perfect(T[`wire_${id}`] ?? 0), 0);
   if (mode === "disassemble") {
-    max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(POINTS.paste);
+    max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(REMOVE_POINTS.paste);
   } else {
     max += POINTS.paste + (boot ? bootMax({ gpu, dualRam }) : 0);
   }

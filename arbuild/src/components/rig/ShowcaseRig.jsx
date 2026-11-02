@@ -14,7 +14,8 @@ import CaseFanModel from "../../Three/CaseFanModel";
 import { CablePlug, HeaderPlug, BoardScrew, PSUPanel, M2Cover, SsdScrew, SocketLever, SocketPlate, LeverHook, PLUG_REACH } from "../../Three/Hardware";
 import { MM, headerPlugReach } from "../../Three/cableStubs";
 import { useRigMotion } from "../../Three/rigMotion";
-import { CaseWithMeasure, ThermalPaste, caseFanLayout } from "../lab/BenchScene";
+import { CaseWithMeasure, caseFanLayout } from "../lab/BenchScene";
+import { ThermalPaste } from "../lab/PasteTask";
 import {
   MOTHERBOARD_TARGET, MOBO_MOUNTED_ROTATION, PSU_TARGET, GPU_TARGET, STORAGE_MOUNT_ROTATION,
   COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z, boardLayout, moboLocalToWorld,
@@ -571,13 +572,9 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
               <group scale={unstretch}>
                 <group rotation={[Math.PI / 2, 0, Math.PI]}>
                   <PartModel category="cpu" variant={variant("cpu")} />
+                  <ThermalPaste variant={variant("cpu")} />
                 </group>
               </group>
-            </group>
-          </Moving>
-          <Moving id="cpu" disp={disp} base={L.pasteLocal} inBoard={L.scale}>
-            <group scale={unstretch}>
-              <ThermalPaste />
             </group>
           </Moving>
 

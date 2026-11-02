@@ -8,6 +8,8 @@ import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PS
 import { renderSettings } from "../Three/graphics";
 import { CablePlug, HeaderPlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, SocketSlide, SocketCapOnBench, LeverHook, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
+import { ThermalPaste, PasteStage, PasteCapture, PastePanel, PasteResult, PasteTubeOnBench, newPasteWork } from "../components/lab/PasteTask";
+import { gradePaste, lidFor } from "../lab/Paste";
 import { MM, headerPlugReach } from "../Three/cableStubs";
 import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
@@ -17,7 +19,7 @@ import { useARGestures, GestureGroup, MIN_SCALE, MAX_SCALE } from "../Three/ar/A
 import Icon from "../components/Icon";
 import {
   CaseWithMeasure, CaseRig, CaseFans, Workbench, TrayLabel, BenchLoadingFallback, CameraFocus, ViewControls, FitFov,
-  ThermalPaste, TrayModel, TargetMarker, RamSlotMarker, Blast, Flyer,
+  TrayModel, TargetMarker, RamSlotMarker, Blast, Flyer,
 } from "../components/lab/BenchScene";
 import MonitorStation from "../components/lab/MonitorStation";
 import StartScreen from "../components/lab/StartScreen";
@@ -38,7 +40,7 @@ import {
   socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone,
 } from "../lab/Rules";
 import {
-  POINTS, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
+  POINTS, REMOVE_POINTS, pastePoints, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
   maxPoints, officialScore, officialDelta, taskRequirements, taskLedger, OFFICIAL_MAX,
 } from "../lab/Scoring";
 import { DEFAULT_SETUP, normalizeSetup, buildStart, setupFromUrl } from "../lab/Setup";
@@ -142,6 +144,9 @@ export default function BuildLab() {
   const [installed, setInstalled] = useState(init.installed);
   const [picks, setPicks] = useState(init.picks); // category -> catalog id of the part on the bench
   const [pasteApplied, setPasteApplied] = useState(init.pasteApplied);
+  const [paste, setPaste] = useState(null); // what the student put on the CPU: { dabs, grade, squeezed } (null: none, or it came with the PC)
+  const [pasteTask, setPasteTask] = useState(null); // putting it on: "draw", then "result"
+  const [pasteWork, setPasteWork] = useState(null); // the drawing in progress (components/lab/PasteTask.jsx)
   const [ramSlot, setRamSlot] = useState(init.ramSlot);
   const [cables, setCables] = useState(init.cables ?? NO_CABLES); // cables' part ends plugged in
   const [psuCables, setPsuCables] = useState(init.psuCables ?? NO_CABLES); // their PSU ends (modular PSU)
@@ -225,7 +230,7 @@ export default function BuildLab() {
   const raycaster = useRef(new THREE.Raycaster());
   // AR: the bench's size (1 = as placed), from a pinch or the size buttons
   const [arSize, setArSize] = useState(1);
-  const gestures = useARGestures({ overlayRef, enabled: arLike, onScale: setArSize });
+  const gestures = useARGestures({ overlayRef, enabled: arLike && !pasteTask, onScale: setArSize });
   const resetGestures = () => {
     gestures.reset();
     setArSize(1);
@@ -259,8 +264,10 @@ export default function BuildLab() {
   // Troubleshooting: what's wrong with the PC now and which of the set-up's faults are fixed. The
   // score is the fixed faults' points, and the start's once it starts with nothing wrong, for the
   // time taken (building and taking apart together), out of the task's points.
+  const cpuLid = lidFor(itemFor("cpu", picks)?.variant ?? 0);
+  const pasteThin = pasteApplied && !!paste?.grade?.thin; // so little over the chips that the CPU overheats
   const faultsNow = trouble
-    ? findFaults({ installed, picks, pasteApplied, ramSlot, cables, psuCables, psuSockOf, screws, m2, socket, wires }, task)
+    ? findFaults({ installed, picks, pasteApplied, pasteThin, ramSlot, cables, psuCables, psuSockOf, screws, m2, socket, wires }, task)
     : [];
   const faultIds = trouble ? Object.keys(task.faultPoints) : [];
   const fixedIds = trouble ? fixedFaults(faultIds, faultsNow) : [];
@@ -486,6 +493,7 @@ export default function BuildLab() {
     }
 
     if (name === "storage") setM2((p) => ({ ...p, ssdScrew: false }));
+    if (name === "cpu_cooler") setPaste((p) => p && { ...p, squeezed: true }); // the cooler presses it flat
     setInstalled((p) => ({ ...p, [name]: true }));
     setFlights((p) => {
       const n = { ...p };
@@ -514,9 +522,55 @@ export default function BuildLab() {
   function applyPaste() {
     if (installed.cpu_cooler) return showHint("Too late, the cooler is already on. Paste goes on first.");
     if (!installed.cpu) return showHint("Install the CPU first, the paste goes on top of it.");
-    if (pasteApplied) return showHint("Thermal paste is already applied.", "success");
+    if (pasteApplied) {
+      // their own paste: its marks again, with the choice to wipe it off and start over
+      if (paste?.grade) return setPasteTask("result");
+      return showHint("Thermal paste is already applied.", "success");
+    }
+    startPaste();
+  }
+
+  // The tube in hand, the lid clean, the camera over the CPU.
+  function startPaste() {
+    setCableTask(null);
+    setWireTask(null);
+    setCableDrawer(false);
+    setSelectedPart(null);
+    setInspectId(null);
+    setPaste(null);
+    setPasteWork(newPasteWork());
+    setPasteTask("draw");
+  }
+
+  function donePaste() {
+    const dabs = pasteWork.dabs;
+    setPaste({ dabs, grade: gradePaste(dabs, cpuLid), squeezed: false });
+    setPasteTask("result");
+  }
+
+  function keepPaste() {
+    setPasteTask(null);
+    if (pasteApplied) return; // it was on already, they only looked at it again
     setPasteApplied(true);
-    award(ledgerKey("assemble", "paste"), POINTS.paste, "Thermal paste applied. The cooler can go on now.", "paste");
+    const k = ledgerKey("assemble", "paste");
+    award(k, pastePoints(paste.grade.quality, misses.current[k] || 0), "Thermal paste on. The cooler can go on now.", "paste");
+    if (paste.grade.fault) reportEvent("miss", "paste", paste.grade.fault);
+  }
+
+  // Wiping it off costs some of the points; the next try's mark is what counts, even if it's lower.
+  function redoPaste() {
+    const k = ledgerKey("assemble", "paste");
+    misses.current[k] = (misses.current[k] || 0) + 1;
+    delete ledger.current[k];
+    syncScore();
+    reportEvent("revert", "paste", "Wiped the thermal paste off to do it again");
+    setPasteApplied(false);
+    startPaste();
+  }
+
+  function cancelPaste() {
+    setPasteTask(null);
+    setPaste(null);
   }
 
   /* ---------- disassemble: remove a part ---------- */
@@ -552,7 +606,10 @@ export default function BuildLab() {
       delete n[name];
       return n;
     });
-    if (name === "cpu") setPasteApplied(false); // the paste goes with it
+    if (name === "cpu") {
+      setPasteApplied(false); // the paste goes with it
+      setPaste(null);
+    }
     if (name === "ram1" || name === "ram2") setRamSlot((p) => ({ ...p, [name]: null }));
     if (name === "motherboard") setMotherboardPos(trayPosition("motherboard"));
     setBooted(false);
@@ -611,7 +668,8 @@ export default function BuildLab() {
     if (installed.cpu_cooler) return showHint("Remove the CPU cooler to reach the paste.");
     if (!pasteApplied) return showHint("The old paste is already wiped off.", "success");
     setPasteApplied(false);
-    award(ledgerKey("disassemble", "paste"), actionPoints(POINTS.paste, 0), "Old thermal paste wiped clean.", "paste");
+    setPaste(null);
+    award(ledgerKey("disassemble", "paste"), actionPoints(REMOVE_POINTS.paste, 0), "Old thermal paste wiped clean.", "paste");
   }
 
   /* ---------- cables and screws ---------- */
@@ -1176,6 +1234,16 @@ export default function BuildLab() {
     return { key: `ram:${ramHeld}`, target: c, position: [c[0] + off[0], c[1] + off[1], c[2] + off[2]] };
   }, [ramHeld, ramTargets, ramSlotMarks, boardMounted, rig]);
 
+  // Putting the paste on: the camera looks straight down at the CPU's lid.
+  const pasteFocus = useMemo(() => {
+    if (!pasteTask || !installed.cpu) return null;
+    const c = cpuTarget.position;
+    const d = window.innerWidth < window.innerHeight ? 0.5 : 0.42; // a narrow screen stands back, to fit the lid across
+    const off = !boardMounted || rig.laidDown ? [0, d, d * 0.25] : [0, d * 0.25, d];
+    return { key: "paste", target: c, position: [c[0] + off[0], c[1] + off[1], c[2] + off[2]] };
+  }, [!!pasteTask, !!installed.cpu, cpuTarget, boardMounted, rig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pasteZoom = useCallback((factor) => viewRef.current?.zoom(factor), []);
+
   // every case and fan wire is on its header, the right way round
   const wiresDone = WIRE_IDS.every((id) => wireRight(id, wires[id]));
 
@@ -1230,7 +1298,7 @@ export default function BuildLab() {
       );
     }
     setPower({ ...POWER_ON }); // powering on plugs it back in
-    const result = evaluateBoot({ installed, pasteApplied, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf }, { hints: hintsOn });
+    const result = evaluateBoot({ installed, pasteApplied, pasteThin, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf }, { hints: hintsOn });
     // troubleshooting: the task is done when the PC starts with nothing wrong
     const clean = trouble && faultsNow.length === 0;
     if (result.status === "dead") {
@@ -1293,6 +1361,8 @@ export default function BuildLab() {
     setBounce({});
     setInspectId(null);
     setPasteApplied(s.pasteApplied);
+    setPaste(null);
+    setPasteTask(null);
     setRamSlot(s.ramSlot);
     setCables(s.cables ?? NO_CABLES);
     setPsuCables(s.psuCables ?? NO_CABLES);
@@ -1324,6 +1394,8 @@ export default function BuildLab() {
 
   function switchMode(next) {
     clearTimers();
+    setPasteTask(null);
+    if (!pasteApplied) setPaste(null); // left half way: no paste
     setCableTask(null);
     setCableDrawer(false);
     setSelectedPart(null);
@@ -1668,7 +1740,7 @@ export default function BuildLab() {
   const pickPart = (origin, dir) => {
     if (gestures.consumeSuppress()) return;
     const root = contentRef.current;
-    if (!root || exploding) return;
+    if (!root || exploding || pasteTask) return;
     raycaster.current.set(origin, dir.normalize());
     for (const h of raycaster.current.intersectObject(root, true)) {
       let o = h.object;
@@ -1688,6 +1760,7 @@ export default function BuildLab() {
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
+      else if (id === "paste") applyPaste();
       else if (id === "m2cover") clickM2Cover();
       else if (id === "socketlever") clickLever();
       else if (id === "socketplate") clickPlate();
@@ -1800,17 +1873,19 @@ export default function BuildLab() {
               "cpu",
               <TrueSize unstretch={unstretch} rotation={[Math.PI / 2, 0, Math.PI]}>
                 <PartModel category="cpu" variant={variantOf("cpu")} />
+                {pasteTask === "draw" && pasteWork ? (
+                  <>
+                    <ThermalPaste variant={variantOf("cpu")} work={pasteWork} />
+                    <PasteStage variant={variantOf("cpu")} work={pasteWork} />
+                  </>
+                ) : (
+                  (pasteApplied || paste) && (
+                    <ThermalPaste variant={variantOf("cpu")} dabs={paste?.dabs ?? null} squeezed={paste ? paste.squeezed : true} />
+                  )
+                )}
               </TrueSize>
             )}
           </SocketSlide>
-        </Blast>
-      )}
-
-      {installed.cpu && pasteApplied && (
-        <Blast active={exploding} power={1.2} outZ={-1} position={L.pasteLocal}>
-          <TrueSize unstretch={unstretch}>
-            <ThermalPaste />
-          </TrueSize>
         </Blast>
       )}
 
@@ -2070,7 +2145,7 @@ export default function BuildLab() {
     nextStep >= 0 ? steps[nextStep].label : stepsDone < steps.length ? "Take the parts out in any order" : "Every step done";
   const orderedSteps = steps.filter((s) => !s.anyOrder);
   const anyOrderSteps = steps.filter((s) => s.anyOrder);
-  const showPicker = mode === "assemble" && cfg.partPicking === "student" && !classLocked;
+  const showPicker = mode === "assemble" && cfg.partPicking === "student" && !classLocked && !pasteTask;
 
   const showMarkers = arLike && mode === "assemble" && selectedPart;
 
@@ -2169,7 +2244,7 @@ export default function BuildLab() {
               <FitFov enabled={!inAR} />
               <ARContext.Provider value={arLike}>
                 <GLBridge glRef={glRef} />
-                {!arLike && <CameraFocus focus={cableFocus || wireFocus || ramFocus} home={HOME_VIEW} />}
+                {!arLike && <CameraFocus focus={pasteFocus || cableFocus || wireFocus || ramFocus} home={HOME_VIEW} />}
                 {!arLike && <ViewControls apiRef={viewRef} home={HOME_VIEW} />}
                 <ambientLight intensity={2.0} />
                 <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
@@ -2191,7 +2266,7 @@ export default function BuildLab() {
                         <Workbench />
 
                         {/* name tags (hidden while a cable is connected: the camera is up close then) */}
-                        {!cableTask && benchParts.map((name) => (
+                        {!cableTask && !pasteTask && benchParts.map((name) => (
                           <TrayLabel key={name} name={name} text={PART_LABEL[name]} sub={traySub(name)} />
                         ))}
 
@@ -2317,6 +2392,16 @@ export default function BuildLab() {
                         </CaseRig>
 
                         {benchParts.map(renderTrayPart)}
+                        {mode === "assemble" && !pasteTask && !exploding && (
+                          <>
+                            <PasteTubeOnBench
+                              position={trayPosition("paste")}
+                              waiting={hintsOn && !!installed.cpu && !pasteApplied && !installed.cpu_cooler}
+                              onClick={applyPaste}
+                            />
+                            {!cableTask && <TrayLabel name="paste" text="Thermal paste" />}
+                          </>
+                        )}
                         {sockLook.cap && !socket.cap && !!picks.motherboard && !exploding && (
                           <SocketCapOnBench
                             size={sockLook.cap.size}
@@ -2389,6 +2474,9 @@ export default function BuildLab() {
           ref={overlayRef}
           style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: arLike ? "auto" : "none", touchAction: "none" }}
         >
+          {/* first, so everything else stays on top of it */}
+          {pasteTask && !classLocked && <PasteCapture work={pasteTask === "draw" ? pasteWork : null} onZoom={arLike ? null : pasteZoom} />}
+
           {/* AR: the status, Move / Exit AR and any AR error, in one row under the parts strip */}
           {(inAR || camMode || arError) && (
             <div className={`lab-ar-top ${showPicker ? "is-beside-picker" : ""}`}>
@@ -2482,6 +2570,22 @@ export default function BuildLab() {
             </div>
           )}
 
+          {pasteTask === "draw" && pasteWork && !classLocked && (
+            <PastePanel work={pasteWork} variant={variantOf("cpu")} hints={hintsOn} arLike={arLike} onDone={donePaste} onCancel={cancelPaste} />
+          )}
+          {pasteTask === "result" && paste?.grade && !classLocked && (
+            <PasteResult
+              grade={paste.grade}
+              variant={variantOf("cpu")}
+              hints={hintsOn}
+              arLike={arLike}
+              score={!trouble}
+              redone={misses.current[ledgerKey("assemble", "paste")] || 0}
+              onKeep={keepPaste}
+              onRedo={redoPaste}
+            />
+          )}
+
           {cableTask && mode === "assemble" && !classLocked && (
             <section className={`cable-task ${showPicker ? "is-beside-picker" : ""}`} aria-live="polite" style={{ pointerEvents: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
               <span className="cable-task__step">
@@ -2560,13 +2664,13 @@ export default function BuildLab() {
             </div>
           )}
 
-          {!classLocked && (
+          {!classLocked && !pasteTask && (
             <div style={{ pointerEvents: "auto" }}>
               <ControlPanel buttons={buttons} />
             </div>
           )}
 
-          {(task || hintsOn) && !classLocked && !arLike && (
+          {(task || hintsOn) && !classLocked && !arLike && !pasteTask && (
             <section
               ref={taskRef}
               className={`lab-task ${taskOpen ? "is-open" : ""} ${taskDone ? "is-done" : ""}`}

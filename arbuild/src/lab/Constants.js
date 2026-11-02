@@ -39,10 +39,11 @@ export const TRAY_OFFSETS = {
   storage: [-1.75, 0.03, 3.15],
   m2cover: [-1.74, 0.01, 3.42], // the board's M.2 cover, once it is lifted off (its middle)
   socketcap: [0.95, 0.01, 2.62], // the AM5 socket's plastic cap once it pops off, between the CPU and the cooler
+  paste: [1.8, 0.002, 3.28], // the tube of thermal paste
 };
 
 // [x, y, z] added on top of the tray position for the part's name tag. Default is [0, 0.3, 0].
-export const LABEL_OFFSETS = { psu: [0, 0.62, 0], motherboard: [0, 0.3, -0.75], gpu: [0, 0.5, 0], cpu_cooler: [0, 0.4, 0] };
+export const LABEL_OFFSETS = { psu: [0, 0.62, 0], motherboard: [0, 0.3, -0.75], gpu: [0, 0.5, 0], cpu_cooler: [0, 0.4, 0], paste: [0, 0.16, 0] };
 
 export function trayPosition(name) {
   const o = TRAY_OFFSETS[name];
@@ -110,9 +111,6 @@ export const STORAGE_LOCAL = [0.14, 0.625, 0.075];
 export const STORAGE_MOUNT_ROTATION = [Math.PI / 2, 0, Math.PI];
 export const STORAGE_OFFSET = [-STORAGE_LOCAL[0], STORAGE_LOCAL[1], -STORAGE_LOCAL[2]];
 
-export const PASTE_LIFT = 0.02;
-export const PASTE_LOCAL = [CPU_LOCAL[0], CPU_LOCAL[1], CPU_LOCAL[2] + PASTE_LIFT];
-
 /* ---------- per-board layout ---------- */
 // Every board model has its own size and its own socket / slot positions, so each board
 // component exports MOUNTS (Three/MotherboardModel.jsx, MotherboardModel1.jsx...).
@@ -154,10 +152,6 @@ export function boardLayout(m = BASE_MOUNTS) {
     scale: m.scale,
     cpuLocal: m.cpu,
     cpuOffset,
-    // a pea of paste on the CPU's top face (board space: out of the board is -Z)
-    pasteLocal: m.cooler
-      ? [m.cooler[0], m.cooler[1], m.cooler[2] - 0.003 / m.scale[2]]
-      : [m.cpu[0], m.cpu[1], m.cpu[2] + PASTE_LIFT],
     coolerLocal,
     coolerOffset,
     storageLocal: m.storage,

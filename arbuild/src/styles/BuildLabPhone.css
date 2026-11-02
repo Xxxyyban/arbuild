@@ -218,3 +218,30 @@
   }
 }
 
+/* A phone on its side is short: the thermal paste's panel keeps to the left, with the CPU clear beside it. */
+@media (max-height: 500px) {
+  .cable-task.paste-task {
+    top: 8px;
+    right: auto;
+    width: min(270px, 38%);
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+  }
+
+  .paste-result__body {
+    grid-template-columns: 64px 1fr;
+    gap: 8px;
+  }
+
+  .paste-result__map {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+/* In AR the status and Exit AR row stays above the panel. */
+.cable-task.paste-task.is-ar {
+  top: 64px;
+  max-height: calc(100% - 72px);
+  overflow-y: auto;
+}

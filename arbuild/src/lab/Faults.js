@@ -235,6 +235,7 @@ export function findFaults(state, { ramSticks = 2, requireGpu = true } = {}) {
     add("part:cpu_cooler", "cooling", `CPU cooler: the ${cooler.short} (${cooler.cooling} W) is too weak for the ${cpuFor.short} (${cpuFor.tdp} W).`, "weak");
   } else if (!installed.cpu_cooler) add("part:cpu_cooler", "cooling", "CPU cooler: on the bench.", "bench");
   if (installed.cpu && !state.pasteApplied) add("paste", "cooling", "No thermal paste on the CPU.", "paste");
+  else if (installed.cpu && state.pasteThin) add("paste", "cooling", "Too little thermal paste on the CPU, or not over the chips.", "paste");
 
   const ssd = item("storage");
   if (!ssd) add("part:storage", "parts", "SSD: none.", "missing");

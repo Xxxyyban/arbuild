@@ -598,6 +598,141 @@
   color: #0b1220;
 }
 
+.cable-task__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- thermal paste by hand (components/lab/PasteTask.jsx) ---------- */
+.paste-capture {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.paste-capture.is-still {
+  cursor: default;
+}
+
+.paste-task p {
+  min-height: 0;
+}
+
+.paste-gauge {
+  margin-bottom: 8px;
+}
+
+.paste-gauge small {
+  display: block;
+  margin-top: 2px;
+  color: var(--lab-text-soft);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.paste-gauge__bar {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--lab-surface-hover);
+  border: 1px solid var(--lab-line-strong);
+}
+
+.paste-gauge__right,
+.paste-gauge__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.paste-gauge__right {
+  background: rgba(16, 185, 129, 0.4);
+  border-inline: 1px solid var(--lab-accent);
+}
+
+.paste-gauge__fill {
+  background: #94a3b8;
+  opacity: 0.85;
+  transition: width 0.09s linear;
+}
+
+.paste-gauge__fill.is-right {
+  background: var(--lab-accent);
+  opacity: 1;
+}
+
+.paste-gauge__fill.is-high {
+  background: #f59e0b;
+  opacity: 1;
+}
+
+/* lined up under the bar: the right amount's range is its middle stretch */
+.paste-gauge__marks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.paste-result__mark {
+  margin: 2px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.paste-result__mark span {
+  margin-left: 4px;
+  color: var(--lab-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.paste-result__body {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.paste-result__map {
+  display: block;
+  width: 92px;
+  height: 92px;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.paste-result__facts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.paste-result__facts dt {
+  font-size: 0.66rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.paste-result__facts dd {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.paste-result__note {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
 .cable-task__actions button:focus-visible {
   outline: 2px solid var(--lab-accent);
   outline-offset: 2px;

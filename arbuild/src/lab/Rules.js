@@ -239,7 +239,7 @@ export function removeBlock(name, installed, power, links = null) {
 
 /**
  * Decides what the monitor shows when the student presses POWER ON.
- * state = { installed, pasteApplied, ramSlot: { ram1, ram2 }, picks, cables, wires, headers, psuSockOf }
+ * state = { installed, pasteApplied, pasteThin, ramSlot: { ram1, ram2 }, picks, cables, wires, headers, psuSockOf }
  * (wires: lab/Wires.js, headers: the board's MOUNTS.headers; without wires they aren't checked;
  * psuSockOf: the PSU socket each cable is in, when not its own).
  * `hints` false hides the "fix" text so students must troubleshoot on their own. A running PC's
@@ -247,7 +247,7 @@ export function removeBlock(name, installed, power, links = null) {
  * you'd notice; only with hints on does each come with its cause.
  */
 export function evaluateBoot(state, { hints = true } = {}) {
-  const { installed, pasteApplied, ramSlot, picks = null, cables = null, wires = null, headers = null, psuSockOf = null } = state;
+  const { installed, pasteApplied, pasteThin = false, ramSlot, picks = null, cables = null, wires = null, headers = null, psuSockOf = null } = state;
   const ramCount = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   const lowRes = !installed.gpu;
   const fix = (text) => (hints ? text : "");
@@ -313,6 +313,9 @@ export function evaluateBoot(state, { hints = true } = {}) {
   }
   if (!pasteApplied) {
     return { status: "overheat", lowRes, ramCount, ...hot("The cooler has no thermal paste, so heat could not leave the CPU."), fix: fix("Fix: power off, apply thermal paste on the CPU, then mount the cooler.") };
+  }
+  if (pasteThin) {
+    return { status: "overheat", lowRes, ramCount, ...hot("The thermal paste doesn't cover the chips under the lid, so their heat could not reach the cooler."), fix: fix("Fix: power off, take the cooler off, wipe the paste and apply enough over the middle of the CPU.") };
   }
   // the board checks for the CPU's fan on CPU_FAN, and stops before it starts Windows if there's none
   if (wired?.fanError) {

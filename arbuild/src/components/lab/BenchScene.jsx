@@ -367,15 +367,6 @@ export function BenchLoadingFallback() {
   );
 }
 
-export function ThermalPaste() {
-  return (
-    <mesh rotation={[Math.PI / 2, 0, 0]}>
-      <cylinderGeometry args={[0.028, 0.028, 0.006, 24]} />
-      <meshStandardMaterial color="#c9ced6" roughness={0.35} metalness={0.15} />
-    </mesh>
-  );
-}
-
 // Green pulsing marker shown in AR at the selected part's slot. Tap it to place the part.
 export function TargetMarker({ name, pose, onPlace, radius = 0.22 }) {
   const ref = useRef();
