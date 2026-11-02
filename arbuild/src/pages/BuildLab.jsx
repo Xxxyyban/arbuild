@@ -47,7 +47,7 @@ import { DEFAULT_SETUP, normalizeSetup, buildStart, setupFromUrl } from "../lab/
 import { previewSetup, troubleTotal } from "../lab/Tasks";
 import { findFaults, fixedFaults, scenarioFaults, troubleSteps } from "../lab/Faults";
 import {
-  CABLE_IDS, STUB_TYPE, PORT_ROT, PORT_LATCH, GHOST_COLOR, PORT_LABEL, FIXED_MARK, PLUG_LOOK, PORT_WHERE, PSU_FIXED_OUT, HEADER_LIFT, WIRE_GHOST, wireRoute, cableRoute, psuToCase,
+  CABLE_IDS, STUB_TYPE, PORT_ROT, PORT_LATCH, GHOST_COLOR, PORT_LABEL, FIXED_MARK, PLUG_LOOK, PORT_WHERE, PSU_FIXED_OUT, HEADER_LIFT, WIRE_GHOST, wireRoute, coolerWireStart, cableRoute, psuToCase,
 } from "../lab/CableRoutes";
 import {
   WIRES, WIRE_IDS, WIRE_WHERE, HEADERS, headerLabel, headerName, wireName, wiresStart, wireBlock, wireFitBlock, wireFault, wireRight, wireOn,
@@ -920,7 +920,7 @@ export default function BuildLab() {
     if (!pose) return null;
     const pos = headerPos(pose.spot);
     const top = [pos[0], pos[1], pos[2] + headerPlugReach(WIRES[id].plug) + (pose.seated ? 0 : 0.05)];
-    const cooler = [sockCase[0] + 0.1, sockCase[1] + 0.06, L.pcbFront + 0.3];
+    const cooler = coolerWireStart(sockCase, L.pcbFront);
     return { ...pose, pos, rot: headerRot(pose.spot), ghost: wireRoute(id, top, cooler) };
   }
   const wireWaiting = (id) => (mode === "assemble" ? wireTask?.wire === id && !!wireTask.at : !!wires[id] && power.discharged);

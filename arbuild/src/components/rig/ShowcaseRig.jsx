@@ -22,7 +22,7 @@ import {
 } from "../../lab/Constants";
 import { CABLES, cableNeeded } from "../../lab/Rules";
 import { WIRES, WIRE_IDS, wiresStart } from "../../lab/Wires";
-import { STUB_TYPE, PORT_ROT, HEADER_LIFT, FRONT_IO, cableRoute, wireRoute, psuToCase } from "../../lab/CableRoutes";
+import { STUB_TYPE, PORT_ROT, HEADER_LIFT, FRONT_IO, cableRoute, wireRoute, coolerWireStart, psuToCase } from "../../lab/CableRoutes";
 import { CATALOG, correctPicks } from "../../lab/Catalog";
 import { boardHeaders } from "../../lab/Faults";
 
@@ -116,7 +116,7 @@ function useBuild(platform) {
         const port = ports[c];
         return { id: c, port, rot: PORT_ROT[c], points: cableRoute(c, from, [port[0], port[1], port[2] + PLUG_REACH]), to: c.startsWith("pcie") ? "gpu" : "board", socket: socketOf[c] };
       });
-    const cooler = [sock[0] + 0.1, sock[1] + 0.06, L.pcbFront + 0.3];
+    const cooler = coolerWireStart(sock, L.pcbFront);
     const wires = WIRE_IDS.map((id) => {
       const w = wiresStart(true)[id];
       if (!w || !has.includes(w.at)) return null;
@@ -194,8 +194,10 @@ function FlexCable({ points, from, to, disp, radius, color, highlight, onClick }
       return p.clone().add(new THREE.Vector3(a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w));
     });
     const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+    curve.arcLengthDivisions = 400; // its bends are tight, and its rings evenly spaced along its length
     m.geometry.dispose();
-    m.geometry = new THREE.TubeGeometry(curve, TUBE[0], radius, TUBE[1], false);
+    // long cables get more rings, so their bends stay round
+    m.geometry = new THREE.TubeGeometry(curve, Math.round(TUBE[0] * Math.min(2.5, Math.max(1, curve.getLength() / 1.5))), radius, TUBE[1], false);
   });
   return (
     <mesh ref={mesh} userData={{ pick: "cables" }} onClick={onClick}>

@@ -6,18 +6,31 @@ import { MM } from "../Three/cableStubs";
 import { PSU_TARGET } from "./Constants";
 import { WIRES } from "./Wires";
 
-// Cables are routed like a tidy build (case space): from the PSU in the shroud, back into the space
-// behind the motherboard tray, along the back of it, and out through the cut-out nearest the header:
-// the rubber grommets right of the board, or the cut-out above its top-left corner. Behind the tray
-// they are hidden, so only each cable's last stretch shows inside the case. Measured on the case model.
-export const TRAY_BACK = -0.47; // behind the motherboard tray
-export const TRAY_OUT = -0.38; // just out of a cut-out, in front of the tray
-export const CABLE_EXIT = {
-  atx24: { x: 0.335, y: null }, // the upper grommet, level with the 24-pin header
-  eps8: { x: -0.51, y: 2.08 }, // the cut-out above the board's top-left corner
-  pcie: { x: 0.355, y: 0.9 }, // the lower grommet, under the graphics card
-  pcie6: { x: 0.355, y: 0.9 },
-};
+// Cables are routed like a tidy build (case space): from the PSU under its cover, into the space behind
+// the motherboard tray, along the back of it, and out through the opening nearest the header. Behind the
+// tray and under the cover they are hidden, so only each cable's last stretch shows inside the case.
+// Measured on the case model:
+//   The rear panel's inside face is at z -0.50. Behind the main part of the tray (x up to 0.3) there are
+//   only 11 mm, from z -0.495 to -0.445; beside the board is a wide channel (x 0.37 to 0.78, back to z -0.36).
+//   The tray stops above y 0.55, and the space behind it runs down into the room under the PSU cover.
+//   The openings: two rubber grommets in the sloped wall right of the board (y 0.8 to 1.1, y 1.3 to 1.65);
+//   a slot over the tray's top edge (y 2.15 to 2.19); two cut-outs in the PSU cover right under the board
+//   (x -0.42 to -0.27, x 0.145 to 0.265, both at z -0.39); and past the tray's front edge (x 0.8, z -0.4).
+const TRAY_GAP = -0.476; // the middle of the 11 mm behind the tray
+const TRAY_RIGHT = 0.34; // where the 11 mm opens into the wide channel
+const CHANNEL_Z = -0.44; // in the wide channel
+const CHANNEL_X = 0.76; // the case's wires' side of it (the power cables take the side nearest the board)
+const GROMMET_X = 0.352; // just past the board's right edge
+const GROMMET_Z = -0.365; // just out of the sloped wall
+const TOP_SLOT_Y = 2.168;
+const UNDER_COVER_Y = 0.47; // under the PSU cover (its top is at y 0.52), and below the tray
+const UNDER_BOARD_Y = 0.535; // lying on the cover, under the board's bottom edge (y 0.61)
+const COVER_CUT_Z = -0.39;
+const FRONT_SLOT_X = 0.81;
+const FRONT_SLOT_Z = -0.4;
+const GLASS_ROOM = 0.472; // nothing's centre further toward the side glass (at z 0.5) than this
+/** Which grommet a cable at height y comes out of, and how high in it. */
+const grommetY = (y) => (y < 1.2 ? Math.min(1.07, Math.max(0.83, y)) : Math.min(1.6, Math.max(1.34, y)));
 
 // Cables, case space. Every plug goes in along -Z (into the board or card); its wires leave along +Z.
 export const CABLE_IDS = ["atx24", "eps8", "pcie", "pcie6"];
@@ -47,37 +60,112 @@ export const PSU_FIXED_OUT = [-0.3, 0.3, 0.1]; // where a non-modular PSU's cabl
 export const HEADER_LIFT = 2.5 * MM;
 export const WIRE_GHOST = { panel: "#cbd5e1", front: "#60a5fa", fans: "#a78bfa" };
 export const FRONT_IO = [0.98, 2.1, 0.02]; // the case's front panel: power and reset buttons, LEDs, USB, audio
-export const FRONT_FANS = [0.95, 1.0, 0.05]; // the front fans' hub
+const FRONT_BOARD = [FRONT_SLOT_X, 2.125, FRONT_SLOT_Z]; // where its wires come out, under the block they're in at the top of the front
+const FRONT_FANS = [0.845, 1.0, -0.335]; // where the fans' wires leave the middle front fan's frame
 
-/** A wire's path from where it comes from to its plug's top (b), behind the tray and out of a cut-out. */
-export function wireRoute(id, b, cooler) {
-  const from = WIRES[id].from;
-  if (from === "cooler") return [cooler, [(cooler[0] + b[0]) / 2, (cooler[1] + b[1]) / 2 + 0.02, b[2] + 0.06], b];
-  const start = from === "front" ? FRONT_IO : FRONT_FANS;
-  const behind = [[start[0] - 0.15, start[1] - 0.05, TRAY_BACK + 0.05], [0.62, Math.min(start[1] - 0.1, Math.max(b[1], 0.45)), TRAY_BACK]];
-  // a header on the right edge or up top: out of the grommets right of the board, level with it
-  if (b[1] > 1.1) return [start, ...behind, [0.62, b[1], TRAY_BACK], [0.345, b[1], TRAY_OUT], [b[0] + 0.05, b[1], b[2] - 0.01], b];
-  // one along the bottom edge: under the board, up out of the PSU cover's cut-out
-  return [start, ...behind, [b[0], 0.42, TRAY_BACK], [b[0], 0.5, -0.3], [b[0], b[1] - 0.05, b[2] - 0.01], b];
+/**
+ * The points of a route with these corners: straight runs and rounded bends. The curve drawn through a
+ * route is a spline, and a spline through points far apart swings wide of them, out through the case's
+ * panels. With points close together on both sides of each bend, the runs between bends stay straight.
+ */
+function bends(corners, radius = 0.045) {
+  const points = [corners[0]];
+  const along = (c, to, d) => [0, 1, 2].map((k) => c[k] + to[k] * d);
+  for (let i = 1; i < corners.length - 1; i += 1) {
+    const c = corners[i];
+    const dirs = [corners[i - 1], corners[i + 1]].map((p) => {
+      const d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
+      const len = Math.hypot(...d) || 1;
+      return { to: d.map((v) => v / len), len };
+    });
+    const [back, on] = dirs;
+    const r = Math.min(radius, back.len * 0.4, on.len * 0.4);
+    if (back.len > 5 * r) points.push(along(c, back.to, 2 * r));
+    points.push(along(c, back.to, r));
+    points.push([0, 1, 2].map((k) => c[k] + (back.to[k] + on.to[k]) * r * 0.27));
+    points.push(along(c, on.to, r));
+    if (on.len > 5 * r) points.push(along(c, on.to, 2 * r));
+  }
+  points.push(corners[corners.length - 1]);
+  return points;
 }
 
-/** A cable's path from its PSU end (a) to the end of its plug's wires (b), through its cut-out. */
-export function cableRoute(c, a, b) {
-  const e = CABLE_EXIT[c];
-  const ey = e.y ?? b[1];
-  const fromPsu = [a, [a[0] + 0.06, a[1] - 0.05, a[2] - 0.15], [e.x, 0.4, TRAY_BACK], [e.x, ey, TRAY_BACK], [e.x, ey, TRAY_OUT]];
-  let toPlug;
-  if (c === "pcie" || c === "pcie6") {
-    // forward under the card, up past its front end, and along its top edge to the plug
-    toPlug = [[e.x + 0.03, ey, -0.22], [0.39, ey + 0.06, 0.06], [0.37, b[1] + 0.03, b[2] - 0.06], [b[0] + 0.12, b[1] + 0.04, b[2] + 0.03]];
-  } else if (c === "eps8") {
-    // down from the cut-out to the header just below it
-    toPlug = [[e.x - 0.02, ey + 0.01, -0.3], [b[0] + 0.01, b[1] + 0.07, b[2] - 0.04]];
-  } else {
-    // a short bend out of the grommet into the header beside it
-    toPlug = [[e.x + 0.03, ey, -0.26], [b[0] + 0.08, b[1], b[2] - 0.02]];
+// The case's wires, each in its own place across the wide channel.
+const WIRE_LANE = { pwr_sw: 0, rst_sw: 1, pled: 2, hdd_led: 3, hd_audio: 4, usb3: 5, case_fans: 6, argb: 7 };
+
+/** Where the CPU fan's wire leaves the cooler: its rim, on the side toward the board's top edge. */
+export const coolerWireStart = (sock, pcbFront) => [sock[0] + 0.1, sock[1] + 0.18, pcbFront + 0.19];
+
+/** A wire's path from where it comes from to its plug's top (b), behind the tray and out of an opening. */
+export function wireRoute(id, b, cooler) {
+  const from = WIRES[id].from;
+  if (from === "cooler") {
+    return [cooler, [(cooler[0] + b[0]) / 2, (cooler[1] + b[1]) / 2 + 0.02, b[2] + 0.06], [b[0], b[1] - 0.015, b[2] + 0.03], b];
   }
-  return [...fromPsu, ...toPlug, b];
+  const lane = WIRE_LANE[id] ?? 0;
+  const x = CHANNEL_X - lane * 0.014;
+  // out from under the case's front panel board, or off the middle front fan's frame, past the tray's front edge
+  const start = from === "front"
+    ? [FRONT_BOARD, [x, FRONT_BOARD[1] - 0.07, CHANNEL_Z]]
+    : [FRONT_FANS, [FRONT_SLOT_X, FRONT_FANS[1] - 0.02, FRONT_SLOT_Z], [x, FRONT_FANS[1] - 0.05, CHANNEL_Z]];
+  const plug = [b[0], b[1], b[2] + 0.035]; // its wires leave the plug straight, along +z
+
+  // up top: along behind the tray and out of the slot over it
+  if (b[1] > 1.85) {
+    return bends([...start, [TRAY_RIGHT, TOP_SLOT_Y, TRAY_GAP], [b[0], TOP_SLOT_Y, TRAY_GAP], [b[0], TOP_SLOT_Y - 0.03, -0.38], [b[0], b[1] + 0.03, -0.29], [b[0], b[1] + 0.03, plug[2]], b], 0.03);
+  }
+  // on the board's right edge: out of the upper grommet (or the lower one, if it's nearer)
+  if (b[1] > 1.1) {
+    const y = grommetY(b[1]);
+    return bends([...start, [x, y, CHANNEL_Z], [0.39, y, CHANNEL_Z + 0.02], [GROMMET_X, y, GROMMET_Z], [GROMMET_X, b[1], plug[2]], plug, b], 0.03);
+  }
+  // along the bottom edge: under the PSU cover, up its cut-out, and forward under the board
+  const side = lane % 2 ? 0.006 : -0.006; // a pair on the same pins' column run side by side
+  const cut = b[0] < -0.05 ? Math.min(-0.29, Math.max(-0.4, b[0])) : Math.min(0.25, Math.max(0.16, b[0]));
+  return bends([
+    ...start,
+    [x, UNDER_COVER_Y, CHANNEL_Z],
+    [cut + side, UNDER_COVER_Y, COVER_CUT_Z],
+    [cut + side, UNDER_BOARD_Y, COVER_CUT_Z],
+    [b[0] + side, UNDER_BOARD_Y, COVER_CUT_Z + 0.05],
+    [b[0] + side, UNDER_BOARD_Y, plug[2]],
+    [b[0], b[1], plug[2]],
+    b,
+  ], 0.03);
+}
+
+/** A cable's path from its PSU end (a) to the end of its plug's wires (b), through its opening. */
+export function cableRoute(c, a, b) {
+  const plug = [b[0], b[1], b[2] + 0.04]; // its wires leave the plug straight, along +z
+  const leave = [a, [a[0] + 0.07, a[1], a[2]]]; // and out of the PSU's socket
+  if (c === "eps8") {
+    // behind the tray right up to its top, over it, and back down to the header just below
+    const x = -0.64;
+    const over = [x, b[1] + 0.04, -0.27]; // under the top fans
+    return bends([...leave, [0, 0.36, -0.33], [-0.15, UNDER_COVER_Y, TRAY_GAP], [x, UNDER_COVER_Y, TRAY_GAP], [x, TOP_SLOT_Y, TRAY_GAP], [x, TOP_SLOT_Y - 0.03, -0.38], over, [x, over[1], plug[2]], plug, b]);
+  }
+  if (c === "atx24") {
+    // up the channel, out of the upper grommet, along the board's edge and into the end of the plug
+    const y = grommetY(b[1]);
+    return bends([...leave, [0.4, 0.3, -0.28], [0.43, UNDER_COVER_Y, CHANNEL_Z], [0.43, y, CHANNEL_Z], [GROMMET_X, y, GROMMET_Z], [GROMMET_X, b[1], plug[2]], plug, b]);
+  }
+  // the graphics card's: out of the lower grommet, forward under the card, up past its end, along its top edge
+  const lane = c === "pcie6" ? 1 : 0;
+  const x = 0.5 + lane * 0.04;
+  const y = 0.97 - lane * 0.04;
+  const top = Math.min(plug[2], GLASS_ROOM);
+  return bends([
+    ...leave,
+    [x - 0.04, 0.31, -0.25],
+    [x, UNDER_COVER_Y, CHANNEL_Z],
+    [x, y, CHANNEL_Z],
+    [GROMMET_X, y, GROMMET_Z],
+    [GROMMET_X, y, 0.02],
+    [GROMMET_X - 0.02, b[1] + 0.06, 0.28],
+    [b[0] + 0.14, b[1] + 0.04, top],
+    [b[0], b[1], top],
+    b,
+  ]);
 }
 export const PSU_ROT = new THREE.Euler(...PSU_TARGET.rotation);
 /** A point in the PSU's own frame, in case space (the PSU sits at PSU_TARGET when installed). */
