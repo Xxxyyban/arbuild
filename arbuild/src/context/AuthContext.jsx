@@ -552,6 +552,13 @@ export function AuthProvider({ children }) {
   // CHANGE PASSWORD
   // ============================================================
 
+  // The signed-in person proves it's still them (the admin portal's lock): throws if the password is wrong.
+  const confirmPassword = async (password) => {
+    const user = auth.currentUser;
+    if (!user || !user.email) throw new Error("No authenticated user found.");
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  };
+
   const changePassword = async (
     currentPassword,
     newPassword
@@ -932,6 +939,8 @@ export function AuthProvider({ children }) {
         logout,
 
         changePassword,
+
+        confirmPassword,
 
         updateUserProfile,
 

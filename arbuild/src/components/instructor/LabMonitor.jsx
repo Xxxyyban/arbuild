@@ -1,6 +1,6 @@
 // One lab activity, live: start and close it, write tasks, give each student a task, watch their
 // progress, and read what they did (a report per student and the class's common mistakes).
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { normalizeSetup } from "../../lab/Setup";
 import { MODE_LABEL, sessionTasks, taskFor } from "../../lab/Tasks";
 import {
@@ -81,6 +81,12 @@ export default function LabMonitor({ code, back }) {
   useEffect(() => subscribeSession(code, setSession, fail), [code]);
   useEffect(() => subscribeStudents(code, setStudents, fail), [code]);
   useEffect(() => subscribeAllEvents(code, setEvents, fail), [code]);
+  // the exam lockdown's warnings (components/lab/ExamGuard.jsx), per student
+  const examFlags = useMemo(() => {
+    const out = {};
+    for (const e of events) if (e.type === "integrity") out[e.uid] = (out[e.uid] || 0) + 1;
+    return out;
+  }, [events]);
 
   async function run(fn) {
     setBusy(true);
@@ -285,6 +291,7 @@ export default function LabMonitor({ code, back }) {
                 <tbody>
                   {sorted.map((s) => {
                     const [tone, label] = studentState(s, phase, now);
+                    const flags = examFlags[s.id] || 0;
                     const task = taskFor(session, s);
                     // fixing a PC is timed as one job: taking parts out and putting them back
                     const trouble = task.mode === "troubleshoot";
@@ -297,6 +304,11 @@ export default function LabMonitor({ code, back }) {
                         <td>
                           <strong>{s.name}</strong>
                           <small>{[s.studentId, s.section].filter(Boolean).join(" · ")}</small>
+                          {flags > 0 && (
+                            <span className="ins-badge ins-badge--danger ins-exam-flag" title="Left the lab, left full screen, or tried to copy, print or take a screenshot. Open their report to see each one.">
+                              Exam: {flags} {flags === 1 ? "warning" : "warnings"}
+                            </span>
+                          )}
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <select
@@ -384,6 +396,14 @@ export default function LabMonitor({ code, back }) {
           <label className="ins-check">
             <input type="checkbox" checked={setup.autoPrompt} disabled={busy} onChange={(e) => change({ autoPrompt: e.target.checked })} />
             <span>Offer the next step when a student finishes</span>
+          </label>
+
+          <label className="ins-check">
+            <input type="checkbox" checked={!!setup.lockdown} disabled={busy} onChange={(e) => change({ lockdown: e.target.checked })} />
+            <span>
+              Exam lockdown: the lab runs in full screen, leaving it is reported here, copying and printing are
+              off, and each student's name and ID are shown across their screen
+            </span>
           </label>
         </div>
       </section>

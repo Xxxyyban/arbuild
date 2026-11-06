@@ -342,6 +342,15 @@
   color: var(--muted);
 }
 
+/* App Check's reCAPTCHA badge would cover the lab's buttons; the sign-in page says it's there instead */
+.grecaptcha-badge {
+  visibility: hidden;
+}
+
+.wl .wl-note a {
+  color: inherit;
+}
+
 .wl .wl-footer {
   margin: 0;
   font-size: 0.8rem;

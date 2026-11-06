@@ -56,6 +56,8 @@ import { createReporter, MISTAKE_TYPES } from "../lab/reportEvent";
 import { CATALOG, PLATFORM_LABEL, itemFor, fitBlock, buildSlots, correctPicks } from "../lab/Catalog";
 import { studentSetup, formatClock } from "../lab/Sessions";
 import { useLabSession } from "../lab/useLabSession";
+import ExamGuard from "../components/lab/ExamGuard";
+import Watermark from "../components/Watermark";
 import "../styles/BuildLab.css";
 import "../styles/BuildLabParts.css";
 import "../styles/BuildLabTask.css";
@@ -1472,6 +1474,13 @@ export default function BuildLab() {
 
   /* ---------- class session ---------- */
   const classPhase = labSession.phase; // null (free build) | "waiting" | "running" | "ended"
+  // A graded lab run as an exam, under the instructor's lockdown rule (components/lab/ExamGuard.jsx):
+  // full screen, leaving it reported, no copy or print, the student's name and ID across the view.
+  const exam = inClass && classPhase === "running" && !!cfg.lockdown;
+  const examWho = [
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email,
+    [profile?.studentId, profile?.section].filter(Boolean).join(" · "),
+  ];
   const assigned = inClass && labSession.session ? studentSetup(labSession.session, labSession.me) : null;
   // A new task, or a change to what the task starts with, sends the student back to its start.
   const assignKey = assigned
@@ -2805,6 +2814,14 @@ export default function BuildLab() {
               <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={leaveClass}>Leave class</button>
             </div>
           )}
+
+          <ExamGuard
+            active={exam}
+            paused={arLike}
+            report={(detail) => reportEvent("integrity", "exam", detail)}
+            warn={(text) => showHint(text, "fail", text)}
+          />
+          {exam && <Watermark lines={examWho} />}
 
           {phaseDone && cfg.autoPrompt && !promptDismissed && (
             <div

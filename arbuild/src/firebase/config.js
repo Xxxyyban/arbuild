@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; // 1. Import getStorage
@@ -14,6 +15,18 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// App Check: only this app, not a script that copies its requests, may use the database and file
+// storage. It uses a Fraud Defense (reCAPTCHA Enterprise) site key, the one registered for this web
+// app under App Check in the Firebase console (a site key is public: it's safe in the code).
+// Enforcement is switched on in the console once nearly every request shows as verified. Empty: off.
+const APP_CHECK_SITE_KEY = "6Lf0uxIuAAAAAMIAZcEkhJfsZc_mwmniOEUW1kUL";
+export const APP_CHECK_ON = !!APP_CHECK_SITE_KEY;
+if (APP_CHECK_ON && typeof window !== "undefined") {
+  // on a computer's own dev server, the console prints a debug token to add in the Firebase console
+  if (window.location.hostname === "localhost") window.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
+}
 
 export const auth = getAuth(app);
 // In-memory cache only, no copy on disk: school lab computers are shared, and class data kept in the

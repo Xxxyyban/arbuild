@@ -25,6 +25,8 @@ import { auth, db, ALLOWED_DOMAINS } from "../firebase/config";
 
 import Logo from "../components/Logo";
 import SignInLog, { signInTime } from "../components/admin/SignInLog";
+import AdminLock, { useIdle } from "../components/admin/AdminLock";
+import Watermark from "../components/Watermark";
 import { loadLastSignIns, placeName, shortPlace } from "../lab/SignIns";
 import "../styles/Admin.css";
 
@@ -58,6 +60,7 @@ const ICONS = {
     "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   signins: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
+  lock: "M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4",
 };
 
 function Icon({ name }) {
@@ -153,7 +156,7 @@ const needsSetup = (u) =>
   u.role !== "admin" && u.status !== "inactive" && !u.profileCompleted;
 
 export default function Admin() {
-  const { profile, logout } = useAuth();
+  const { profile, logout, confirmPassword } = useAuth();
   const navigate = useNavigate();
 
   // ============================================================
@@ -191,6 +194,9 @@ export default function Admin() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [users, setUsers] = useState([]);
+  // locked: nothing of the portal shows until the password is entered again (components/admin/AdminLock.jsx)
+  const [locked, setLocked] = useState(null); // null | "idle" | "manual"
+  useIdle(() => setLocked((l) => l || "idle"), { enabled: !locked });
   const [lastSignIn, setLastSignIn] = useState({}); // each account's latest sign-in, by uid
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -1188,8 +1194,26 @@ export default function Admin() {
     ["signins", "Sign-ins"],
   ];
 
+  if (locked) {
+    return (
+      <div className="admin-shell admin-locked">
+        <AdminLock
+          email={profile?.email}
+          reason={locked}
+          onUnlock={async (password) => {
+            await confirmPassword(password);
+            setLocked(null);
+          }}
+          onSignOut={handleLogout}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="admin-shell">
+      {/* a screenshot or photo of the portal shows whose screen it was, and when */}
+      <Watermark fixed lines={[profile?.email, "ARBuild admin portal"]} color="#0f172a" opacity={0.06} />
       <aside className="admin-sidebar">
         <div className="admin-brand">
           <div className="admin-brand-mark">
@@ -1222,6 +1246,16 @@ export default function Admin() {
             <span className="admin-account-role">Signed in as admin</span>
             <span className="admin-account-email">{profile?.email}</span>
           </div>
+
+          <button
+            type="button"
+            className="admin-logout"
+            onClick={() => setLocked("manual")}
+            title="Hide the portal until your password is entered again"
+          >
+            <Icon name="lock" />
+            <span>Lock</span>
+          </button>
 
           <button
             type="button"

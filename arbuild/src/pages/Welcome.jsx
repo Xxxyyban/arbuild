@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/Logo";
 import "../styles/Welcome.css";
+import { APP_CHECK_ON } from "../firebase/config";
 
 // Copper "traces" running from a CPU socket out to the board edge.
 const TRACES = [
@@ -144,6 +145,13 @@ export default function Welcome() {
           <p className="wl-note">
             For account security, each sign-in is recorded with its time, device and approximate location
             (from your internet connection). Only the administrator sees it.
+            {APP_CHECK_ON && (
+              <>
+                {" "}This site is protected by reCAPTCHA, and the Google{" "}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and{" "}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Terms of Service</a> apply.
+              </>
+            )}
           </p>
         </div>
 

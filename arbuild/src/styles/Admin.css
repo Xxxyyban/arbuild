@@ -1040,6 +1040,77 @@
 ============================================================ */
 
 /* ============================================================
+   LOCK (components/admin/AdminLock.jsx)
+============================================================ */
+
+.admin-sidebar-foot .admin-logout + .admin-logout {
+  margin-top: 8px;
+}
+
+.admin-shell.admin-locked {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--forest);
+}
+
+.admin-lock__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(380px, 100%);
+  padding: 26px 24px 20px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+.admin-lock__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--em-700);
+}
+
+.admin-lock__card h2 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.admin-lock__card p {
+  margin: -6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.admin-lock__card input[readonly] {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+
+.admin-lock__card .admin-lock__error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.admin-lock__card .admin-primary-btn {
+  width: 100%;
+}
+
+.admin-lock__out {
+  align-self: center;
+}
+
+/* ============================================================
    SIGN-INS (components/admin/SignInLog.jsx)
 ============================================================ */
 
@@ -1243,9 +1314,15 @@
   }
 
   .admin-sidebar-foot {
+    display: flex;
+    gap: 8px;
     margin: 0 0 0 auto;
     padding: 0;
     border: 0;
+  }
+
+  .admin-sidebar-foot .admin-logout + .admin-logout {
+    margin-top: 0;
   }
 
   .admin-account {

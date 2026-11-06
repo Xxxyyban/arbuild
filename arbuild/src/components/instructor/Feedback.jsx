@@ -20,14 +20,15 @@ export const KIND_LABEL = {
   pick: "Picked",
   task: "Task done",
   reset: "Reset",
+  integrity: "Exam",
 };
 
-const KIND_TONE = { safety: "danger", penalty: "danger", compat: "danger", success: "live", task: "done", pick: "idle" };
+const KIND_TONE = { safety: "danger", penalty: "danger", compat: "danger", success: "live", task: "done", pick: "idle", integrity: "danger" };
 
 // Steps that aren't parts (power on, safety steps, the task itself) get a readable name too.
 const STEP_LABEL = {
   post: "Power on", boot: "Power on", paste: "Thermal paste", shutdown: "Shut down", unplug: "Unplug",
-  bench: "Bench", assemble: "Assemble", disassemble: "Disassemble", ram: "RAM",
+  bench: "Bench", assemble: "Assemble", disassemble: "Disassemble", ram: "RAM", exam: "Exam rules",
 };
 const partName = (p) => PART_LABEL[p] || STEP_LABEL[p] || (p ? p.replace(/_/g, " ") : "");
 
@@ -64,7 +65,10 @@ export function StudentReport({ student, task, events, onClose }) {
   const mine = events.filter((e) => e.uid === student.id);
   const summary = summarizeEvents(mine);
   const repeated = groupMistakes(mine).filter((g) => g.count > 1).slice(0, 5);
-  const shown = all ? mine : mine.filter((e) => MISTAKE_TYPES.includes(e.type) || e.type === "task");
+  const shown = all ? mine : mine.filter((e) => MISTAKE_TYPES.includes(e.type) || e.type === "task" || e.type === "integrity");
+  // the exam lockdown's warnings (components/lab/ExamGuard.jsx)
+  const examWarnings = mine.filter((e) => e.type === "integrity");
+  const timesLeft = examWarnings.filter((e) => /^Left the lab/.test(e.detail || "")).length;
 
   return (
     <section className="ins-panel ins-report">
@@ -107,6 +111,13 @@ export function StudentReport({ student, task, events, onClose }) {
           </>
         )}
         <div><span>Mistakes</span><b className={summary.total ? "is-bad" : ""}>{summary.total}</b><small>{summary.safety} safety</small></div>
+        {examWarnings.length > 0 && (
+          <div>
+            <span>Exam warnings</span>
+            <b className="is-bad">{examWarnings.length}</b>
+            <small>{timesLeft ? `left the lab ${timesLeft}×` : "no time away"}</small>
+          </div>
+        )}
       </div>
 
       <KindChips summary={summary} />
@@ -123,7 +134,7 @@ export function StudentReport({ student, task, events, onClose }) {
       )}
 
       <div className="ins-head">
-        <h3>{all ? "Everything they did" : "Mistakes"}</h3>
+        <h3>{all ? "Everything they did" : examWarnings.length ? "Mistakes and exam warnings" : "Mistakes"}</h3>
         <label className="ins-check ins-check--inline">
           <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
           <span>Show every step</span>

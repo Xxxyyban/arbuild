@@ -35,6 +35,7 @@ export const DEFAULT_SETUP = {
   hints: true, // false hides hint toasts, "Fix:" lines and AR target markers
   help: null, // normalizeSetup fills it in (normalizeHelp): unless set, the step list shows with the hints
   revertPenalty: "light", // "off" | "light" | "strict"
+  lockdown: false, // run as an exam: full screen, leaving the lab reported, a name watermark, no copy or print (components/lab/ExamGuard.jsx)
 };
 
 /** Fills in any missing field, so older saved sessions keep working. */

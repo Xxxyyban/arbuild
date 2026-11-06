@@ -530,3 +530,8 @@
     justify-self: start;
   }
 }
+/* a student's exam lockdown warnings (components/lab/ExamGuard.jsx), under their name */
+.ins-exam-flag {
+  display: inline-block;
+  margin-top: 4px;
+}
