@@ -24,6 +24,8 @@ import { useAuth } from "../context/AuthContext";
 import { auth, db, ALLOWED_DOMAINS } from "../firebase/config";
 
 import Logo from "../components/Logo";
+import SignInLog, { signInTime } from "../components/admin/SignInLog";
+import { loadLastSignIns, placeName, shortPlace } from "../lab/SignIns";
 import "../styles/Admin.css";
 
 const DEFAULT_PASSWORD = "Universidad2026";
@@ -42,6 +44,10 @@ const VIEWS = {
     title: "Accounts",
     text: "Search accounts, activate or deactivate them, delete them, send reminders and password resets.",
   },
+  signins: {
+    title: "Sign-ins",
+    text: "When, from where and on what device each account signed in. New places, new devices and other countries are flagged.",
+  },
 };
 
 const ICONS = {
@@ -50,6 +56,7 @@ const ICONS = {
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M20 8v6 M23 11h-6",
   accounts:
     "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
+  signins: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
 };
 
@@ -163,6 +170,14 @@ export default function Admin() {
     setParams(next === "dashboard" ? {} : { view: next });
   }
 
+  // the sign-in log, everyone's or one account's (?view=signins&who=uid)
+  const who = view === "signins" ? params.get("who") : null;
+  function showSignIns(uid) {
+    setMessage("");
+    setError("");
+    setParams(uid ? { view: "signins", who: uid } : { view: "signins" });
+  }
+
   // ============================================================
   // STATE
   // ============================================================
@@ -176,6 +191,7 @@ export default function Admin() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [users, setUsers] = useState([]);
+  const [lastSignIn, setLastSignIn] = useState({}); // each account's latest sign-in, by uid
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -211,6 +227,12 @@ export default function Admin() {
       );
     } finally {
       setLoadingUsers(false);
+    }
+
+    try {
+      setLastSignIn(await loadLastSignIns());
+    } catch (err) {
+      console.error("Failed to load the latest sign-ins:", err);
     }
   }
 
@@ -1024,6 +1046,7 @@ export default function Admin() {
                   <th>Role</th>
                   <th>Profile</th>
                   <th>Status</th>
+                  <th>Last sign-in</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
@@ -1079,6 +1102,22 @@ export default function Admin() {
                       >
                         {item.status === "inactive" ? "Inactive" : "Active"}
                       </span>
+                    </td>
+
+                    <td data-label="Last sign-in" className="date-cell">
+                      {lastSignIn[item.id] ? (
+                        <button
+                          type="button"
+                          className="signin-last"
+                          onClick={() => showSignIns(item.id)}
+                          title={`${placeName(lastSignIn[item.id]) || "Place unknown"}. See this account's sign-ins.`}
+                        >
+                          {signInTime(lastSignIn[item.id].at)}
+                          <small>{shortPlace(lastSignIn[item.id]) || "Place unknown"}</small>
+                        </button>
+                      ) : (
+                        "None recorded"
+                      )}
                     </td>
 
                     <td data-label="Created" className="date-cell">
@@ -1146,6 +1185,7 @@ export default function Admin() {
     ["dashboard", "Dashboard"],
     ["create", "Create account"],
     ["accounts", "Accounts"],
+    ["signins", "Sign-ins"],
   ];
 
   return (
@@ -1207,6 +1247,7 @@ export default function Admin() {
         {view === "dashboard" && renderDashboard()}
         {view === "create" && renderCreate()}
         {view === "accounts" && renderAccounts()}
+        {view === "signins" && <SignInLog users={users} who={who} onWho={showSignIns} onError={setError} />}
       </main>
     </div>
   );

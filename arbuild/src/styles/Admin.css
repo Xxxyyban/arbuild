@@ -1039,6 +1039,129 @@
    RESPONSIVE
 ============================================================ */
 
+/* ============================================================
+   SIGN-INS (components/admin/SignInLog.jsx)
+============================================================ */
+
+.signin-note {
+  margin: -6px 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.signin-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--em-100);
+  border-radius: var(--r);
+  background: var(--em-50);
+}
+
+.signin-who strong {
+  display: block;
+  font-size: 14px;
+}
+
+.signin-who span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.signin-lines span,
+.signin-lines small {
+  display: block;
+}
+
+.signin-lines span {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.date-cell .signin-lines span {
+  font-size: 12px;
+}
+
+.signin-lines small {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.signin-name,
+.signin-last {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.signin-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.signin-last {
+  color: inherit;
+}
+
+.signin-name:hover,
+.signin-last:hover {
+  color: var(--em-700);
+  text-decoration: underline;
+}
+
+.signin-last small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.signin-flags {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.signin-flag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.signin-flag.abroad,
+.signin-flag.vpn {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.signin-table tbody tr.is-flagged td:first-child {
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.signin-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
 /* ---------- large screens ---------- */
 
 @media (min-width: 1600px) {
@@ -1338,6 +1461,24 @@
 
   .date-cell {
     white-space: normal;
+  }
+
+  /* a sign-in's two lines sit opposite their label */
+  .signin-lines,
+  .signin-last {
+    text-align: right;
+  }
+
+  .signin-flags {
+    justify-content: flex-end;
+  }
+
+  .signin-table tbody tr.is-flagged {
+    border-left: 3px solid var(--amber);
+  }
+
+  .signin-table tbody tr.is-flagged td:first-child {
+    box-shadow: none;
   }
 
   .admin-actions {

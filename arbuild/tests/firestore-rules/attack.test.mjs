@@ -274,6 +274,112 @@ await check("student reads a classmate's card", "BLOCKS", () => getDoc(doc(as("j
 await check("another instructor reads a student's card", "BLOCKS", () => getDoc(doc(as("profB"), "classes", "c1", "members", "juan")));
 await check("student joins with a photo not in their profile", "BLOCKS", () => joinBatch(as("eve"), "eve", { ...goodJoin("eve"), photo: "data:image/jpeg;base64,ZmFrZQ==" }));
 
+/* ---------- sign-ins (src/lab/SignIns.js) ---------- */
+// Recorded by the person signing in, with their latest in signInLast/{uid}, in one write.
+const signInEntry = (uid, extra = {}) => ({
+  uid, email: people[uid].email, at: serverTimestamp(),
+  ip: "203.0.113.7", city: "Dagupan City", region: "Ilocos", country: "Philippines", countryCode: "PH",
+  lat: 16.04, lon: 120.33, isp: "PLDT", ipTimezone: "Asia/Manila", device: "Chrome on Windows", timezone: "Asia/Manila",
+  ...extra,
+});
+const recordSignIn = (db, uid, entry = signInEntry(uid), last = {}) => {
+  const ref = doc(collection(db, "signIns"));
+  const b = writeBatch(db);
+  b.set(ref, entry);
+  b.set(doc(db, "signInLast", last.uid || uid), { ...entry, id: ref.id, ...(last.data || {}) });
+  return b.commit();
+};
+// one already there: juan's sign-in s1 two minutes ago, his latest
+const seedSignIn = () =>
+  env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    const old = { ...signInEntry("juan"), at: Timestamp.fromMillis(Date.now() - 120000) };
+    await setDoc(doc(db, "signIns", "s1"), old);
+    await setDoc(doc(db, "signInLast", "juan"), { ...old, id: "s1" });
+  });
+
+await check("app: a student's sign-in is recorded", "ALLOWS", () => recordSignIn(as("juan"), "juan"));
+await check("app: a sign-in with no place found (look-up blocked)", "ALLOWS", () =>
+  recordSignIn(as("maria"), "maria", signInEntry("maria", { ip: "", city: "", region: "", country: "", countryCode: "", lat: null, lon: null, isp: "", ipTimezone: "" })));
+await check("app: a sign-in after the last one's minute is up", "ALLOWS", async () => {
+  await seedSignIn();
+  return recordSignIn(as("juan"), "juan");
+});
+await check("app: admin reads the sign-ins", "ALLOWS", async () => {
+  await seedSignIn();
+  return getDocs(collection(as("admin"), "signIns"));
+});
+await check("app: admin reads each account's latest sign-in", "ALLOWS", async () => {
+  await seedSignIn();
+  return getDocs(collection(as("admin"), "signInLast"));
+});
+await check("app: admin reads one account's sign-ins", "ALLOWS", async () => {
+  await seedSignIn();
+  return getDocs(query(collection(as("admin"), "signIns"), where("uid", "==", "juan")));
+});
+await check("student reads the sign-ins", "BLOCKS", async () => {
+  await seedSignIn();
+  return getDocs(collection(as("eve"), "signIns"));
+});
+await check("student reads their own sign-ins", "BLOCKS", async () => {
+  await seedSignIn();
+  return getDocs(query(collection(as("juan"), "signIns"), where("uid", "==", "juan")));
+});
+await check("instructor reads a student's latest sign-in", "BLOCKS", async () => {
+  await seedSignIn();
+  return getDoc(doc(as("profA"), "signInLast", "juan"));
+});
+await check("signed-out visitor reads the sign-ins", "BLOCKS", async () => {
+  await seedSignIn();
+  return getDocs(collection(anon(), "signIns"));
+});
+await check("sign-in recorded for someone else", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("juan"), { uid: "juan" }));
+await check("sign-in under another email", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("eve", { email: "juan@cdd.edu.ph" })));
+await check("sign-in with a made-up time", "BLOCKS", () =>
+  recordSignIn(as("eve"), "eve", signInEntry("eve", { at: Timestamp.fromMillis(Date.now() - 864e5) })));
+await check("sign-in with an extra field", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("eve", { note: "trusted" })));
+await check("sign-in missing a field", "BLOCKS", () => {
+  const { device, ...rest } = signInEntry("eve");
+  return recordSignIn(as("eve"), "eve", rest);
+});
+await check("sign-in with a huge place name", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("eve", { city: "x".repeat(5000) })));
+await check("sign-in somewhere off the globe", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("eve", { lat: 512 })));
+await check("sign-in with a made-up country code", "BLOCKS", () => recordSignIn(as("eve"), "eve", signInEntry("eve", { countryCode: "Philippines" })));
+await check("sign-in without its latest record (around the minute limit)", "BLOCKS", () =>
+  setDoc(doc(collection(as("eve"), "signIns")), signInEntry("eve")));
+await check("a second sign-in within the minute", "BLOCKS", async () => {
+  await recordSignIn(as("eve"), "eve");
+  return recordSignIn(as("eve"), "eve");
+});
+await check("latest sign-in copied from someone else's", "BLOCKS", async () => {
+  await seedSignIn();
+  return setDoc(doc(as("eve"), "signInLast", "eve"), { ...signInEntry("juan"), at: Timestamp.fromMillis(Date.now() - 120000), id: "s1" });
+});
+await check("latest sign-in pointing at an old sign-in", "BLOCKS", async () => {
+  await seedSignIn();
+  return setDoc(doc(as("juan"), "signInLast", "juan"), { ...signInEntry("juan"), id: "s1" });
+});
+await check("latest sign-in that doesn't match its record", "BLOCKS", () =>
+  recordSignIn(as("eve"), "eve", signInEntry("eve"), { data: { city: "Somewhere else" } }));
+await check("sign-in changed afterwards", "BLOCKS", async () => {
+  await seedSignIn();
+  return updateDoc(doc(as("juan"), "signIns", "s1"), { city: "Baguio City" });
+});
+await check("sign-in deleted by its owner", "BLOCKS", async () => {
+  await seedSignIn();
+  return deleteDoc(doc(as("juan"), "signIns", "s1"));
+});
+await check("sign-in deleted by the admin", "BLOCKS", async () => {
+  await seedSignIn();
+  return deleteDoc(doc(as("admin"), "signIns", "s1"));
+});
+await check("latest sign-in deleted", "BLOCKS", async () => {
+  await seedSignIn();
+  return deleteDoc(doc(as("juan"), "signInLast", "juan"));
+});
+await check("signed-out visitor records a sign-in", "BLOCKS", () =>
+  setDoc(doc(anon(), "signIns", "x"), { ...signInEntry("eve"), uid: "nobody" }));
+
 /* ---------- report ---------- */
 const failed = results.filter((r) => r[0] === "FAIL");
 for (const r of results) console.log(`${r[0]}  ${r[1].padEnd(6)}  ${r[2]}${r[3] ? `\n        ${r[3]}` : ""}`);

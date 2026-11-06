@@ -140,6 +140,11 @@ export default function Welcome() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
+
+          <p className="wl-note">
+            For account security, each sign-in is recorded with its time, device and approximate location
+            (from your internet connection). Only the administrator sees it.
+          </p>
         </div>
 
         <p className="wl-footer">© 2026 Universidad de Dagupan · ARBuild Studio</p>

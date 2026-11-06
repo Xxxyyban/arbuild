@@ -335,6 +335,13 @@
   border-radius: 8px;
 }
 
+.wl .wl-note {
+  margin: 14px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .wl .wl-footer {
   margin: 0;
   font-size: 0.8rem;

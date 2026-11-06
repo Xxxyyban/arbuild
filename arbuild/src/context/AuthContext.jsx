@@ -36,6 +36,8 @@ import {
   STUDENT_DOMAIN,
 } from "../firebase/config";
 
+import { recordSignIn } from "../lab/SignIns";
+
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
@@ -252,6 +254,10 @@ export function AuthProvider({ children }) {
 
       setCurrentUser(user);
       setUserProfile(normalizedProfile);
+
+      // Into the admin's sign-in log (lab/SignIns.js). It doesn't hold up signing in, and a sign-in
+      // that can't be recorded (offline, or within a minute of the last one) still goes through.
+      recordSignIn(user).catch((err) => console.warn("Sign-in not recorded:", err?.code || err));
     } catch (error) {
       console.error("Login error:", error);
 

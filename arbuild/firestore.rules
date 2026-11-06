@@ -303,6 +303,51 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    // ---------- sign-ins (src/lab/SignIns.js) ----------
+
+    // Each sign-in: who, when (the server's clock), where from (as the person's internet connection
+    // gives it away) and on what. Written by the person signing in, as they do, together with their
+    // latest in signInLast/{uid}: at most one a minute, so nobody can flood the log. Only the admin
+    // reads them, and nobody, the admin neither, changes or deletes one.
+
+    // A string of up to max characters, empty too
+    function upTo(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function signInEntry(d) {
+      return d.keys().hasOnly(['uid', 'email', 'at', 'ip', 'city', 'region', 'country', 'countryCode', 'lat', 'lon', 'isp', 'ipTimezone', 'device', 'timezone'])
+        && d.keys().hasAll(['uid', 'email', 'at', 'ip', 'city', 'region', 'country', 'countryCode', 'lat', 'lon', 'isp', 'ipTimezone', 'device', 'timezone'])
+        && d.uid == request.auth.uid
+        && d.email == request.auth.token.email
+        && d.at == request.time
+        && upTo(d.ip, 45) && upTo(d.city, 80) && upTo(d.region, 80) && upTo(d.country, 60)
+        && d.countryCode is string && (d.countryCode == '' || d.countryCode.matches('^[A-Z]{2}$'))
+        && (d.lat == null || (d.lat is number && d.lat >= -90 && d.lat <= 90))
+        && (d.lon == null || (d.lon is number && d.lon >= -180 && d.lon <= 180))
+        && upTo(d.isp, 120) && upTo(d.ipTimezone, 60)
+        && text(d.device, 80) && upTo(d.timezone, 60);
+    }
+
+    match /signIns/{id} {
+      allow read: if isAdmin();
+      allow create: if signedIn() && signInEntry(request.resource.data)
+        && getAfter(/databases/$(database)/documents/signInLast/$(request.auth.uid)).data.id == id;
+      allow update, delete: if false;
+    }
+
+    // The same record, with its id; written only alongside it
+    match /signInLast/{uid} {
+      allow read: if isAdmin();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.at == request.time
+        && request.resource.data.id is string
+        && request.resource.data.diff(getAfter(/databases/$(database)/documents/signIns/$(request.resource.data.id)).data).affectedKeys().hasOnly(['id'])
+        && (resource == null || request.time > resource.data.at + duration.value(60, 's'));
+      allow delete: if false;
+    }
+
     // ---------- everything else ----------
     // Add your other collections (AR models, etc.) above this line. Anything not listed is denied.
   }
