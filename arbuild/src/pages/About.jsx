@@ -97,7 +97,7 @@ export default function About() {
           <Logo size={44} />
         </span>
         <div>
-          <h2>Build the PC before you touch a single part.</h2>
+          <h2>Build a PC before you touch one.</h2>
           <p>
             ARBuild lets you practise Computer Systems Servicing NC II in 3D and augmented reality, on any phone,
             tablet or computer, in school or at home. Learn the steps here, then do them for real on actual

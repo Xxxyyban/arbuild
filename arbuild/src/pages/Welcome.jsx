@@ -41,14 +41,11 @@ export default function Welcome() {
       <section className="wl-brand" aria-label="About ARBuild">
         <div className="wl-brand-text">
           <p className="wl-wordmark">
-            <Logo size={40} />
+            <Logo size={48} />
             ARBuild
           </p>
-          <h1 className="wl-headline">Build the PC before you touch a single part.</h1>
-          <p className="wl-sub">
-            Practise Computer Systems Servicing NC II in 3D and augmented reality, on any phone, tablet or
-            computer, in school or at home. Learn the steps here, then do them for real on actual hardware.
-          </p>
+          <h1 className="wl-headline">Build a PC before you touch one.</h1>
+          <p className="wl-sub">Practise assembly and troubleshooting in 3D and AR.</p>
         </div>
 
         <svg
@@ -88,7 +85,7 @@ export default function Welcome() {
       <section className="wl-form-side">
         <div className="wl-card">
           <h2 className="wl-title">Sign in</h2>
-          <p className="wl-lead">Use your school email to continue.</p>
+          <p className="wl-lead">Use your school email.</p>
 
           {authError && (
             <div className="wl-error" role="alert">
@@ -143,8 +140,7 @@ export default function Welcome() {
           </form>
 
           <p className="wl-note">
-            For account security, each sign-in is recorded with its time, device and approximate location
-            (from your internet connection). Only the administrator sees it.
+            Sign-ins are logged with time, device and rough location, for security.
             {APP_CHECK_ON && (
               <>
                 {" "}This site is protected by reCAPTCHA, and the Google{" "}
