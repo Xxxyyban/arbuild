@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "arbuild-cdd"
-  }
+  },
+  "targets": {
+    "arbuild-cdd": {
+      "hosting": {
+        "main": [
+          "arbuild"
+        ],
+        "old": [
+          "arbuild-cdd"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
