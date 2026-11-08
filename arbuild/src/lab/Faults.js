@@ -10,7 +10,7 @@
 // Pure functions: no React, no Firebase.
 import { CATALOG, MEMORY_LABEL, PLATFORM_LABEL, categoryOf, correctPicks, itemFor, normalizePlatform, requiredWatts } from "./Catalog";
 import {
-  CABLES, PSU_SOCKET_KIND, SCREW_COUNT, cableNeeded, isGpuCable, m2Done, m2Start, psuCableFixed, psuMixUps, socketLocked, socketStart,
+  CABLES, PSU_SOCKET_KIND, SCREW_COUNT, PSU_SCREW_COUNT, GPU_SCREW_COUNT, cableNeeded, isGpuCable, m2Done, m2Start, psuCableFixed, psuMixUps, socketLocked, socketStart,
 } from "./Rules";
 import { HEADERS, WIRES, WIRE_IDS, headerName, wireName, wireRight, wiresStart } from "./Wires";
 
@@ -171,6 +171,8 @@ export function scenarioStart(scenario, platform) {
     psuCables,
     psuSockOf: s.swapped ? { ...SWAP } : {},
     screws: Array.from({ length: SCREW_COUNT }, (_, i) => i < s.screws),
+    psuScrews: Array.from({ length: PSU_SCREW_COUNT }, () => true), // the PSU is always in, screwed down
+    gpuScrews: Array.from({ length: GPU_SCREW_COUNT }, () => !!installed.gpu),
     m2: m2Start(installed.storage),
     socket: socketStart(installed.cpu),
     wires,

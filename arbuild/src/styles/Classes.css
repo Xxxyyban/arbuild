@@ -1077,3 +1077,501 @@ body.rig-covered .nbell__toasts {
   background: var(--primary-btn);
   color: #fff;
 }
+
+/* ---------- grades (components/class/Grades.jsx) ---------- */
+.grades__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.grades__stats > div {
+  padding: 12px 14px;
+  border: 1px solid var(--lab-line);
+  border-radius: var(--radius-sm);
+  background: var(--lab-surface);
+}
+
+.grades__stats dt {
+  color: var(--lab-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.grades__stats dd {
+  margin: 4px 0 0;
+  color: var(--lab-text);
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.grades__stats dd small {
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.grades__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.grades__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lab-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* the student column stays put while the labs scroll sideways */
+.app-page .grades__table th[scope="row"] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--lab-card);
+  color: var(--lab-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.app-page .grades__table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.grades__table tbody tr {
+  cursor: default;
+}
+
+.grades__cell b,
+.grades__total b {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.grades__cell b span,
+.grades__total b span {
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.grades__cell--done b {
+  color: var(--lab-accent);
+}
+
+.grades__cell--missed small,
+.grades__cell--overdue small {
+  color: var(--danger);
+}
+
+.grades__tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.grades__tag--missed,
+.grades__tag--overdue {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.grades__none {
+  color: var(--lab-muted);
+}
+
+.grades__total {
+  min-width: 120px;
+}
+
+.grades__bar {
+  display: block;
+  height: 6px;
+  margin: 4px 0 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--lab-line);
+}
+
+.grades__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-btn);
+}
+
+.grades__bar.is-mid > span {
+  background: var(--warn);
+}
+
+.grades__bar.is-low > span {
+  background: var(--danger);
+}
+
+.grades__gone th[scope="row"],
+.grades__gone td {
+  opacity: 0.75;
+}
+
+.app-page .grades__group th {
+  background: var(--lab-surface);
+  color: var(--lab-muted);
+  font-size: 0.72rem;
+}
+
+/* ---------- students taken out (pages/Instructor.jsx) ---------- */
+.removed-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.removed-list__title {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--lab-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.removed-list__title small {
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.removed-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.removed-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--lab-line);
+  border-radius: var(--radius-sm);
+  background: var(--lab-surface);
+}
+
+.removed-list li > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.removed-list small {
+  color: var(--lab-muted);
+  font-size: 0.8rem;
+}
+
+.removed-list .removed-list__why {
+  color: var(--lab-text-soft);
+}
+
+/* ---------- the class record (pages/Instructor.jsx) ---------- */
+.record {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--lab-line);
+}
+
+.record__item:last-child {
+  border-bottom: 0;
+}
+
+.record__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--lab-surface);
+  color: var(--lab-muted);
+}
+
+.record__item--removed .record__icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.record__item--readmitted .record__icon,
+.record__item--reopened .record__icon {
+  background: var(--primary-light);
+  color: var(--primary-strong);
+}
+
+.record__text {
+  display: grid;
+  gap: 3px;
+  color: var(--lab-text);
+  font-size: 0.9rem;
+}
+
+.record__why {
+  color: var(--lab-text-soft);
+  font-size: 0.85rem;
+}
+
+.record__when {
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- asking before removing a student (pages/Instructor.jsx), drawn into <body> ---------- */
+.cdialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+  animation: fade-in 0.15s ease;
+}
+
+.cdialog {
+  display: grid;
+  gap: 14px;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.cdialog__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.cdialog__facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.cdialog__field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.cdialog__field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.cdialog__field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+/* ---------- due dates (lab activities) ---------- */
+.due-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: var(--lab-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.due-line.is-late {
+  color: var(--danger);
+}
+
+.due-line .cls-link-btn {
+  margin-left: 4px;
+  font-size: 0.78rem;
+}
+
+.due-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.due-edit input {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--lab-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--lab-card);
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.app-page .ins-badge--missed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---------- the bell: missed and overdue ---------- */
+.nbell__section--missed {
+  color: var(--danger);
+}
+
+.nbell__item.is-late .nbell__meta {
+  color: var(--danger);
+}
+
+/* ---------- the bell: announcements, what they say ---------- */
+.nbell__ann {
+  cursor: default;
+}
+
+.nbell__body {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--lab-text-soft, var(--text-soft));
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.nbell__body.is-full {
+  display: block;
+}
+
+.nbell__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 2px;
+}
+
+/* ---------- the privacy notice and terms (components/PolicyDialog.jsx) ---------- */
+.cdialog.policy {
+  width: min(620px, 100%);
+  gap: 12px;
+}
+
+.policy__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.policy__close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.policy__close:hover,
+.policy__close:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  color: var(--text-main);
+}
+
+.policy__intro {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.policy__section h3 {
+  margin: 4px 0 6px;
+  color: var(--text-main);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.policy__section ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-soft);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.policy__version {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* "Read the full notice" in a line of text (pages/Profile.jsx) */
+.policy-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary-strong, #047857);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

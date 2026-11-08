@@ -16,7 +16,7 @@ import {
   shownName,
   toMs,
 } from "../../lab/Classes";
-import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs, workLeft } from "../../lab/Sessions";
+import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs, workLeft, labStanding, dueText } from "../../lab/Sessions";
 import { scoreText } from "../../lab/Scoring";
 import { taskFor, progressHidden } from "../../lab/Tasks";
 import Icon from "../Icon";
@@ -56,8 +56,10 @@ export function RichText({ text }) {
  *   picture and name head each of their posts, and the box they post from
  * onOpenLab(code): instructor opens the lab monitor / student opens the lab
  * filter: null (everything) or a kind, e.g. "material"
+ * closed: the class has ended (a read-only record): no posting, no comments
+ * joinedAt: when the student joined (ms): a lab that closed before then was never theirs to miss
  */
-export default function Stream({ classId, me, author = null, isInstructor, onOpenLab, filter = null, now }) {
+export default function Stream({ classId, me, author = null, isInstructor, onOpenLab, filter = null, now, closed = false, joinedAt = 0 }) {
   const [posts, setPosts] = useState(null);
   const [error, setError] = useState("");
 
@@ -69,7 +71,7 @@ export default function Stream({ classId, me, author = null, isInstructor, onOpe
 
   return (
     <div className="cls-stream">
-      {isInstructor && filter !== "lab" && <Composer classId={classId} me={me} author={author} defaultKind={filter || "announcement"} />}
+      {isInstructor && !closed && filter !== "lab" && <Composer classId={classId} me={me} author={author} defaultKind={filter || "announcement"} />}
       {error && <div className="ins-alert" role="alert">Couldn't load the stream ({error}).</div>}
       {posts === null ? (
         <p className="ins-muted">Loading…</p>
@@ -86,7 +88,7 @@ export default function Stream({ classId, me, author = null, isInstructor, onOpe
         </div>
       ) : (
         shown.map((p) => (
-          <PostCard key={p.id} classId={classId} post={p} me={me} author={author} isInstructor={isInstructor} onOpenLab={onOpenLab} now={now} />
+          <PostCard key={p.id} classId={classId} post={p} me={me} author={author} isInstructor={isInstructor} onOpenLab={onOpenLab} now={now} closed={closed} joinedAt={joinedAt} />
         ))
       )}
     </div>
@@ -248,7 +250,7 @@ function Composer({ classId, me, author, defaultKind }) {
 
 /* ---------- one post ---------- */
 
-function PostCard({ classId, post, me, author, isInstructor, onOpenLab, now }) {
+function PostCard({ classId, post, me, author, isInstructor, onOpenLab, now, closed, joinedAt }) {
   const [showComments, setShowComments] = useState(false);
   const k = KIND[post.kind] || KIND.announcement;
   const mine = post.authorUid === me.uid;
@@ -295,7 +297,7 @@ function PostCard({ classId, post, me, author, isInstructor, onOpenLab, now }) {
       <RichText text={post.body} />
 
       {post.kind === "lab" && post.sessionCode && (
-        <LabStatus code={post.sessionCode} me={me} isInstructor={isInstructor} onOpen={() => onOpenLab?.(post.sessionCode)} />
+        <LabStatus code={post.sessionCode} me={me} isInstructor={isInstructor} joinedAt={joinedAt} now={now} onOpen={() => onOpenLab?.(post.sessionCode)} />
       )}
 
       {(post.links?.length > 0 || post.files?.length > 0) && (
@@ -323,13 +325,13 @@ function PostCard({ classId, post, me, author, isInstructor, onOpenLab, now }) {
         <Icon name="chat" size={16} />
         {post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Ask a question or comment"}
       </button>
-      {showComments && <Comments classId={classId} postId={post.id} me={me} isInstructor={isInstructor} now={now} />}
+      {showComments && <Comments classId={classId} postId={post.id} me={me} isInstructor={isInstructor} now={now} closed={closed} />}
     </article>
   );
 }
 
 /** Live state of a lab activity, with its button (and, for a student, how they did). */
-function LabStatus({ code, me, isInstructor, onOpen }) {
+function LabStatus({ code, me, isInstructor, joinedAt, now, onOpen }) {
   const [session, setSession] = useState(undefined);
   const [mine, setMine] = useState(null);
   useEffect(() => subscribeSession(code, setSession, () => setSession(null)), [code]);
@@ -343,9 +345,20 @@ function LabStatus({ code, me, isInstructor, onOpen }) {
   // a troubleshooting task may keep the student's own progress from them until they finish
   const myTask = mine ? taskFor(session, mine) : null;
   const quiet = !!myTask && progressHidden(myTask, mine);
+  // a student's standing: missed (closed before they finished) or overdue (past due, still open)
+  const standing = !isInstructor && session ? labStanding(session, mine, now, joinedAt) : null;
+  const due = dueText(session);
   return (
     <div className={`cls-lab cls-lab--${phase}`}>
       <span className={`ins-badge ins-badge--${phase === "running" ? "live" : phase === "waiting" ? "done" : "idle"}`}>{label}</span>
+      {standing === "missed" && <span className="ins-badge ins-badge--missed">Missed</span>}
+      {standing === "overdue" && <span className="ins-badge ins-badge--missed">Overdue</span>}
+      {due && (
+        <span className={`due-line ${standing === "overdue" || standing === "missed" ? "is-late" : ""}`}>
+          <Icon name="calendar" size={13} />
+          Due {due}
+        </span>
+      )}
       {session?.tasks?.[0] && <span className="ins-small ins-muted">{session.tasks.length} {session.tasks.length === 1 ? "task" : "tasks"}</span>}
       <span className="ins-spacer" />
       <button type="button" className={`btn ${phase === "ended" && !isInstructor ? "" : "btn--primary"}`} onClick={onOpen} disabled={!isInstructor && phase === "ended"}>
@@ -364,7 +377,7 @@ function LabStatus({ code, me, isInstructor, onOpen }) {
 
 /* ---------- questions and answers under a post ---------- */
 
-function Comments({ classId, postId, me, isInstructor, now }) {
+function Comments({ classId, postId, me, isInstructor, now, closed }) {
   const [list, setList] = useState(null);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -398,12 +411,15 @@ function Comments({ classId, postId, me, isInstructor, now }) {
               <span className="ins-muted ins-small"> · {c.pending ? "sending…" : when(c.createdAt, now)}</span>
             </div>
             <RichText text={c.text} />
-            {(isInstructor || c.authorUid === me.uid) && (
+            {!closed && (isInstructor || c.authorUid === me.uid) && (
               <button type="button" className="cls-link-btn" onClick={() => deleteComment(classId, postId, c.id)}>Delete</button>
             )}
           </div>
         ))
       )}
+      {closed ? (
+        <p className="ins-muted ins-small">The class has ended, so comments are closed.</p>
+      ) : (
       <form className="cls-row" onSubmit={send}>
         <input
           className="cls-input"
@@ -417,6 +433,7 @@ function Comments({ classId, postId, me, isInstructor, now }) {
           Send
         </button>
       </form>
+      )}
       {error && <div className="ins-alert" role="alert">{error}</div>}
     </div>
   );

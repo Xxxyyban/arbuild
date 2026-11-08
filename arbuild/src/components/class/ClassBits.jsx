@@ -1,7 +1,7 @@
 // Small pieces both class pages use (the instructor's and the student's): the line under the
 // class name (schedule, room, students, join code) and the section tabs.
 // Styles: styles/AppShell.css (.class-meta, .ctabs, .copy-btn).
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatWhen } from "../../lab/Schedule";
 import Icon from "../Icon";
 
@@ -53,10 +53,21 @@ export function ClassMeta({ cls, children }) {
   );
 }
 
-/** The class's sections. tabs: [{ id, label, icon, badge }] */
+/**
+ * The class's sections. tabs: [{ id, label, icon, badge }]. On a phone they scroll sideways; the
+ * open one scrolls into view.
+ */
 export function Tabs({ tabs, current, onChange }) {
+  const strip = useRef(null);
+  useEffect(() => {
+    const nav = strip.current;
+    const on = nav?.querySelector(".is-on");
+    if (!nav || !on || nav.scrollWidth <= nav.clientWidth) return;
+    // only the strip moves, never the page
+    nav.scrollTo({ left: on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2, behavior: "smooth" });
+  }, [current]);
   return (
-    <nav className="ctabs" aria-label="Class sections">
+    <nav className="ctabs" aria-label="Class sections" ref={strip}>
       {tabs.map((t) => (
         <button
           key={t.id}

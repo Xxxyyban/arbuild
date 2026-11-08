@@ -24,7 +24,8 @@ import ProfileSetup from "./pages/ProfileSetup";
 const MainPage = lazy(() => import("./pages/Main"));
 const Profile = lazy(() => import("./pages/Profile"));
 const BuildLab = lazy(() => import("./pages/BuildLab")); // Build Lab: assemble + disassemble in one page
-const Credits = lazy(() => import("./pages/Credits"));
+const About = lazy(() => import("./pages/About")); // what ARBuild is, with the 3D model credits
+const CalendarPage = lazy(() => import("./pages/Calendar")); // class meetings, due dates, anything missed
 const ThreeCameraView = lazy(() => import("./pages/ThreeCameraView"));
 
 // IMPORTANT:
@@ -42,10 +43,10 @@ const Classes = lazy(() => import("./pages/Classes"));
 
 // Every page's styles load up front, in the order they always have (a later file wins a tie), so a
 // page looks the same whichever pages were opened before it. Only the pages' code loads later.
-import "./styles/ThemeToggle.css";
 import "./styles/Classes.css";
 import "./styles/Main.css";
 import "./styles/AppShell.css";
+import "./styles/Calendar.css";
 import "./styles/RigStudio.css";
 import "./styles/Profile.css";
 import "./styles/BuildLab.css";
@@ -276,10 +277,22 @@ export default function App() {
             />
 
             <Route
-              path="/credits"
+              path="/about"
               element={
                 <Gate>
-                  <Credits />
+                  <About />
+                </Gate>
+              }
+            />
+
+            {/* the credits moved into About */}
+            <Route path="/credits" element={<Navigate to="/about#credits" replace />} />
+
+            <Route
+              path="/calendar"
+              element={
+                <Gate>
+                  <CalendarPage />
                 </Gate>
               }
             />

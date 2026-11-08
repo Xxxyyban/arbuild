@@ -135,7 +135,13 @@ export default function MainPage() {
       const api = rigApi.current;
       let target = null;
       let dist = 1.6;
-      if (api && item?.marker) target = api.pointOf(item.marker);
+      let dir = VIEW_DIR;
+      if (api && item?.marker) {
+        target = api.pointOf(item.marker);
+        // some are seen best from their own side (the case's buttons and ports, from above)
+        const view = api.viewOf?.(item.marker);
+        if (view) ({ dir, dist } = view);
+      }
       if (api && !target && part) {
         const box = api.boxOf(part.id);
         if (box) {
@@ -144,7 +150,7 @@ export default function MainPage() {
         }
       }
       if (!target) return setFocus(exploded ? EXPLODED : null);
-      setFocus({ key: `${sel.part}:${sel.item}:${exploded}`, target: target.toArray(), position: target.clone().addScaledVector(VIEW_DIR, dist).toArray() });
+      setFocus({ key: `${sel.part}:${sel.item}:${exploded}`, target: target.toArray(), position: target.clone().addScaledVector(dir, dist).toArray() });
     };
     const t = setTimeout(run, moved ? 1300 : 0);
     return () => clearTimeout(t);
@@ -295,6 +301,10 @@ export default function MainPage() {
       onPick={(p, m) => {
         if (gestures.consumeSuppress()) return;
         onPick(p, m);
+      }}
+      onPower={() => {
+        if (gestures.consumeSuppress()) return;
+        setPowered((v) => !v); // the case's own power button, the same as the Power button here
       }}
       apiRef={rigApi}
     />

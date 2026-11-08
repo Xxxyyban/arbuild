@@ -81,7 +81,8 @@
     padding: 4px 10px;
   }
 
-  /* ---------- parts strip along the top: all seven fit on most phones, it scrolls on narrower ---------- */
+  /* ---------- parts strip along the top: the seven parts and the paste fit on most phones (they narrow a
+     little to), it scrolls on narrower ---------- */
   .picker {
     top: 8px;
     left: 8px;
@@ -103,10 +104,24 @@
   }
 
   .picker__cat {
-    flex: 1 0 46px;
+    flex: 1 1 46px;
+    min-width: 38px;
     width: auto;
     padding: 6px 2px 5px;
     font-size: 0.58rem;
+  }
+
+  /* the paste's line stands up between the parts and the paste */
+  .picker__rule {
+    width: 1px;
+    height: auto;
+    margin: 6px 1px;
+  }
+
+  /* the parts came laid out: the paste alone, not stretched across */
+  .picker.is-paste-only {
+    width: auto;
+    align-items: flex-start;
   }
 
   .picker__label.has-short {

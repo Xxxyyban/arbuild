@@ -94,6 +94,7 @@ export const PARTS = {
     steps: [
       "Switch it off and unplug it before touching anything.",
       "Mount it with its fan facing a vent.",
+      "Screw it to the back of the case with its 4 screws.",
       "Plug the 24-pin cable into the board.",
       "Plug the 8-pin cable into the CPU power spot.",
       "Run PCIe cables straight to the graphics card.",

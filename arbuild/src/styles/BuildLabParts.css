@@ -114,6 +114,43 @@
   box-shadow: 0 0 6px var(--lab-accent-glow);
 }
 
+/* the thermal paste, docked at the end of the rail after a thin line */
+.picker__rule {
+  align-self: stretch;
+  flex: none;
+  height: 1px;
+  margin: 1px 8px;
+  background: var(--lab-line-strong);
+}
+
+/* no CPU yet, or the cooler is on: muted, still pressable (it says why) */
+.picker__cat.is-dim {
+  opacity: 0.5;
+}
+
+/* hints on and it's next: a soft pulse */
+.picker__cat.is-waiting {
+  border-color: var(--lab-accent);
+  color: var(--lab-accent);
+  animation: pickerWait 1.6s ease-in-out infinite;
+}
+
+@keyframes pickerWait {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--lab-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--lab-accent-glow);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker__cat.is-waiting {
+    animation: none;
+  }
+}
+
 .picker__drawer {
   width: 290px;
   max-height: 100%;

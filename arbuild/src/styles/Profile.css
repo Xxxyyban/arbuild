@@ -567,8 +567,7 @@
   justify-content: flex-end;
 }
 
-.save-btn,
-.profile__logout {
+.save-btn {
   min-height: var(--pf-tap);
   font-family: inherit;
   border-radius: var(--radius-sm);
@@ -595,16 +594,6 @@
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
-}
-
-.profile__logout {
-  padding: 8px 20px;
-  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
-  background-color: color-mix(in srgb, #ef4444 12%, var(--bg-panel));
-  color: #ef4444;
-  font-size: 0.88rem;
-  font-weight: 600;
-  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* ==========================================================================
@@ -634,11 +623,6 @@
   .save-btn:hover:not(:disabled) {
     filter: brightness(0.92);
     transform: translateY(-1px);
-  }
-
-  .profile__logout:hover {
-    background-color: #ef4444;
-    color: #ffffff;
   }
 }
 

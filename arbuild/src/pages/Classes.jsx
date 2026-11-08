@@ -8,10 +8,10 @@ import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
 import {
   joinByCode,
-  leaveClass,
   subscribeMyMemberships,
   subscribeClass,
   subscribeMember,
+  subscribeMyRemoval,
   markStreamSeen,
   personName,
   shownName,
@@ -183,10 +183,12 @@ function ClassPage() {
 
   const [cls, setCls] = useState(undefined);
   const [member, setMember] = useState(undefined);
+  const [removal, setRemoval] = useState(null); // taken out by the instructor: when, and why
   const [teacher, setTeacher] = useState(null); // the instructor's card (lab/People.js)
 
   useEffect(() => subscribeClass(classId, setCls, () => setCls(null)), [classId]);
   useEffect(() => subscribeMember(classId, me.uid, setMember, () => setMember(null)), [classId, me.uid]);
+  useEffect(() => (member === null ? subscribeMyRemoval(classId, me.uid, setRemoval) : undefined), [classId, me.uid, member]);
   useEffect(() => (cls?.instructorUid ? subscribeInstructorCard(cls.instructorUid, setTeacher) : undefined), [cls?.instructorUid]);
 
   // looking at the stream clears its "new" badge
@@ -209,8 +211,16 @@ function ClassPage() {
     return (
       <AppShell className="app-page--content" back={BACK} title={cls ? cls.name : "Class not found"}>
         <div className="cls-empty cls-empty--big">
-          <strong>{cls ? `You're not in ${cls.name}` : "This class doesn't exist anymore"}</strong>
-          <span>{cls ? "Your instructor may have removed you. Ask them, or join again with the class code." : "Your instructor may have deleted it."}</span>
+          <strong>
+            {!cls ? "This class doesn't exist anymore" : removal ? `Your instructor removed you from ${cls.name}` : `You're not in ${cls.name}`}
+          </strong>
+          <span>
+            {!cls
+              ? "Your instructor may have deleted it."
+              : removal
+              ? `On ${new Date(toMs(removal.removedAt)).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}${removal.reason ? `. Reason: ${removal.reason}` : ""}. If you think it's a mistake, ask your instructor: only they can let you back in.`
+              : "Join it with the class code from your instructor."}
+          </span>
         </div>
         <div className="cls-row">
           <button
@@ -235,8 +245,11 @@ function ClassPage() {
   const teacherName = shownName(teacher?.name || cls.instructorName);
   const author = { uid: cls.instructorUid, name: teacherName, photo: teacher?.photo || "" };
 
+  const ended = !!cls.archived;
+  const joinedAt = toMs(member.joinedAt);
+
   return (
-    <AppShell className="app-page--content" back={BACK} eyebrow={cls.section || "Class"} title={cls.name}>
+    <AppShell className="app-page--content" back={BACK} eyebrow={ended ? "Ended class" : cls.section || "Class"} title={cls.name}>
       <ClassMeta cls={cls}>
         {teacherName && (
           <span className="class-meta__item">
@@ -246,25 +259,18 @@ function ClassPage() {
         )}
       </ClassMeta>
 
+      {ended && (
+        <div className="cls-banner">
+          This class has ended{cls.endedAt ? ` (${new Date(toMs(cls.endedAt)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })})` : ""}. You can still read
+          everything here; posting and comments are closed.
+        </div>
+      )}
+
       <Tabs tabs={TABS} current={tab} onChange={(t) => setParams({ tab: t }, { replace: true })} />
 
-      {tab === "stream" && <Stream classId={classId} me={me} author={author} onOpenLab={openLab} now={now} />}
-      {tab === "materials" && <Stream classId={classId} me={me} author={author} filter="material" onOpenLab={openLab} now={now} />}
-      {tab === "labs" && <Stream classId={classId} me={me} author={author} filter="lab" onOpenLab={openLab} now={now} />}
-
-      <div className="cls-row cls-row--end">
-        <button
-          className="btn btn--ghost"
-          onClick={async () => {
-            if (!window.confirm(`Leave ${cls.name}? You can join again with the code.`)) return;
-            await leaveClass(classId, me.uid);
-            navigate("/classes");
-          }}
-        >
-          <Icon name="logout" size={16} />
-          Leave class
-        </button>
-      </div>
+      {tab === "stream" && <Stream classId={classId} me={me} author={author} onOpenLab={openLab} now={now} closed={ended} joinedAt={joinedAt} />}
+      {tab === "materials" && <Stream classId={classId} me={me} author={author} filter="material" onOpenLab={openLab} now={now} closed={ended} joinedAt={joinedAt} />}
+      {tab === "labs" && <Stream classId={classId} me={me} author={author} filter="lab" onOpenLab={openLab} now={now} closed={ended} joinedAt={joinedAt} />}
     </AppShell>
   );
 }

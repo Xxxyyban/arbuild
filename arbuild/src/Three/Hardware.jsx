@@ -325,13 +325,17 @@ export function FixedCables({ layout, cables, showRouted = true, choosing, onPic
   );
 }
 
-/** A motherboard screw at a hole; `rotation` turns its head (+Y) to face out of the board. */
-export function BoardScrew({ position, rotation, driven, waiting, onClick, partId }) {
-  const object = useMemo(() => buildScrew(), []);
+/**
+ * A screw at its hole: the motherboard's, the M.2 slot's, or the PSU's and the graphics card's on the
+ * back of the case. `rotation` turns its head (+Y) to face out of the hole; `size` scales it;
+ * `shank`: its threaded part, mm (cableStubs buildScrew).
+ */
+export function BoardScrew({ position, rotation, driven, waiting, onClick, partId, size = 1, shank = 6 }) {
+  const object = useMemo(() => buildScrew(shank), [shank]);
   const slide = useRef();
   useSlide(slide, driven ? 0 : SCREW_OUT, waiting, true);
   return (
-    <group position={position} rotation={rotation}>
+    <group position={position} rotation={rotation} scale={size}>
       <group
         ref={slide}
         position={[0, driven ? 0 : SCREW_OUT, 0]}

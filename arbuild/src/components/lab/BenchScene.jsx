@@ -15,7 +15,7 @@ import {
   COOLER_TRAY_LIFT, COOLER_TRAY_YAW, COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z,
 } from "../../lab/Constants";
 
-export function CaseWithMeasure({ onMeasure }) {
+export function CaseWithMeasure({ onMeasure, hideSlotScrews = false, io = null }) {
   const ref = useRef();
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -24,7 +24,7 @@ export function CaseWithMeasure({ onMeasure }) {
   }, [onMeasure]);
   return (
     <group ref={ref}>
-      <CaseModel position={[0, 0, 0]} />
+      <CaseModel position={[0, 0, 0]} hideSlotScrews={hideSlotScrews} io={io} />
     </group>
   );
 }

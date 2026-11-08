@@ -56,6 +56,19 @@ service cloud.firestore {
       return v is string && v.size() > 0 && v.size() <= max;
     }
 
+    // A string of up to max characters, empty too
+    function upTo(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // v is the signed-in person's name as their profile has it (first and last), or their email when
+    // the profile has no name
+    function isMyName(v) {
+      let p = profileOf(request.auth.uid);
+      let n = (p.get('firstName', '') + ' ' + p.get('lastName', '')).trim();
+      return (n.size() > 0 && v == n) || (n.size() == 0 && v == request.auth.token.email);
+    }
+
     // Fields a student/faculty must NOT be able to change on their own profile. Once the profile is
     // set up, the student ID and section are fixed too (only the admin changes them), so nobody can
     // take another student's ID.
@@ -63,6 +76,20 @@ service cloud.firestore {
       return !changed().hasAny(['role', 'status', 'email', 'uid', 'createdAt', 'createdBy', 'lastNotifiedAt'])
         && (resource.data.get('profileCompleted', false) != true
             || !changed().hasAny(['studentId', 'section', 'profileCompleted']));
+    }
+
+    // Finishing setup (profileCompleted turning true) takes the person's agreement to the Data Privacy
+    // Notice and the Terms of Use: consent = { privacy, terms } (the versions they agreed to, from
+    // src/lab/Policies.js), timed by the server. Once set up, only the admin changes it.
+    function consentOnSetup() {
+      let done = resource.data.get('profileCompleted', false) == true;
+      let finishing = !done && request.resource.data.get('profileCompleted', false) == true;
+      return (done && !changed().hasAny(['consent']))
+        || (!done && !finishing)
+        || (finishing
+            && text(request.resource.data.consent.privacy, 40)
+            && text(request.resource.data.consent.terms, 40)
+            && request.resource.data.consent.at == request.time);
     }
 
     // ---------- lab-session helpers ----------
@@ -96,19 +123,19 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched() && consentOnSetup());
     }
 
     match /students/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched() && consentOnSetup());
     }
 
     match /faculty/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched());
+      allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched() && consentOnSetup());
     }
 
     // ---------- profile cards (src/lab/People.js) ----------
@@ -130,6 +157,30 @@ service cloud.firestore {
         && request.resource.data.photo.size() <= 40000
         && request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ---------- announcements (src/lab/Announcements.js) ----------
+
+    // The admin's announcements, to everyone, to students or to instructors: each person reads only
+    // the ones meant for them. Only the admin posts one (as themselves, timed by the server) or
+    // removes one; nobody edits one.
+    match /announcements/{audience}/items/{id} {
+      function forMe() {
+        return audience == 'all'
+          || (audience == 'students' && profileOf(request.auth.uid).role == 'student')
+          || (audience == 'faculty' && profileOf(request.auth.uid).role == 'faculty');
+      }
+      allow read: if isAdmin() || (signedIn() && forMe());
+      allow create: if isAdmin()
+        && audience in ['all', 'students', 'faculty']
+        && request.resource.data.keys().hasOnly(['title', 'body', 'byUid', 'byName', 'createdAt'])
+        && text(request.resource.data.title, 120)
+        && upTo(request.resource.data.body, 2000)
+        && request.resource.data.byUid == request.auth.uid
+        && isMyName(request.resource.data.byName)
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     // ---------- notifications ----------
@@ -190,8 +241,14 @@ service cloud.firestore {
     //   classCodes/{code}                     finds a class from its join code
     //   classes/{classId}                     the class (instructor, code, name...)
     //     members/{uid}                       students in it
+    //     removed/{uid}                       students the instructor took out (they can't come back alone)
+    //     log/{id}                            the class's record: removals, readmissions, ending, reopening
     //     posts/{postId}, .../comments/{id}   stream: announcements, materials, lab activities
     //   userClasses/{uid}/classes/{classId}   each student's own list of classes
+    // Students can't leave on their own: only the class's instructor takes a student out, and every
+    // removal, readmission, ending and reopening is written in the record in the same write, with the
+    // server's time. Nobody, the admin neither, changes or deletes a line of the record. An ended
+    // (archived) class is a read-only record: nobody joins, posts or comments.
 
     // A code can be read one at a time (to join), never listed, and only points at your own class.
     match /classCodes/{code} {
@@ -217,13 +274,31 @@ service cloud.firestore {
       function member() {
         return signedIn() && exists(memberPath(request.auth.uid));
       }
-      // the head count moves by one, in the same write as the student joining or leaving
-      function joiningOrLeaving() {
+      function removedPath(uid) {
+        return /databases/$(database)/documents/classes/$(classId)/removed/$(uid);
+      }
+      function logPath(id) {
+        return /databases/$(database)/documents/classes/$(classId)/log/$(id);
+      }
+      function ended() {
+        return classDoc().get('archived', false) == true;
+      }
+      // the head count goes up by one, in the same write as the student joining (only the instructor
+      // takes students out, and lowers it then)
+      function joining() {
         return onlyChanges(['studentCount'])
-          && ((request.resource.data.studentCount == resource.data.studentCount + 1
-                && !exists(memberPath(request.auth.uid)) && existsAfter(memberPath(request.auth.uid)))
-            || (request.resource.data.studentCount == resource.data.studentCount - 1
-                && exists(memberPath(request.auth.uid)) && !existsAfter(memberPath(request.auth.uid))));
+          && request.resource.data.studentCount == resource.data.studentCount + 1
+          && !exists(memberPath(request.auth.uid)) && existsAfter(memberPath(request.auth.uid));
+      }
+      // ending or reopening the class, with its line in the record (logId) written alongside
+      function endingOrReopening() {
+        let d = request.resource.data;
+        return d.get('logId', null) is string
+          && getAfter(logPath(d.logId)).data.at == request.time
+          && ((d.archived == true && d.get('endedAt', null) == request.time
+                && getAfter(logPath(d.logId)).data.type == 'ended')
+              || (d.archived == false && d.get('endedAt', null) == null
+                && getAfter(logPath(d.logId)).data.type == 'reopened'));
       }
 
       // name and code are shown to a student joining with the code
@@ -233,8 +308,9 @@ service cloud.firestore {
         && request.resource.data.instructorUid == request.auth.uid
         && request.resource.data.studentCount == 0;
       allow update: if (signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin())
-                        && request.resource.data.instructorUid == resource.data.instructorUid)
-        || (signedIn() && joiningOrLeaving());
+                        && request.resource.data.instructorUid == resource.data.instructorUid
+                        && (!changed().hasAny(['archived', 'endedAt']) || endingOrReopening()))
+        || (signedIn() && joining());
       allow delete: if signedIn() && (resource.data.instructorUid == request.auth.uid || isAdmin());
 
       match /members/{uid} {
@@ -254,10 +330,11 @@ service cloud.firestore {
         allow get: if isOwner(uid) || teaches();
         allow list: if teaches();
         // join yourself, as yourself (your card and email from your own profile), while the class
-        // takes new students
+        // takes new students, unless its instructor took you out (then only they can let you back)
         allow create: if isOwner(uid)
           && classDoc().get('joinOpen', true) != false
-          && classDoc().get('archived', false) != true
+          && !ended()
+          && !exists(removedPath(uid))
           && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'studentId', 'section', 'contactNumber', 'photo', 'joinedAt', 'seenStreamAt'])
           && request.resource.data.uid == uid
           && request.resource.data.email == request.auth.token.email
@@ -267,22 +344,85 @@ service cloud.firestore {
         allow update: if isOwner(uid)
           && ((onlyChanges(['seenStreamAt']) && request.resource.data.seenStreamAt == request.time)
               || (onlyChanges(['name', 'studentId', 'section', 'contactNumber', 'photo']) && cardFromProfile()));
-        allow delete: if teaches() || isOwner(uid);
+        // only the instructor takes a student out, never the student: the removal (removed/{uid}) and
+        // its line in the record are written in this same write
+        allow delete: if teaches()
+          && existsAfter(removedPath(uid))
+          && getAfter(removedPath(uid)).data.removedAt == request.time;
       }
 
-      // the instructor posts; everyone in the class reads and comments
+      // A student the instructor took out: who, why, when, by whom, and their line in the record. The
+      // student can read their own (to see they were removed, and when).
+      match /removed/{uid} {
+        allow get: if isOwner(uid) || teaches();
+        allow list: if teaches();
+        allow create: if teaches()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'studentId', 'reason', 'byUid', 'logId', 'removedAt'])
+          && request.resource.data.uid == uid
+          && upTo(request.resource.data.name, 120)
+          && upTo(request.resource.data.studentId, 40)
+          && upTo(request.resource.data.reason, 300)
+          && request.resource.data.byUid == request.auth.uid
+          && request.resource.data.removedAt == request.time
+          && request.resource.data.logId is string
+          && getAfter(logPath(request.resource.data.logId)).data.type == 'removed'
+          && getAfter(logPath(request.resource.data.logId)).data.studentUid == uid
+          && getAfter(logPath(request.resource.data.logId)).data.at == request.time
+          && !existsAfter(memberPath(uid));
+        allow update: if false;
+        // letting them back in, with its line in the record, named after the removal's own line
+        allow delete: if teaches()
+          && getAfter(logPath('readmit-' + resource.data.logId)).data.type == 'readmitted'
+          && getAfter(logPath('readmit-' + resource.data.logId)).data.studentUid == uid
+          && getAfter(logPath('readmit-' + resource.data.logId)).data.at == request.time;
+      }
+
+      // The class's record. The instructor (or the admin) writes a line as they act, as themselves,
+      // with the server's time; nobody changes or deletes one.
+      match /log/{logId} {
+        allow read: if teaches();
+        allow create: if teaches()
+          && request.resource.data.keys().hasOnly(['type', 'byUid', 'byName', 'studentUid', 'studentName', 'studentId', 'reason', 'at'])
+          && request.resource.data.type in ['removed', 'readmitted', 'ended', 'reopened']
+          && request.resource.data.byUid == request.auth.uid
+          && text(request.resource.data.byName, 120)
+          && isMyName(request.resource.data.byName)
+          && request.resource.data.at == request.time
+          && upTo(request.resource.data.get('reason', ''), 300)
+          && upTo(request.resource.data.get('studentName', ''), 120)
+          && upTo(request.resource.data.get('studentId', ''), 40)
+          && ((request.resource.data.type in ['ended', 'reopened'] && !('studentUid' in request.resource.data))
+              || (request.resource.data.type in ['removed', 'readmitted'] && text(request.resource.data.get('studentUid', ''), 128)));
+        allow update, delete: if false;
+      }
+
+      // the instructor posts; everyone in the class reads and comments (an ended class: reads only)
       match /posts/{postId} {
+        function commentPath(id) {
+          return /databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(id);
+        }
         allow read: if teaches() || member();
-        allow create, delete: if teaches();
+        allow create: if teaches() && !ended();
+        allow delete: if teaches();
         allow update: if teaches()
           || (member() && onlyChanges(['commentCount'])
               && (request.resource.data.commentCount == resource.data.commentCount + 1
-                  || request.resource.data.commentCount == resource.data.commentCount - 1));
+                  || request.resource.data.commentCount == resource.data.commentCount - 1))
+          // who commented last, for the instructor's bell: only yourself, as yourself, pointing at
+          // your own comment on this post, written in the last five minutes
+          || (member() && onlyChanges(['lastCommentAt', 'lastCommentByUid', 'lastCommentByName', 'lastCommentId'])
+              && request.resource.data.lastCommentAt == request.time
+              && request.resource.data.lastCommentByUid == request.auth.uid
+              && isMyName(request.resource.data.lastCommentByName)
+              && request.resource.data.lastCommentId is string
+              && get(commentPath(request.resource.data.lastCommentId)).data.authorUid == request.auth.uid
+              && request.time < get(commentPath(request.resource.data.lastCommentId)).data.createdAt + duration.value(5, 'm'));
 
         match /comments/{commentId} {
           allow read: if teaches() || member();
           // as yourself; only the instructor's comments carry the Instructor badge
           allow create: if (teaches() || member())
+            && !ended()
             && request.resource.data.keys().hasOnly(['text', 'authorUid', 'authorName', 'fromInstructor', 'createdAt'])
             && request.resource.data.authorUid == request.auth.uid
             && text(request.resource.data.text, 2000)
@@ -290,7 +430,8 @@ service cloud.firestore {
             && request.resource.data.fromInstructor == teaches()
             && request.resource.data.createdAt == request.time;
           allow update: if false;
-          allow delete: if teaches() || (signedIn() && resource.data.authorUid == request.auth.uid);
+          // your own, while the class runs (an ended class is a record)
+          allow delete: if teaches() || (signedIn() && resource.data.authorUid == request.auth.uid && !ended());
         }
       }
 
@@ -309,11 +450,6 @@ service cloud.firestore {
     // gives it away) and on what. Written by the person signing in, as they do, together with their
     // latest in signInLast/{uid}: at most one a minute, so nobody can flood the log. Only the admin
     // reads them, and nobody, the admin neither, changes or deletes one.
-
-    // A string of up to max characters, empty too
-    function upTo(v, max) {
-      return v is string && v.size() <= max;
-    }
 
     function signInEntry(d) {
       return d.keys().hasOnly(['uid', 'email', 'at', 'ip', 'city', 'region', 'country', 'countryCode', 'lat', 'lon', 'isp', 'ipTimezone', 'device', 'timezone'])

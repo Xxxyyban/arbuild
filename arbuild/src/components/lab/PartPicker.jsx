@@ -1,5 +1,6 @@
 // Packet Tracer style parts drawer: a rail of category icons, and the options for the open category.
-// Picking an option lays that part on the bench. Styles: styles/BuildLab.css (.picker*).
+// Picking an option lays that part on the bench. The thermal paste is docked at the end of the rail, not
+// on the bench: pressing it picks the tube up. Styles: styles/BuildLabParts.css (.picker*).
 import { useState } from "react";
 import { CATEGORIES, OPTIONAL_SLOTS, optionsFor, badgesFor } from "../../lab/Catalog";
 import { useSizeVar } from "./useSizeVar";
@@ -61,6 +62,13 @@ const ICON_PATHS = {
       <path d="M10 8v8M6 12h8M17 9v6" />
     </>
   ),
+  // a syringe of paste: tip down to the left, plunger up to the right
+  paste: (
+    <>
+      <path d="M4.2 16.2l9-9 3.6 3.6-9 9z" />
+      <path d="M12 6l6 6M15 9l4-4M17.5 3.5l3 3M6 18l-3 3M7.2 13.2l3.6 3.6" />
+    </>
+  ),
 };
 
 export function CategoryIcon({ id, size = 22 }) {
@@ -76,17 +84,20 @@ export function CategoryIcon({ id, size = 22 }) {
  * locked     slot -> reason string, for slots that can't be swapped right now
  * showSpecs  false hides the socket / memory / watt badges (instructor turned part info off)
  * onPick(slot, id | null), onInspect(id)
+ * parts      false: the parts are laid out already (an auto-picked task), the rail has only the paste
+ * paste      the thermal paste at the end of the rail: { applied, ready (the CPU is in and the cooler
+ *            isn't), waiting (hints: it's next), disabled }; onPaste() picks the tube up
  */
-export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect }) {
+export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect, parts = true, paste = null, onPaste }) {
   const [open, setOpen] = useState(null);
   const railRef = useSizeVar("--lab-pick-h"); // the overlays under the strip on a phone clear it
   const cat = CATEGORIES.find((c) => c.id === open);
   const options = open ? optionsFor(open) : [];
 
   return (
-    <div className="picker" onPointerDown={(e) => e.stopPropagation()}>
+    <div className={parts ? "picker" : "picker is-paste-only"} onPointerDown={(e) => e.stopPropagation()}>
       <div className="picker__rail" role="toolbar" aria-label="Parts" ref={railRef}>
-        {CATEGORIES.map((c) => {
+        {parts && CATEGORIES.map((c) => {
           const has = c.slots.some((s) => picks[s]);
           return (
             <button
@@ -104,6 +115,33 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
             </button>
           );
         })}
+        {paste && (
+          <>
+            {parts && <span className="picker__rule" aria-hidden="true" />}
+            <button
+              type="button"
+              className={["picker__cat", paste.applied ? "is-picked" : "", paste.waiting ? "is-waiting" : "", paste.ready || paste.applied ? "" : "is-dim"]
+                .join(" ")
+                .trim()}
+              disabled={!!paste.disabled}
+              title={
+                paste.applied
+                  ? "Thermal paste: on the CPU"
+                  : paste.ready
+                  ? "Thermal paste: pick it up and put it on the CPU"
+                  : "Thermal paste: it goes on the CPU, before the cooler"
+              }
+              onClick={() => {
+                setOpen(null);
+                onPaste();
+              }}
+            >
+              <CategoryIcon id="paste" />
+              <span className="picker__label">Paste</span>
+              {paste.applied && <i className="picker__dot" aria-hidden="true" />}
+            </button>
+          </>
+        )}
       </div>
 
       {open && (

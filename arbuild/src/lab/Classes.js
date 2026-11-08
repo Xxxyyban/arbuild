@@ -9,8 +9,16 @@
 //                                              title, body, links[], files[], sessionCode (lab), pinned,
 //                                              authorUid, authorName, createdAt, commentCount
 //   classes/{classId}/posts/{postId}/comments  questions and answers under a post (the whole class sees them)
+//   classes/{classId}/removed/{uid}            a student the instructor took out: name, student ID, reason,
+//                                              removedAt, byUid, logId. While it's there they can't join again.
+//   classes/{classId}/log/{id}                 the class's record: who did what, to whom, when (the server's
+//                                              clock) and why: "removed", "readmitted", "ended", "reopened".
+//                                              Nobody can change or delete a line (firestore.rules).
 //   classCodes/{code}                         { classId }: finds a class from its code (read one by one only)
 //   userClasses/{uid}/classes/{classId}        a student's own list of their classes
+//
+// Students can't leave a class on their own: only its instructor takes a student out, and that goes in
+// the record. A class that's done is ended (archived): it stays as a record, read-only.
 //
 // Lab activities are the live lab sessions (lab/Sessions.js) made from inside a class: the session
 // carries classId, and a "lab" post in the stream points to it. Students open it from the class
@@ -42,6 +50,9 @@ import { studentCard } from "./People";
 export const classRef = (id) => doc(db, "classes", id);
 export const memberRef = (id, uid) => doc(db, "classes", id, "members", uid);
 export const postRef = (id, postId) => doc(db, "classes", id, "posts", postId);
+export const removedRef = (id, uid) => doc(db, "classes", id, "removed", uid);
+const logRef = (id, logId) => doc(db, "classes", id, "log", logId);
+const newLogRef = (id) => doc(collection(db, "classes", id, "log"));
 const codeRef = (code) => doc(db, "classCodes", code);
 const myClassRef = (uid, id) => doc(db, "userClasses", uid, "classes", id);
 
@@ -141,13 +152,91 @@ export async function newClassCode(id, oldCode, instructorUid) {
   throw new Error("Couldn't make a unique code. Try again.");
 }
 
-/** Takes a student out of the class. Their past lab results stay in the lab sessions. */
-export async function removeMember(id, uid) {
+/* ---------- instructor: taking a student out, ending a class (each goes in the record) ---------- */
+
+const clip = (v, max) => String(v || "").trim().slice(0, max);
+
+/**
+ * Takes a student out of the class and writes it in the class's record: who removed whom, when and
+ * why. They can't join again with the code until the instructor lets them back in. Their past lab
+ * results stay in the lab sessions. by: { uid, name }; member: their row from subscribeMembers.
+ */
+export async function removeStudent(id, member, { by, reason = "" }) {
+  const uid = member.id || member.uid;
+  const log = newLogRef(id);
+  const who = { studentUid: uid, studentName: clip(member.name, 120), studentId: clip(member.studentId, 40) };
+  const why = clip(reason, 300);
   const batch = writeBatch(db);
+  batch.set(log, { type: "removed", byUid: by.uid, byName: clip(by.name, 120) || "Instructor", ...who, reason: why, at: serverTimestamp() });
+  batch.set(removedRef(id, uid), { uid, name: who.studentName, studentId: who.studentId, reason: why, byUid: by.uid, logId: log.id, removedAt: serverTimestamp() });
   batch.delete(memberRef(id, uid));
   batch.update(classRef(id), { studentCount: increment(-1) });
   await batch.commit();
 }
+
+/**
+ * Lets a removed student join again with the code; the record notes it. removed: a subscribeRemoved
+ * row. Its record line is named after the removal's own line, so the rules can insist it's written
+ * alongside (firestore.rules, removed/{uid}).
+ */
+export async function readmitStudent(id, removed, { by }) {
+  const uid = removed.id || removed.uid;
+  const batch = writeBatch(db);
+  batch.set(logRef(id, `readmit-${removed.logId}`), {
+    type: "readmitted",
+    byUid: by.uid,
+    byName: clip(by.name, 120) || "Instructor",
+    studentUid: uid,
+    studentName: clip(removed.name, 120),
+    studentId: clip(removed.studentId, 40),
+    reason: "",
+    at: serverTimestamp(),
+  });
+  batch.delete(removedRef(id, uid));
+  await batch.commit();
+}
+
+/**
+ * Ends a class that's done: it stays as a record. Students can still read it; nobody can join, post
+ * or comment, and any lab activity still open closes. The instructor keeps its students, grades and
+ * record under Ended classes, and can reopen it. Both go in the record.
+ */
+export async function endClass(cls, { by }) {
+  const log = newLogRef(cls.id);
+  const batch = writeBatch(db);
+  batch.set(log, { type: "ended", byUid: by.uid, byName: clip(by.name, 120) || "Instructor", at: serverTimestamp() });
+  batch.update(classRef(cls.id), { archived: true, endedAt: serverTimestamp(), logId: log.id });
+  await batch.commit();
+  // then its open labs, one at a time (one write each keeps every rule check small)
+  const labs = await getDocs(query(collection(db, "sessions"), where("classId", "==", cls.id), where("instructorUid", "==", cls.instructorUid)));
+  await Promise.all(
+    labs.docs.filter((d) => d.data().status !== "closed").map((d) => updateDoc(d.ref, { status: "closed", closedAt: Timestamp.now() }).catch(() => {}))
+  );
+}
+
+export async function reopenClass(cls, { by }) {
+  const log = newLogRef(cls.id);
+  const batch = writeBatch(db);
+  batch.set(log, { type: "reopened", byUid: by.uid, byName: clip(by.name, 120) || "Instructor", at: serverTimestamp() });
+  batch.update(classRef(cls.id), { archived: false, endedAt: null, logId: log.id });
+  await batch.commit();
+}
+
+/** The class's record, newest first (the instructor's, and the admin's). */
+export const subscribeClassLog = (id, cb, onError) =>
+  onSnapshot(query(collection(db, "classes", id, "log"), orderBy("at", "desc"), limit(500)), (snap) => cb(rows(snap)), onError);
+
+/** The students taken out of the class (the instructor's view). */
+export const subscribeRemoved = (id, cb, onError) =>
+  onSnapshot(collection(db, "classes", id, "removed"), (snap) => cb(rows(snap)), onError);
+
+/** Whether this student was taken out of the class: their removal, or null. */
+export const subscribeMyRemoval = (id, uid, cb) =>
+  onSnapshot(
+    removedRef(id, uid),
+    (snap) => cb(snap.exists() ? snap.data({ serverTimestamps: "estimate" }) : null),
+    () => cb(null)
+  );
 
 /* ---------- students: joining ---------- */
 
@@ -165,7 +254,9 @@ export async function joinClass(rawCode, user, profile) {
 
     const already = await getDoc(memberRef(classId, user.uid));
     if (!already.exists()) {
-      if (cls.archived) return { error: "This class has been archived." };
+      const removed = await getDoc(removedRef(classId, user.uid)).catch(() => null);
+      if (removed?.exists()) return { error: "Your instructor removed you from this class. Ask them if you need to be let back in." };
+      if (cls.archived) return { error: "This class has ended, so it isn't taking students." };
       if (cls.joinOpen === false) return { error: "This class isn't taking new students. Ask your instructor." };
       const batch = writeBatch(db);
       batch.set(memberRef(classId, user.uid), {
@@ -188,15 +279,6 @@ export async function joinClass(rawCode, user, profile) {
     console.error("joinClass failed:", err);
     return { error: `Couldn't join (${err.code || err.message}).` };
   }
-}
-
-/** Leaves a class (the student's own choice). */
-export async function leaveClass(classId, uid) {
-  const batch = writeBatch(db);
-  batch.delete(memberRef(classId, uid));
-  batch.delete(myClassRef(uid, classId));
-  batch.update(classRef(classId), { studentCount: increment(-1) });
-  await batch.commit();
 }
 
 /**
@@ -347,8 +429,9 @@ export async function deletePost(id, post) {
 }
 
 export async function addComment(id, postId, { text, author }) {
+  const comment = doc(collection(db, "classes", id, "posts", postId, "comments"));
   const batch = writeBatch(db);
-  batch.set(doc(collection(db, "classes", id, "posts", postId, "comments")), {
+  batch.set(comment, {
     text: text.trim(),
     authorUid: author.uid,
     authorName: author.name,
@@ -357,6 +440,14 @@ export async function addComment(id, postId, { text, author }) {
   });
   batch.update(postRef(id, postId), { commentCount: increment(1) });
   await batch.commit();
+  // then who commented last, for the instructor's bell. On its own and best effort: the comment is
+  // in either way (and the rules only take a comment that's really theirs, just written).
+  updateDoc(postRef(id, postId), {
+    lastCommentAt: serverTimestamp(),
+    lastCommentByUid: author.uid,
+    lastCommentByName: author.name,
+    lastCommentId: comment.id,
+  }).catch(() => {});
 }
 
 export async function deleteComment(id, postId, commentId) {
@@ -368,6 +459,19 @@ export async function deleteComment(id, postId, commentId) {
 
 /** The student has seen the stream up to now (clears the "new" badge). */
 export const markStreamSeen = (id, uid) => updateDoc(memberRef(id, uid), { seenStreamAt: serverTimestamp() }).catch(() => {});
+
+/* ---------- the instructor's bell (components/class/TeachingFeed.jsx) ---------- */
+
+/** Students who joined the class after `since` (ms). */
+export const subscribeRecentJoins = (id, since, cb, onError) =>
+  onSnapshot(query(collection(db, "classes", id, "members"), where("joinedAt", ">", Timestamp.fromMillis(since))), (snap) => cb(rows(snap)), onError);
+
+/** Posts commented on after `since` (ms), with who commented last (lastCommentByName). */
+export const subscribeRecentComments = (id, since, cb, onError) =>
+  onSnapshot(query(collection(db, "classes", id, "posts"), where("lastCommentAt", ">", Timestamp.fromMillis(since))), (snap) => cb(rows(snap)), onError);
+
+/** The instructor has seen the class's alerts up to now (clears its "new" in their bell). */
+export const markClassAlertsSeen = (id) => updateDoc(classRef(id), { instructorSeenAt: serverTimestamp() });
 
 /* ---------- small helpers for the pages ---------- */
 

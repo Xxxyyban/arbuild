@@ -8,7 +8,7 @@ import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PS
 import { renderSettings } from "../Three/graphics";
 import { CablePlug, HeaderPlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, SocketSlide, SocketCapOnBench, LeverHook, PLUG_REACH } from "../Three/Hardware";
 import CableDrawer from "../components/lab/CableDrawer";
-import { ThermalPaste, PasteStage, PasteCapture, PastePanel, PasteResult, PasteTubeOnBench, newPasteWork } from "../components/lab/PasteTask";
+import { ThermalPaste, PasteStage, PasteCapture, PastePanel, PasteResult, newPasteWork } from "../components/lab/PasteTask";
 import { gradePaste, lidFor } from "../lab/Paste";
 import { MM, headerPlugReach } from "../Three/cableStubs";
 import DraggablePart from "../Three/DraggablePart";
@@ -28,14 +28,14 @@ import PartInfoPanel from "../components/lab/PartInfoPanel";
 import { useSizeVar } from "../components/lab/useSizeVar";
 import {
   ALL_PARTS, PART_LABEL, trayPosition, toWorldPose, moboLocalToWorld,
-  MOTHERBOARD_TARGET, PSU_TARGET, GPU_TARGET, MOBO_LYING_ROTATION, MOBO_MOUNTED_ROTATION,
+  MOTHERBOARD_TARGET, PSU_TARGET, GPU_TARGET, PSU_SCREWS, GPU_SCREWS, GPU_SCREW_ROTATION, GPU_SCREW_SHANK, BACK_SCREW_SIZE, MOBO_LYING_ROTATION, MOBO_MOUNTED_ROTATION,
   boardLayout, STORAGE_MOUNT_ROTATION,
   COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z,
   LAY_ANGLE, LAY_CENTER, AR_SCALE, HOME_CAM, HOME_TARGET,
 } from "../lab/Constants";
 import {
   installBlock, removeBlock, evaluateBoot, bootTime, isFullyBuilt, isFullyStripped, expertSteps,
-  CABLES, SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
+  CABLES, SCREW_COUNT, PSU_SCREW_COUNT, GPU_SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
   M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done, cableNeeded, isGpuCable, gpuSixPin,
   socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone,
 } from "../lab/Rules";
@@ -70,9 +70,23 @@ const HINT_HIDDEN = "That didn't work. Think about what is missing.";
 // After an explosion: everything back on the bench, the picked parts stay picked.
 const NO_CABLES = { atx24: false, eps8: false, pcie: false, pcie6: false }; // also the PSU ends (psuCables)
 const NO_SCREWS = Array.from({ length: SCREW_COUNT }, () => false);
+const NO_PSU_SCREWS = Array.from({ length: PSU_SCREW_COUNT }, () => false);
+const NO_GPU_SCREWS = Array.from({ length: GPU_SCREW_COUNT }, () => false);
 const EMPTY_BUILD = {
   mode: "assemble", installed: {}, pasteApplied: false, ramSlot: { ram1: null, ram2: null },
-  cables: NO_CABLES, psuCables: NO_CABLES, screws: NO_SCREWS, wires: wiresStart(false),
+  cables: NO_CABLES, psuCables: NO_CABLES, screws: NO_SCREWS, psuScrews: NO_PSU_SCREWS, gpuScrews: NO_GPU_SCREWS, wires: wiresStart(false),
+};
+// The PSU's screws and the card's, both on the back of the case: their step, what one is called,
+// and what's said once they're all in or all out.
+const PART_SCREWS = {
+  psu: {
+    key: "psu_screws", count: PSU_SCREW_COUNT, one: "PSU screw",
+    allIn: `All ${PSU_SCREW_COUNT} PSU screws in. The PSU is held to the case.`, allOut: "All PSU screws out. The PSU can come out now.",
+  },
+  gpu: {
+    key: "gpu_screws", count: GPU_SCREW_COUNT, one: "card screw",
+    allIn: "Both card screws in. Its bracket is held to the case.", allOut: "Both card screws out. The card can come out now.",
+  },
 };
 // A part on the board: undoes the board's stretch so the part keeps its real proportions.
 function TrueSize({ unstretch, rotation, children }) {
@@ -153,6 +167,8 @@ export default function BuildLab() {
   const [cables, setCables] = useState(init.cables ?? NO_CABLES); // cables' part ends plugged in
   const [psuCables, setPsuCables] = useState(init.psuCables ?? NO_CABLES); // their PSU ends (modular PSU)
   const [screws, setScrews] = useState(init.screws ?? NO_SCREWS); // motherboard screws driven in
+  const [psuScrews, setPsuScrews] = useState(init.psuScrews ?? NO_PSU_SCREWS); // the PSU's, on the back of the case
+  const [gpuScrews, setGpuScrews] = useState(init.gpuScrews ?? NO_GPU_SCREWS); // the card's, on the back of the case
   // the board's M.2 slot: its cover (on the board or the bench), the cover's 2 screws, the SSD's screw
   const [m2, setM2] = useState(init.m2 ?? m2Start(init.installed.storage));
   // the CPU socket: its lever, AM5's cover frame and the plastic cap on it
@@ -302,7 +318,7 @@ export default function BuildLab() {
   const sockLook = BOARD_SOCKETS[boardVariant] || BOARD_SOCKETS[0]; // where the board's socket lever (and frame) go
   const sockKind = socketKind(picks); // "zif" (AM4: lever only) or "lga" (AM5: lever and cover frame)
   // what holds a part in when taking it apart (Rules removeBlock)
-  const links = { cables, screws, m2, socket, socketKind: sockKind, wires };
+  const links = { cables, screws, psuScrews, gpuScrews, m2, socket, socketKind: sockKind, wires };
   const UPRIGHT = [0, Math.PI, 0];
   const boardMounted = !!installed.motherboard;
   const moboTarget = useMemo(() => toWorldPose(MOTHERBOARD_TARGET.position, MOTHERBOARD_TARGET.rotation, rig), [rig]);
@@ -494,6 +510,9 @@ export default function BuildLab() {
       setRamSlot((p) => ({ ...p, [name]: s }));
     }
 
+    // in the case: their screws still have to go in
+    if (name === "psu") setPsuScrews(NO_PSU_SCREWS);
+    if (name === "gpu") setGpuScrews(NO_GPU_SCREWS);
     if (name === "storage") setM2((p) => ({ ...p, ssdScrew: false }));
     if (name === "cpu_cooler") setPaste((p) => p && { ...p, squeezed: true }); // the cooler presses it flat
     setInstalled((p) => ({ ...p, [name]: true }));
@@ -517,7 +536,11 @@ export default function BuildLab() {
 
     logAction(name, k, flawed);
     const missCount = misses.current[k] || 0;
-    const msg = `${isRam ? ramMsg : `${PART_LABEL[name]} installed.`}${missCount === 0 && !flawed ? " Perfect placement!" : ""}`;
+    // what comes next for the PSU and the card: their screws, round the back of the case (out of sight)
+    const then = hintsOn
+      ? { psu: ` Now screw it in from the back of the case: ${PSU_SCREW_COUNT} screws.`, gpu: ` Now screw its bracket in from the back of the case: ${GPU_SCREW_COUNT} screws.` }[name] || ""
+      : "";
+    const msg = `${isRam ? ramMsg : `${PART_LABEL[name]} installed.`}${missCount === 0 && !flawed ? " Perfect placement!" : ""}${then}`;
     award(k, actionPoints(basePoints(mode, name), missCount), msg, name);
   }
 
@@ -1119,9 +1142,34 @@ export default function BuildLab() {
     showHint(`Screw out: ${left} still in.`, "success");
   }
 
+  // The PSU's screws and the card's, one click each, like the board's.
+  function clickPartScrew(part, i) {
+    if (exploding || !installed[part]) return;
+    const { key, count, one, allIn, allOut } = PART_SCREWS[part];
+    const [list, setList] = part === "psu" ? [psuScrews, setPsuScrews] : [gpuScrews, setGpuScrews];
+    const One = one[0].toUpperCase() + one.slice(1);
+    const k = ledgerKey(mode, key);
+    if (mode === "assemble") {
+      if (list[i]) return showHint(`That ${one} is already in.`, "success");
+      const next = list.map((s, j) => s || j === i);
+      setList(next);
+      const n = next.filter(Boolean).length;
+      if (n === count) return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), allIn, key);
+      return showHint(`${One} in: ${n} of ${count}.`, "success");
+    }
+    if (!list[i]) return showHint(`That ${one} is already out.`, "success");
+    const s = safetyBlock(power);
+    if (s) return miss(s.key, s.msg, "safety");
+    const next = list.map((s2, j) => s2 && j !== i);
+    setList(next);
+    const left = next.filter(Boolean).length;
+    if (left === 0) return award(k, actionPoints(basePoints(mode, key), misses.current[k] || 0), allOut, key);
+    showHint(`${One} out: ${left} still in.`, "success");
+  }
+
   // Where each header is right now (case space), and which ones exist.
   const portPos = {
-    atx24: [L.atx24[0], L.atx24[1], L.pcbFront + HEADER_HEIGHT],
+    atx24: [L.atx24[0], L.atx24[1], L.pcbFront + (L.atx24[2] ?? HEADER_HEIGHT)], // a board can seat it deeper (MOUNTS.atx24[2])
     eps8: [L.eps8[0], L.eps8[1], L.pcbFront + HEADER_HEIGHT],
     pcie: gpuPort ? [L.gpu[0] + gpuPort[0], L.gpu[1] + gpuPort[1], L.gpu[2] + gpuPort[2]] : null,
     pcie6: gpuPort6 ? [L.gpu[0] + gpuPort6[0], L.gpu[1] + gpuPort6[1], L.gpu[2] + gpuPort6[2]] : null,
@@ -1299,6 +1347,12 @@ export default function BuildLab() {
         "safety"
       );
     }
+    if (installed.psu && psuScrews.some((s) => !s)) {
+      return miss("psu_screws", "Screw the PSU to the case before powering on. A loose PSU can shift and pull on its cables.", "safety");
+    }
+    if (installed.gpu && gpuScrews.some((s) => !s)) {
+      return miss("gpu_screws", "Screw the graphics card's bracket to the case before powering on. A loose card can rock out of its slot.", "safety");
+    }
     setPower({ ...POWER_ON }); // powering on plugs it back in
     const result = evaluateBoot({ installed, pasteApplied, pasteThin, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf }, { hints: hintsOn });
     // troubleshooting: the task is done when the PC starts with nothing wrong
@@ -1369,6 +1423,8 @@ export default function BuildLab() {
     setCables(s.cables ?? NO_CABLES);
     setPsuCables(s.psuCables ?? NO_CABLES);
     setScrews(s.screws ?? NO_SCREWS);
+    setPsuScrews(s.psuScrews ?? NO_PSU_SCREWS);
+    setGpuScrews(s.gpuScrews ?? NO_GPU_SCREWS);
     setM2(s.m2 ?? m2Start(s.installed.storage));
     setSocket(s.socket ?? socketStart(s.installed.cpu));
     setCableTask(null);
@@ -1769,7 +1825,6 @@ export default function BuildLab() {
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
-      else if (id === "paste") applyPaste();
       else if (id === "m2cover") clickM2Cover();
       else if (id === "socketlever") clickLever();
       else if (id === "socketplate") clickPlate();
@@ -1778,6 +1833,8 @@ export default function BuildLab() {
       else if (id === "m2screw") clickSsdScrew();
       else if (id.startsWith("port:")) choosePort(id.slice(5));
       else if (id.startsWith("screw:")) clickScrew(Number(id.slice(6)));
+      else if (id.startsWith("psuscrew:")) clickPartScrew("psu", Number(id.slice(9)));
+      else if (id.startsWith("gpuscrew:")) clickPartScrew("gpu", Number(id.slice(9)));
       else if (mode === "disassemble") uninstall(id);
       else trySelect(id);
       return;
@@ -2145,7 +2202,7 @@ export default function BuildLab() {
   }
 
   const classLocked = inClass && classPhase !== "running"; // waiting for the instructor, or class over
-  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuCables, m2, socket, wires });
+  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuScrews, gpuScrews, psuCables, m2, socket, wires });
   // only steps that must happen in order get a "next" highlight (a teardown's parts can go in any order)
   const nextStep = steps.findIndex((s) => !s.done && !s.anyOrder);
   const stepsDone = steps.filter((s) => s.done).length;
@@ -2154,7 +2211,8 @@ export default function BuildLab() {
     nextStep >= 0 ? steps[nextStep].label : stepsDone < steps.length ? "Take the parts out in any order" : "Every step done";
   const orderedSteps = steps.filter((s) => !s.anyOrder);
   const anyOrderSteps = steps.filter((s) => s.anyOrder);
-  const showPicker = mode === "assemble" && cfg.partPicking === "student" && !classLocked && !pasteTask;
+  // the parts rail, with the thermal paste docked at its end (when the parts come laid out, the paste alone)
+  const showPicker = mode === "assemble" && !classLocked && !pasteTask;
 
   const showMarkers = arLike && mode === "assemble" && selectedPart;
 
@@ -2280,7 +2338,13 @@ export default function BuildLab() {
                         ))}
 
                         <CaseRig laidDown={isLaidDown} pose={casePose}>
-                          <CaseWithMeasure onMeasure={handleCaseMeasured} />
+                          {/* the case's own screws on the card's two slots give way to the card's; its
+                              power light shows while the PC is on */}
+                          <CaseWithMeasure
+                            onMeasure={handleCaseMeasured}
+                            hideSlotScrews={!!installed.gpu && !exploding}
+                            io={{ powered: monitor.status !== "off" }}
+                          />
                           {caseBox && <CaseFans box={caseBox} />}
 
                           {installed.motherboard && (
@@ -2314,6 +2378,22 @@ export default function BuildLab() {
                                 driven={screws[i]}
                                 waiting={mode === "assemble" ? !screws[i] : screws[i] && power.discharged}
                                 onClick={() => clickScrew(i)}
+                              />
+                            ))}
+
+                          {/* the PSU's screws, through the back of the case into the PSU */}
+                          {installed.psu &&
+                            !exploding &&
+                            PSU_SCREWS.map((p, i) => (
+                              <BoardScrew
+                                key={`psuscrew${i}`}
+                                partId={`psuscrew:${i}`}
+                                position={p}
+                                rotation={[0, 0, Math.PI / 2]}
+                                size={BACK_SCREW_SIZE}
+                                driven={psuScrews[i]}
+                                waiting={mode === "assemble" ? !psuScrews[i] : psuScrews[i] && power.discharged}
+                                onClick={() => clickPartScrew("psu", i)}
                               />
                             ))}
 
@@ -2398,19 +2478,27 @@ export default function BuildLab() {
                               {wrapPull("gpu", <PartModel category="gpu" variant={variantOf("gpu")} spinX={GPU_SPIN_X} spinY={GPU_SPIN_Y} spinZ={GPU_SPIN_Z} />)}
                             </Blast>
                           )}
+
+                          {/* the card's screws, in the notches of its bracket's side tab */}
+                          {installed.gpu &&
+                            !exploding &&
+                            GPU_SCREWS.map((p, i) => (
+                              <BoardScrew
+                                key={`gpuscrew${i}`}
+                                partId={`gpuscrew:${i}`}
+                                position={p}
+                                rotation={GPU_SCREW_ROTATION}
+                                size={BACK_SCREW_SIZE}
+                                shank={GPU_SCREW_SHANK}
+                                driven={gpuScrews[i]}
+                                waiting={mode === "assemble" ? !gpuScrews[i] : gpuScrews[i] && power.discharged}
+                                onClick={() => clickPartScrew("gpu", i)}
+                              />
+                            ))}
                         </CaseRig>
 
+                        {/* the thermal paste isn't on the bench: it's docked in the parts rail (PartPicker) */}
                         {benchParts.map(renderTrayPart)}
-                        {mode === "assemble" && !pasteTask && !exploding && (
-                          <>
-                            <PasteTubeOnBench
-                              position={trayPosition("paste")}
-                              waiting={hintsOn && !!installed.cpu && !pasteApplied && !installed.cpu_cooler}
-                              onClick={applyPaste}
-                            />
-                            {!cableTask && <TrayLabel name="paste" text="Thermal paste" />}
-                          </>
-                        )}
                         {sockLook.cap && !socket.cap && !!picks.motherboard && !exploding && (
                           <SocketCapOnBench
                             size={sockLook.cap.size}
@@ -2559,11 +2647,19 @@ export default function BuildLab() {
           {showPicker && (
             <div style={{ pointerEvents: "auto" }}>
               <PartPicker
+                parts={cfg.partPicking === "student"}
                 picks={picks}
                 locked={lockedSlots}
                 showSpecs={cfg.partInfo}
                 onPick={pick}
                 onInspect={(id) => setInspectId(id)}
+                paste={{
+                  applied: pasteApplied,
+                  ready: !!installed.cpu && !installed.cpu_cooler,
+                  waiting: hintsOn && !!installed.cpu && !pasteApplied && !installed.cpu_cooler,
+                  disabled: exploding,
+                }}
+                onPaste={applyPaste}
               />
             </div>
           )}
@@ -2811,7 +2907,7 @@ export default function BuildLab() {
                   )}
                 </>
               )}
-              <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={leaveClass}>Leave class</button>
+              <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={leaveClass} title="Back to free practice: you stay in your class">Exit lab activity</button>
             </div>
           )}
 

@@ -29,6 +29,7 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
   const [requireGpu, setRequireGpu] = useState(true);
   const [ramSticks, setRamSticks] = useState(2);
   const [mustBoot, setMustBoot] = useState(true);
+  const [due, setDue] = useState(""); // "2026-11-10T17:00" from the date and time box, or "" for none
   // troubleshooting: the PC students get, and its faults' points (TroubleshootEditor)
   const [fix, setFix] = useState(() => ({ scenario: workingScenario("am4"), faultPoints: {}, bootPoints: BOOT_POINTS }));
   const trouble = mode === "troubleshoot";
@@ -68,7 +69,8 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
 
   function submit(e) {
     e.preventDefault();
-    onCreate({ title: task.title, task });
+    const dueAt = due ? new Date(due) : null;
+    onCreate({ title: task.title, task, dueAt: dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : null });
   }
 
   return (
@@ -127,6 +129,11 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
             <input type="number" min="1" max={MAX_TASK_POINTS} value={points} onChange={(e) => setPoints(e.target.value)} />
           </label>
         )}
+        {/* students see it in their calendar; not done by then, the bell tells them */}
+        <label className="ins-field">
+          <span>Due (optional)</span>
+          <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
       </div>
 
       {trouble && (

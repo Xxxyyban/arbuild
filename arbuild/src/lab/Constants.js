@@ -39,11 +39,11 @@ export const TRAY_OFFSETS = {
   storage: [-1.75, 0.03, 3.15],
   m2cover: [-1.74, 0.01, 3.42], // the board's M.2 cover, once it is lifted off (its middle)
   socketcap: [0.95, 0.01, 2.62], // the AM5 socket's plastic cap once it pops off, between the CPU and the cooler
-  paste: [1.8, 0.002, 3.28], // the tube of thermal paste
 };
+// (the thermal paste isn't on the bench: it's docked in the parts rail, components/lab/PartPicker.jsx)
 
 // [x, y, z] added on top of the tray position for the part's name tag. Default is [0, 0.3, 0].
-export const LABEL_OFFSETS = { psu: [0, 0.62, 0], motherboard: [0, 0.3, -0.75], gpu: [0, 0.5, 0], cpu_cooler: [0, 0.4, 0], paste: [0, 0.16, 0] };
+export const LABEL_OFFSETS = { psu: [0, 0.62, 0], motherboard: [0, 0.3, -0.75], gpu: [0, 0.5, 0], cpu_cooler: [0, 0.4, 0] };
 
 export function trayPosition(name) {
   const o = TRAY_OFFSETS[name];
@@ -73,6 +73,32 @@ export const GPU_SPIN_Z = 0;
 export const MOTHERBOARD_TARGET = { position: [-0.30, 0.53, -0.30], rotation: [0, Math.PI, 0] };
 export const PSU_TARGET = { position: [-0.625, 0.48, 0.00005], rotation: [Math.PI, (3 * Math.PI) / 2, 0] };
 export const GPU_TARGET = { position: [-0.326, 1.0379, -0.449], rotation: [0, Math.PI, 0] };
+
+// The PSU's 4 screws, through the case's back panel into the back of the PSU (case space: where each
+// head sits on the panel's outer face; heads point out of the case, -x). Three are the panel's holes
+// round the PSU opening, measured on case-meshify-c.glb; the fourth (top, toward the glass) completes
+// the ATX pattern: three corners and one hole set in.
+export const PSU_SCREWS = [
+  [-0.9563, 0.1057, -0.3373],
+  [-0.9563, 0.1057, 0.333],
+  [-0.9563, 0.4679, -0.2224],
+  [-0.9563, 0.4679, 0.333],
+];
+// The graphics card's 2 screws, one for each slot it takes: in the two V-notches of the side tab at the
+// end of its bracket. Their heads face the back of the slots, so they're turned from outside the case,
+// through the slot openings; the case's own slot thumbscrews on those two slots are hidden while the
+// card is in (CaseModel hideSlotScrews). Case space: under each head, on the tab's face away from the
+// glass (z 0.1336), level with the middle of each notch (measured on the card's model); turned by
+// GPU_SCREW_ROTATION.
+export const GPU_SCREWS = [
+  [-0.8997, 1.144, 0.1336],
+  [-0.8997, 1.051, 0.1336],
+];
+export const GPU_SCREW_ROTATION = [-Math.PI / 2, 0, 0]; // a screw's head (+Y) toward -z
+// the tab is 1 mm thick and the model has no rail behind it: a short shank, so only its tip shows
+// through on the glass side
+export const GPU_SCREW_SHANK = 3;
+export const BACK_SCREW_SIZE = 1.15; // the PSU's and the card's: heads about 7 mm across, a board screw's 6
 
 export const RAM_SLOT_1_ABS = [0.0361, 1.132, -0.291];
 export const RAM_SLOT_2_ABS = [0.1191, 1.132, -0.291];
@@ -130,7 +156,7 @@ export const BASE_MOUNTS = {
     [-0.788, 1.22], [-0.122, 1.222], [0.193, 1.223],
     [-0.783, 0.622], [-0.122, 0.619], [0.19, 0.62],
   ], // the 9 ATX screw holes, measured on the hole rings in close-up
-  atx24: [0.204, 1.515], // centre of the 24-pin header (vertical, on the right edge): the model's Cube014_22
+  atx24: [0.204, 1.515], // centre of the 24-pin header (vertical, on the right edge): the model's Cube014_22; a third value: how far off the board the plug's face sits (a taller header seats it deeper)
   eps8: [-0.593, 1.986], // centre of the 8-pin CPU power header (top-left): the model's Cube081_89
   // the small headers for the case's and fans' wires (lab/Wires.js): { [id]: { at: [x, y] mm from the
   // socket's centre, seen from the front (x right, y up), label (as printed), along: "y" if it runs up the board } }

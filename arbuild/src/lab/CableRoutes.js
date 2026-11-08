@@ -59,7 +59,11 @@ export const PSU_FIXED_OUT = [-0.3, 0.3, 0.1]; // where a non-modular PSU's cabl
 // base, about 2.5 mm off the board; the see-through guide shows where its wire comes from.
 export const HEADER_LIFT = 2.5 * MM;
 export const WIRE_GHOST = { panel: "#cbd5e1", front: "#60a5fa", fans: "#a78bfa" };
-export const FRONT_IO = [0.98, 2.1, 0.02]; // the case's front panel: power and reset buttons, LEDs, USB, audio
+// The case's front panel: the power and reset buttons, the lights, USB and audio (Three/FrontPanelIO.jsx).
+// The case model has none of its own; they go on the flat strip of the top in front of the top mesh,
+// as on a Meshify C (case-meshify-c.glb: x 0.69 to 0.79, 1.1 mm under the top, the whole width).
+export const FRONT_IO_PANEL = [0.74, 2.1947, 0]; // the panel's middle, on that strip
+export const FRONT_IO = [0.74, 2.207, 0]; // its marker: just over the panel's middle
 const FRONT_BOARD = [FRONT_SLOT_X, 2.125, FRONT_SLOT_Z]; // where its wires come out, under the block they're in at the top of the front
 const FRONT_FANS = [0.845, 1.0, -0.335]; // where the fans' wires leave the middle front fan's frame
 

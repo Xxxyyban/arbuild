@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/Logo";
+import PolicyDialog from "../components/PolicyDialog";
+import { POLICY_VERSION } from "../lab/Policies";
 import "../styles/ProfileSetup.css";
 
 // ============================================================
 // PROFILE SETUP
 // Fields: School Email (read-only), First Name, Middle Name
-// (optional), Last Name.
+// (optional), Last Name. Then the person agrees to the Data Privacy
+// Notice and the Terms of Use (lab/Policies.js); their agreement is
+// saved with the profile (consent), and setup can't finish without it.
 // ============================================================
 
 export default function ProfileSetup() {
@@ -30,6 +34,10 @@ export default function ProfileSetup() {
     userProfile?.lastName || guessedNames.last
   );
 
+  const [privacyOk, setPrivacyOk] = useState(false);
+  const [termsOk, setTermsOk] = useState(false);
+  const [reading, setReading] = useState(null); // "privacy" | "terms": the one open to read
+
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -51,6 +59,11 @@ export default function ProfileSetup() {
       return;
     }
 
+    if (!privacyOk || !termsOk) {
+      setError("To continue, agree to the Data Privacy Notice and the Terms of Use.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -58,6 +71,7 @@ export default function ProfileSetup() {
         firstName: firstName.trim(),
         middleName: middleName.trim(),
         lastName: lastName.trim(),
+        consent: { privacy: POLICY_VERSION, terms: POLICY_VERSION },
       });
 
       // AuthContext handles profileCompleted = true
@@ -169,12 +183,37 @@ export default function ProfileSetup() {
               required
             />
 
+            {/* what they agree to: each opens to read in full */}
+            <fieldset className="setup-consent">
+              <legend className="field__label">Privacy and terms</legend>
+              <label className="setup-consent__row">
+                <input type="checkbox" checked={privacyOk} onChange={(e) => setPrivacyOk(e.target.checked)} />
+                <span>
+                  I have read the{" "}
+                  <button type="button" className="setup-consent__link" onClick={() => setReading("privacy")}>
+                    Data Privacy Notice
+                  </button>{" "}
+                  and agree that ARBuild may keep and use my information as it describes.
+                </span>
+              </label>
+              <label className="setup-consent__row">
+                <input type="checkbox" checked={termsOk} onChange={(e) => setTermsOk(e.target.checked)} />
+                <span>
+                  I agree to the{" "}
+                  <button type="button" className="setup-consent__link" onClick={() => setReading("terms")}>
+                    Terms of Use
+                  </button>
+                  .
+                </span>
+              </label>
+            </fieldset>
+
             {error && <div className="setup__error animate-shake">{error}</div>}
 
             <button
               className="setup__submit focus-ring"
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !privacyOk || !termsOk}
             >
               {submitting ? (
                 <span className="btn-spinner-content">
@@ -194,6 +233,8 @@ export default function ProfileSetup() {
           <span>ARBuild Environment v2.6</span>
         </div>
       </div>
+
+      {reading && <PolicyDialog which={reading} onClose={() => setReading(null)} />}
     </div>
   );
 }

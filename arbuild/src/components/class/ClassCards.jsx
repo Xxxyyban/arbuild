@@ -2,7 +2,7 @@
 // initials in its colour, its section and schedule, when it next meets, and what's new.
 // Each card keeps itself up to date. Styles: styles/AppShell.css (.ccard*).
 import { useEffect, useState } from "react";
-import { subscribeClass, subscribeMember, shownName, when, toMs } from "../../lab/Classes";
+import { subscribeClass, subscribeMember, subscribeMyRemoval, shownName, when, toMs } from "../../lab/Classes";
 import { classLine, nextMeeting, initials, CLASS_COLORS } from "../../lab/Schedule";
 import Icon from "../Icon";
 
@@ -39,7 +39,7 @@ function Card({ cls, fallbackName, onOpen, children }) {
       name={cls?.name || fallbackName}
       line={classLine(cls)}
       color={cls?.color}
-      next={nextMeeting(cls?.schedule)}
+      next={cls?.archived ? null : nextMeeting(cls?.schedule)}
       onOpen={onOpen}
     >
       {children}
@@ -51,8 +51,10 @@ function Card({ cls, fallbackName, onOpen, children }) {
 export function StudentClassCard({ entry, uid, onOpen }) {
   const [cls, setCls] = useState(null);
   const [member, setMember] = useState(undefined);
+  const [removal, setRemoval] = useState(null);
   useEffect(() => subscribeClass(entry.id, setCls, () => {}), [entry.id]);
   useEffect(() => subscribeMember(entry.id, uid, setMember, () => setMember(null)), [entry.id, uid]);
+  useEffect(() => (member === null ? subscribeMyRemoval(entry.id, uid, setRemoval) : undefined), [entry.id, uid, member]);
 
   const newPosts = cls && member && toMs(cls.lastPostAt) > toMs(member.seenStreamAt);
   return (
@@ -64,11 +66,13 @@ export function StudentClassCard({ entry, uid, onOpen }) {
         </span>
       )}
       {member === null ? (
-        <span className="chip">Not in this class</span>
+        <span className="chip chip--alert">{removal ? "Removed by your instructor" : "Not in this class"}</span>
+      ) : cls?.archived ? (
+        <span className="chip">Ended</span>
+      ) : newPosts ? (
+        <span className="chip chip--alert">New posts</span>
       ) : (
-        <>
-          {newPosts ? <span className="chip chip--alert">New posts</span> : <span className="chip">Up to date</span>}
-        </>
+        <span className="chip">Up to date</span>
       )}
     </Card>
   );
@@ -83,7 +87,11 @@ export function TeachingClassCard({ cls, now, onOpen }) {
         {cls.studentCount || 0} {cls.studentCount === 1 ? "student" : "students"}
         <code>{cls.code}</code>
       </span>
-      <span className="chip">{cls.lastPostAt ? `Posted ${when(cls.lastPostAt, now)}` : "No posts yet"}</span>
+      {cls.archived ? (
+        <span className="chip">Ended{cls.endedAt ? ` ${new Date(toMs(cls.endedAt)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : ""}</span>
+      ) : (
+        <span className="chip">{cls.lastPostAt ? `Posted ${when(cls.lastPostAt, now)}` : "No posts yet"}</span>
+      )}
     </Card>
   );
 }

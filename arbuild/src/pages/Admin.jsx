@@ -28,6 +28,7 @@ import SignInLog, { signInTime } from "../components/admin/SignInLog";
 import AdminLock, { useIdle } from "../components/admin/AdminLock";
 import Watermark from "../components/Watermark";
 import { loadLastSignIns, placeName, shortPlace } from "../lab/SignIns";
+import Announcements from "../components/admin/Announcements";
 import "../styles/Admin.css";
 
 const DEFAULT_PASSWORD = "Universidad2026";
@@ -46,6 +47,10 @@ const VIEWS = {
     title: "Accounts",
     text: "Search accounts, activate or deactivate them, delete them, send reminders and password resets.",
   },
+  announcements: {
+    title: "Announcements",
+    text: "Tell every student, every instructor, or everyone something. It shows in their notification bell.",
+  },
   signins: {
     title: "Sign-ins",
     text: "When, from where and on what device each account signed in. New places, new devices and other countries are flagged.",
@@ -59,6 +64,7 @@ const ICONS = {
   accounts:
     "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   signins: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3",
+  announcements: "m3 11 18-5v12L3 14z M11.6 16.8a3 3 0 1 1-5.8-1.6",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
   lock: "M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4",
 };
@@ -156,7 +162,7 @@ const needsSetup = (u) =>
   u.role !== "admin" && u.status !== "inactive" && !u.profileCompleted;
 
 export default function Admin() {
-  const { profile, logout, confirmPassword } = useAuth();
+  const { user, profile, logout, confirmPassword } = useAuth();
   const navigate = useNavigate();
 
   // ============================================================
@@ -1191,6 +1197,7 @@ export default function Admin() {
     ["dashboard", "Dashboard"],
     ["create", "Create account"],
     ["accounts", "Accounts"],
+    ["announcements", "Announcements"],
     ["signins", "Sign-ins"],
   ];
 
@@ -1281,6 +1288,12 @@ export default function Admin() {
         {view === "dashboard" && renderDashboard()}
         {view === "create" && renderCreate()}
         {view === "accounts" && renderAccounts()}
+        {view === "announcements" && (
+          <Announcements
+            by={{ uid: user?.uid, name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || user?.email || "Admin" }}
+            onError={setError}
+          />
+        )}
         {view === "signins" && <SignInLog users={users} who={who} onWho={showSignIns} onError={setError} />}
       </main>
     </div>

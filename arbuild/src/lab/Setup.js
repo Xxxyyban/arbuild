@@ -1,7 +1,7 @@
 // Session setup (what the instructor controls) and join codes.
 import { ALL_PARTS } from "./Constants";
 import { correctPicks, normalizePlatform } from "./Catalog";
-import { m2Start, socketStart, gpuSixPin } from "./Rules";
+import { m2Start, socketStart, gpuSixPin, PSU_SCREW_COUNT, GPU_SCREW_COUNT } from "./Rules";
 import { wiresStart } from "./Wires";
 import { scenarioStart } from "./Faults";
 
@@ -73,6 +73,9 @@ export function buildStart(setup) {
     // a PSU in the case has its modular cables on it already (only the ones this build uses)
     psuCables: { atx24: !!installed.psu, eps8: !!installed.psu, pcie: !!installed.psu && !!picks.gpu, pcie6: !!installed.psu && gpuSixPin(picks) },
     screws: Array.from({ length: 9 }, () => !!installed.motherboard),
+    // and the PSU and the graphics card screwed to the case
+    psuScrews: Array.from({ length: PSU_SCREW_COUNT }, () => !!installed.psu),
+    gpuScrews: Array.from({ length: GPU_SCREW_COUNT }, () => !!installed.gpu),
     // the board's M.2 cover is on and screwed down; an SSD already in is screwed in under it
     m2: m2Start(installed.storage),
     // the CPU socket's lever is down (and AM5's cover frame shut); its plastic cap is on while it's empty

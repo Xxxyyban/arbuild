@@ -1,5 +1,6 @@
 // Thermal paste by hand: the student squeezes it onto the CPU's lid with the tube, as a dot, lines or
 // however they like, and it's scored on the amount and where it ends up (the numbers: lab/Paste.js).
+// The tube waits in the parts rail (components/lab/PartPicker.jsx), not on the bench.
 //
 //   <ThermalPaste>   the paste on a lid (inside the CPU's own frame, with the CPU's model)
 //   <PasteStage>     the tube following the pointer, and the paste coming out of it (same frame)
@@ -51,46 +52,6 @@ export function ThermalPaste({ variant, dabs = null, squeezed = false, work = nu
     surface.drawDabs(work.dabs);
   });
   return <primitive object={surface.mesh} />;
-}
-
-/** The tube on the bench: lying on its side, label up. */
-export function PasteTubeOnBench({ position, waiting, onClick }) {
-  const tube = useMemo(() => buildSyringe({ capped: true }), []);
-  useEffect(() => () => tube.userData.dispose(), [tube]);
-  const lift = useRef();
-  useFrame((state) => {
-    if (lift.current) lift.current.position.y = waiting ? 0.012 + Math.sin(state.clock.elapsedTime * 4) * 0.006 : 0;
-  });
-  return (
-    <group position={position}>
-      <group
-        ref={lift}
-        userData={{ partId: "paste" }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick?.();
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "";
-        }}
-      >
-        <group position={[-0.15, 3.4 * MM, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <group rotation={[0, Math.PI / 2, 0]}>
-            <primitive object={tube} />
-          </group>
-        </group>
-        {/* it's thin: an easier thing to hit */}
-        <mesh visible={false} position={[0, 0.03, 0]}>
-          <boxGeometry args={[0.36, 0.09, 0.12]} />
-        </mesh>
-      </group>
-    </group>
-  );
 }
 
 const LEAN = new THREE.Vector3(); // the way the tube leans, in the CPU's frame

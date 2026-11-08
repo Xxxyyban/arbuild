@@ -1,0 +1,416 @@
+/* The calendar (pages/Calendar.jsx): the month beside the day picked; on a phone, the month with dots,
+   then the day. Each class keeps its own colour; anything missed or overdue is red. App colours only. */
+
+.cal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.cal-skeleton {
+  min-height: 520px;
+}
+
+/* ---------- the month ---------- */
+.cal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.cal-bar__title {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.cal-bar__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--border-color);
+}
+
+.cal-grid__dow {
+  padding: 8px 10px;
+  background: var(--bg-main);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 6px;
+  border: 0;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.cal-day:hover {
+  background: var(--surface-2);
+}
+
+.cal-day:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.cal-day.is-out {
+  background: var(--bg-main);
+  color: var(--text-muted);
+}
+
+.cal-day.is-out .cal-chip {
+  opacity: 0.6;
+}
+
+.cal-day.is-picked {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.cal-day__num {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-day.is-today .cal-day__num {
+  background: var(--primary-btn);
+  color: #fff;
+}
+
+.cal-day.has-alert .cal-day__num {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.cal-day__events {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* a class meeting: a line in its colour; a lab activity: shaded and bold; a post: dotted, quiet */
+.cal-chip {
+  display: block;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-left: 3px solid var(--event-color, var(--primary));
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cal-chip--lab {
+  background: color-mix(in srgb, var(--event-color, var(--primary)) 13%, var(--card-bg));
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.cal-chip--post {
+  border-left-style: dotted;
+  color: var(--text-muted);
+}
+
+.cal-chip.is-done {
+  color: var(--text-muted);
+}
+
+.cal-chip.is-missed,
+.cal-chip.is-overdue {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.cal-more {
+  padding-left: 2px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.cal-day__dots {
+  display: none;
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.cal-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.cal-legend__class {
+  border-left: 3px solid var(--primary);
+}
+
+.cal-legend__lab {
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.cal-legend__post {
+  border-left: 3px dotted var(--text-muted);
+}
+
+.cal-legend__late {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+}
+
+/* ---------- the day picked ---------- */
+.cal-agenda {
+  position: sticky;
+  top: 16px;
+}
+
+.cal-agenda .panel-title {
+  flex-wrap: wrap;
+}
+
+.cal-agenda__date {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.cal-agenda__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--event-color, var(--primary));
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+}
+
+.cal-item--post {
+  border-left-style: dotted;
+}
+
+.cal-item.is-missed,
+.cal-item.is-overdue {
+  border-left-color: var(--danger);
+}
+
+.cal-item__time {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.cal-item__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cal-item__text strong {
+  color: var(--text-main);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.cal-item__text small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.cal-tag {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  justify-self: end;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cal-tag--done,
+.cal-tag--todo,
+.cal-tag--running {
+  background: var(--primary-light);
+  color: var(--primary-strong);
+}
+
+.cal-tag--missed,
+.cal-tag--overdue {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.cal-item__go {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-self: start;
+  gap: 4px;
+  color: var(--primary-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cal-item__go:hover {
+  text-decoration: underline;
+}
+
+/* ---------- missed and overdue, on top ---------- */
+.app-page .cal-late {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border-color));
+  background: color-mix(in srgb, var(--danger) 4%, var(--card-bg));
+}
+
+.cal-late .panel-title,
+.cal-late .panel-title .icon {
+  color: var(--danger);
+}
+
+.cal-late__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-late__list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+}
+
+.cal-late__text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cal-late__text strong {
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.cal-late__text small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ---------- smaller screens ---------- */
+/* the day goes under the month once they'd be cramped side by side */
+@media (max-width: 1200px) {
+  .cal {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cal-agenda {
+    position: static;
+  }
+}
+
+/* a phone: dots for what's on, the day picked underneath */
+@media (max-width: 640px) {
+  .cal-grid__dow {
+    padding: 6px 2px;
+    font-size: 0.62rem;
+    text-align: center;
+  }
+  .cal-day {
+    align-items: center;
+    min-height: 52px;
+    padding: 4px 2px;
+  }
+  .cal-day__events {
+    display: none;
+  }
+  .cal-day__dots {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+  }
+  .cal-day__dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--event-color, var(--primary));
+  }
+  .cal-day__dots i.is-missed,
+  .cal-day__dots i.is-overdue {
+    background: var(--danger);
+  }
+  .cal-late__list li {
+    flex-wrap: wrap;
+  }
+}

@@ -1,31 +1,32 @@
 // The frame every signed-in page shares (Rig Studio, Classes, Profile...): the ARBuild sidebar and
-// the page header (title, notifications, the page's own buttons). On a phone the sidebar becomes a
-// drawer behind the menu button.
+// the page header (title, the page's own buttons, then the calendar, notifications and the account
+// menu with My Profile, dark mode and Sign out). On a phone the sidebar becomes a drawer behind the
+// menu button.
 // Styles: styles/Main.css (.app-shell, .app-sidebar, .main__header) and styles/AppShell.css.
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import AccountMenu from "./AccountMenu";
 import Icon from "./Icon";
 import Logo from "./Logo";
-import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./class/NotificationBell";
 import { graphicsChoice, setGraphicsChoice, weakDevice } from "../Three/graphics";
 import "../styles/Main.css";
 import "../styles/AppShell.css";
 
+// the workspaces; the calendar sits beside the bell and the profile opens from the account menu
+// (AccountMenu.jsx), both at the top right
 function navFor(teacher) {
   return [
     { to: "/main", label: "Rig Studio", icon: "rig", paths: ["/main"] },
     { to: "/lab", label: "Build Lab", icon: "wrench", paths: ["/lab"] },
     { to: teacher ? "/instructor" : "/classes", label: "Classes", icon: "users", paths: ["/classes", "/instructor"] },
-    { to: "/profile", label: "Profile", icon: "user", paths: ["/profile"] },
   ];
 }
 
 export function Sidebar({ open, onClose }) {
-  const { profile, logout } = useAuth();
+  const { profile } = useAuth();
   const { pathname } = useLocation();
-  const navigate = useNavigate();
 
   return (
     <>
@@ -64,10 +65,6 @@ export function Sidebar({ open, onClose }) {
         </div>
 
         <div className="sidebar__footer">
-          <div className="sidebar__footer-row">
-            <span className="sidebar__footer-label">Appearance</span>
-            <ThemeToggle />
-          </div>
           {/* how detailed the 3D views are (Three/graphics.js); a change reloads the page */}
           <label className="sidebar__footer-row">
             <span className="sidebar__footer-label">Graphics</span>
@@ -77,21 +74,15 @@ export function Sidebar({ open, onClose }) {
               <option value="lite">Lite</option>
             </select>
           </label>
-          <Link to="/credits" className="sidebar__link sidebar__link--quiet" onClick={onClose}>
-            <Icon name="award" />
-            <span>3D model credits</span>
-          </Link>
-          <button
-            type="button"
-            className="sidebar__link sidebar__link--quiet"
-            onClick={async () => {
-              await logout();
-              navigate("/", { replace: true });
-            }}
+          <Link
+            to="/about"
+            className={`sidebar__link sidebar__link--quiet ${pathname === "/about" ? "active" : ""}`}
+            aria-current={pathname === "/about" ? "page" : undefined}
+            onClick={onClose}
           >
-            <Icon name="logout" />
-            <span>Log out</span>
-          </button>
+            <Icon name="info" />
+            <span>About ARBuild</span>
+          </Link>
           <div className="sidebar__footer-divider" />
           <span className="sidebar__term">Computer Systems Servicing NC II</span>
         </div>
@@ -102,11 +93,14 @@ export function Sidebar({ open, onClose }) {
 
 /**
  * eyebrow, title, subtitle: the page header. back: { to, label } shows a back link above the title.
- * tools: buttons beside the notification bell. className: extra classes on <main>.
+ * tools: the page's own buttons, before the bell and the account menu. className: extra classes on
+ * <main>.
  */
 export default function AppShell({ eyebrow, title, subtitle, back, tools, className = "", children }) {
   const { user, profile } = useAuth();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const onCalendar = pathname === "/calendar";
 
   return (
     <div className="app-shell">
@@ -136,7 +130,23 @@ export default function AppShell({ eyebrow, title, subtitle, back, tools, classN
           </div>
           <div className="main__header-tools">
             {tools}
-            <NotificationBell user={user} profile={profile} />
+            <div className="main__me">
+              {/* the calendar: class meetings, due dates and anything missed (pages/Calendar.jsx); an
+                  admin has none (the shell only shows them the instructor pages) */}
+              {profile?.role !== "admin" && (
+                <Link
+                  to="/calendar"
+                  className="main__icon"
+                  aria-label="Calendar"
+                  title="Calendar"
+                  aria-current={onCalendar ? "page" : undefined}
+                >
+                  <Icon name="calendar" size={22} />
+                </Link>
+              )}
+              <NotificationBell user={user} profile={profile} />
+              <AccountMenu />
+            </div>
           </div>
         </header>
 

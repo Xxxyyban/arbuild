@@ -307,9 +307,9 @@ export function buildCableStub(type) {
 
 /**
  * A 6-32 motherboard screw (silver, Phillips head), in scene units.
- * The underside of the head is at y = 0: the head is above, the threaded shaft below.
+ * The underside of the head is at y = 0: the head is above, the threaded shaft below, `shank` mm long.
  */
-export function buildScrew() {
+export function buildScrew(shank = 6) {
   const g = new THREE.Group();
   g.name = "screw";
   const steel = mat("#c8ccd2", { metalness: 0.9, roughness: 0.3 });
@@ -320,11 +320,11 @@ export function buildScrew() {
   // Phillips cross
   g.add(box(3.4, 0.6, 0.7, dark, 0, 2.2, 0));
   g.add(box(0.7, 0.6, 3.4, dark, 0, 2.2, 0));
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.5, 6, 12), steel);
-  shaft.position.y = -3;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.5, shank, 12), steel);
+  shaft.position.y = -shank / 2;
   g.add(shaft);
   // a few thread rings
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 4 && 1.2 + i * 1.3 < shank - 0.4; i++) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.25, 6, 16), steel);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = -1.2 - i * 1.3;

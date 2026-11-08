@@ -29,6 +29,7 @@ const KIND_TONE = { safety: "danger", penalty: "danger", compat: "danger", succe
 const STEP_LABEL = {
   post: "Power on", boot: "Power on", paste: "Thermal paste", shutdown: "Shut down", unplug: "Unplug",
   bench: "Bench", assemble: "Assemble", disassemble: "Disassemble", ram: "RAM", exam: "Exam rules",
+  screws: "Board screws", psu_screws: "PSU screws", gpu_screws: "Card screws",
 };
 const partName = (p) => PART_LABEL[p] || STEP_LABEL[p] || (p ? p.replace(/_/g, " ") : "");
 

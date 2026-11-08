@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ProfileClasses from "../components/class/ProfileClasses";
 import AppShell from "../components/AppShell";
+import PolicyDialog from "../components/PolicyDialog";
 import { makeThumb } from "../lab/People";
 import "../styles/Profile.css";
 
@@ -61,14 +61,15 @@ function PasswordField({ label, value, onChange }) {
 // ============================================================
 
 export default function Profile() {
-  const { profile, user, logout, changePassword, updateUserProfile } = useAuth();
-  const navigate = useNavigate();
+  // signing out is in the account menu, at the top right of every page (components/AccountMenu.jsx)
+  const { profile, user, changePassword, updateUserProfile } = useAuth();
   // ?tab=classes (or password) opens that tab
   const [activeTab, setActiveTab] = useState(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
     return t === "classes" || t === "password" ? t : "profile";
   });
   const fileInputRef = useRef(null);
+  const [reading, setReading] = useState(null); // the privacy notice, open to read
 
   // Profile form: first, middle and last name, plus optional contact number
   const [formData, setFormData] = useState({
@@ -273,11 +274,6 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/", { replace: true });
-  };
-
   // ============================================================
   // UI
   // ============================================================
@@ -480,16 +476,13 @@ export default function Profile() {
 
               {/* Data privacy notice */}
               <div className="data-privacy-notice">
-                <strong>Data Privacy Notice:</strong> By updating your profile, you consent to the processing of your academic information in compliance with the Data Privacy Act. Data collected is strictly utilized for institutional laboratory records, grading, and AR simulation credentials within Universidad de Dagupan.
+                <strong>Data Privacy Notice:</strong> By updating your profile, you consent to the processing of your academic information in compliance with the Data Privacy Act. Data collected is strictly utilized for institutional laboratory records, grading, and AR simulation credentials within Universidad de Dagupan.{" "}
+                <button type="button" className="policy-link" onClick={() => setReading("privacy")}>Read the full notice</button>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="form-actions">
-              <button type="button" className="profile__logout focus-ring" onClick={handleLogout}>
-                Log out
-              </button>
-
+            <div className="form-actions form-actions-end">
               <button type="submit" className="save-btn" disabled={saving || !dirty}>
                 {saving ? "Saving..." : "Save Changes"}
               </button>
@@ -577,6 +570,7 @@ export default function Profile() {
           </form>
         )}
       </div>
+      {reading && <PolicyDialog which={reading} onClose={() => setReading(null)} />}
     </AppShell>
   );
 }

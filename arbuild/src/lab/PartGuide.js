@@ -242,7 +242,7 @@ export const CASE_PARTS = {
   frontIo: {
     title: "Front panel buttons and ports",
     marker: "frontIo",
-    text: "The power and reset buttons, the power and drive lights, front USB ports and the audio jacks. Their wires run behind the motherboard tray to the board's front panel, USB and audio headers.",
+    text: "On top of the case, at the front: the power button (its ring lights while the PC is on; press it to turn the PC on or off), the reset button and the drive light, two USB 3.0 ports, and the headphone and microphone jacks. Their wires run down inside the front of the case and behind the motherboard tray to the board's front panel, USB 3.0 and HD audio headers.",
   },
   shroud: {
     title: "PSU shroud",

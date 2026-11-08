@@ -1651,3 +1651,109 @@
     transition: none;
   }
 }
+/* ============================================================
+   ANNOUNCEMENTS (components/admin/Announcements.jsx)
+============================================================ */
+
+.ann-form {
+  display: grid;
+  gap: 16px;
+}
+
+.ann-form .filter-chips {
+  justify-self: start;
+}
+
+.ann-form__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.ann-form__foot small,
+.ann-empty {
+  color: var(--muted, var(--ink-2));
+  font-size: 13px;
+}
+
+.ann-done {
+  margin: 0;
+  color: var(--em-600, #059669);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ann-head {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ann-empty {
+  margin: 0;
+}
+
+.ann-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ann-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.ann-list li > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ann-list strong {
+  color: var(--ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.ann-list p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ann-list small {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.ann-remove {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: #dc2626;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ann-remove:hover {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.06);
+}

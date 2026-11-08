@@ -77,9 +77,11 @@ export function studentSetup(session, row) {
 /**
  * Creates a lab session in the "waiting" phase. Students start when the instructor presses Start.
  * classId: the class it belongs to (a lab activity); task: the first task's settings (mode, platform,
- * hints, partPicking, partInfo, parMin, instructions).
+ * hints, partPicking, partInfo, parMin, instructions); dueAt: when it's due (a Date), or null. A lab
+ * still open after its due date can be done late; one closed before a student finished is missed
+ * (the calendar and the bell show both).
  */
-export async function createSession({ instructor, title, parMin = 10, classId = null, className = "", task = {} }) {
+export async function createSession({ instructor, title, parMin = 10, classId = null, className = "", task = {}, dueAt = null }) {
   const first = normalizeTask({ mode: "assemble", platform: "am4", parMin, ...task, id: newTaskId() });
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateJoinCode();
@@ -99,6 +101,7 @@ export async function createSession({ instructor, title, parMin = 10, classId = 
       createdAt: Timestamp.now(),
       startedAt: null,
       expiresAt: null,
+      dueAt: dueAt ? Timestamp.fromDate(dueAt) : null,
     });
     return code;
   }
@@ -128,6 +131,38 @@ export function reopenSession(code, session) {
 
 export const closeSession = (code) =>
   updateDoc(sessionRef(code), { status: "closed", closedAt: Timestamp.now() });
+
+/** Sets (a Date) or clears (null) when a lab activity is due. */
+export const setLabDue = (code, dueAt) => updateDoc(sessionRef(code), { dueAt: dueAt ? Timestamp.fromDate(dueAt) : null });
+
+/** When a lab closed, in ms (0 if it hasn't, or doesn't say). */
+export const closedMs = (session) => session?.closedAt?.toMillis?.() ?? session?.expiresAt?.toMillis?.() ?? 0;
+
+/**
+ * Where a student stands with a lab activity: "done", "missed" (closed before they finished),
+ * "overdue" (past its due date, still open), "todo" (open), "soon" (waiting to start) or "closed"
+ * (it was never theirs to do: it closed without ever starting, or before they were in the class).
+ * session: the lab; row: their row (or null); now: ms; joinedAt: when they joined the class, ms.
+ */
+export function labStanding(session, row, now = Date.now(), joinedAt = 0) {
+  if (row?.taskDone) return "done";
+  const phase = sessionPhase(session, now);
+  if (phase === "ended") {
+    if (row) return "missed"; // they started it, and it closed before they finished
+    if (!session?.startedAt) return "closed"; // it closed without ever starting
+    return joinedAt && closedMs(session) && closedMs(session) < joinedAt ? "closed" : "missed";
+  }
+  const due = session?.dueAt?.toMillis?.();
+  if (due && now > due) return "overdue";
+  return phase === "running" ? "todo" : "soon";
+}
+
+/** "Due Mon 10 Nov, 5:00 PM" style: a lab's due date in words ("" without one). */
+export function dueText(session) {
+  const due = session?.dueAt?.toMillis?.();
+  if (!due) return "";
+  return new Date(due).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
 
 /** Class settings, e.g. { hints: false }. Students pick the change up straight away. */
 export function updateSetup(code, patch) {
@@ -168,6 +203,14 @@ export const subscribeStudents = (code, cb, onError) =>
 
 export const subscribeStudentRow = (code, uid, cb, onError) =>
   onSnapshot(studentRef(code, uid), (snap) => cb(snap.exists() ? snap.data() : null), onError);
+
+/** The students who have finished the lab's task (the instructor's bell). */
+export const subscribeFinished = (code, cb, onError) =>
+  onSnapshot(
+    query(collection(db, "sessions", code, "students"), where("taskDone", "==", true)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
 
 /** Every event of the class (all students), newest first. Used for the class's common mistakes. */
 export const subscribeAllEvents = (code, cb, onError) =>

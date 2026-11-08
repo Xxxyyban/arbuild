@@ -35,6 +35,8 @@ export const POINTS = {
   psu_pcie: 10,
   psu_pcie6: 10,
   screws: 20,
+  psu_screws: 10, // the PSU's 4 screws, on the back of the case
+  gpu_screws: 8, // the graphics card's 2 bracket screws, on the back of the case
   m2screw: 5, // the SSD's own screw
   m2cover: 10, // the M.2 cover back on and screwed down
   socket: 10, // the CPU locked in: the socket lever down (over the shut cover frame, on AM5)
@@ -77,6 +79,8 @@ export const REMOVE_POINTS = {
   psu_pcie: 5,
   psu_pcie6: 5,
   screws: 15,
+  psu_screws: 8,
+  gpu_screws: 6,
   m2screw: 5, // the SSD's screw out
   m2cover: 5, // the M.2 cover off
   socket: 5, // the CPU socket opened with the CPU in it
@@ -218,7 +222,7 @@ export function taskLedger(ledger, req) {
   const out = {};
   for (const [k, v] of Object.entries(ledger)) {
     const name = k.slice(k.indexOf(":") + 1);
-    if (!req.gpu && (name === "gpu" || name === "cable_pcie" || name === "psu_pcie")) continue;
+    if (!req.gpu && (name === "gpu" || name === "gpu_screws" || name === "cable_pcie" || name === "psu_pcie")) continue;
     if (!(req.gpu && req.gpu6) && (name === "cable_pcie6" || name === "psu_pcie6")) continue;
     if (!req.dualRam && name === "ram2") continue;
     if (k === "assemble:boot") {
@@ -241,6 +245,9 @@ export function maxPoints(mode, { slots, gpu, dualRam, gpu6 = false, psuEnds = [
   max += cables.reduce((s, c) => s + perfect(T[`cable_${c}`] ?? 0), 0);
   max += cables.filter((c) => psuEnds.includes(c)).reduce((s, c) => s + perfect(T[`psu_${c}`] ?? 0), 0);
   max += perfect(T.screws ?? 0);
+  // the PSU's screws (every build has a PSU), and the card's bracket screws
+  if (slots.includes("psu")) max += perfect(T.psu_screws ?? 0);
+  if (gpu) max += perfect(T.gpu_screws ?? 0);
   // the M.2 slot: the SSD's screw and its cover (every build has an SSD)
   if (slots.includes("storage")) max += perfect(T.m2screw ?? 0) + perfect(T.m2cover ?? 0);
   // the CPU socket: locking the CPU in, or opening the socket to take it out

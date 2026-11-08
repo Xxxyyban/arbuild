@@ -30,6 +30,13 @@ const PATHS = {
       <circle cx="12" cy="7" r="4" />
     </>
   ),
+  userCircle: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M7 20.66V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.66" />
+    </>
+  ),
   logout: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
   bell: <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
   plus: <path d="M12 5v14M5 12h14" />,

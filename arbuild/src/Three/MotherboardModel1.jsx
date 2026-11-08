@@ -48,7 +48,10 @@ export const MOUNTS = {
     [-0.762, 1.26], [-0.047, 1.261], [0.283, 1.26],
     [-0.762, 0.683], [-0.047, 0.683], [0.284, 0.683],
   ],
-  atx24: [0.294, 1.663],
+  // the 24-pin header: a shroud 0.052 wide (x 0.263 to 0.315) and 0.248 tall (y 1.518 to 1.766),
+  // standing 0.070 off the board, the floors of its pin cavities 0.014 off it: the plug centred on it and
+  // pushed 0.040 into it (its face 0.030 off the board), as a plug sits when it has clicked in
+  atx24: [0.289, 1.642, 0.03],
   eps8: [-0.579, 2.0],
   // the headers for the case's and fans' wires, on the file's pin rows (mm from the socket, x right, y up),
   // labelled as the file prints them along the bottom edge (HD_AUDIO1, COM1, USB_3_4, FAN1, FAN2, ARGB1,

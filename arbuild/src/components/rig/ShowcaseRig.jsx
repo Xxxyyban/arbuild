@@ -17,7 +17,7 @@ import { useRigMotion } from "../../Three/rigMotion";
 import { CaseWithMeasure, caseFanLayout } from "../lab/BenchScene";
 import { ThermalPaste } from "../lab/PasteTask";
 import {
-  MOTHERBOARD_TARGET, MOBO_MOUNTED_ROTATION, PSU_TARGET, GPU_TARGET, STORAGE_MOUNT_ROTATION,
+  MOTHERBOARD_TARGET, MOBO_MOUNTED_ROTATION, PSU_TARGET, PSU_SCREWS, GPU_SCREWS, GPU_SCREW_ROTATION, GPU_SCREW_SHANK, BACK_SCREW_SIZE, GPU_TARGET, STORAGE_MOUNT_ROTATION,
   COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z, boardLayout, moboLocalToWorld,
 } from "../../lab/Constants";
 import { CABLES, cableNeeded } from "../../lab/Rules";
@@ -98,7 +98,7 @@ function useBuild(platform) {
     const headerRot = (spot) => (L.headers?.[spot]?.along === "y" ? [Math.PI / 2, Math.PI / 2, 0] : [Math.PI / 2, 0, 0]);
     const gpu = CATALOG[picks.gpu];
     const ports = {
-      atx24: [L.atx24[0], L.atx24[1], L.pcbFront + HEADER_HEIGHT],
+      atx24: [L.atx24[0], L.atx24[1], L.pcbFront + (L.atx24[2] ?? HEADER_HEIGHT)], // a board can seat it deeper (MOUNTS.atx24[2])
       eps8: [L.eps8[0], L.eps8[1], L.pcbFront + HEADER_HEIGHT],
       pcie: gpu?.powerPort ? add(L.gpu, gpu.powerPort) : null,
       pcie6: gpu?.powerPort6 ? add(L.gpu, gpu.powerPort6) : null,
@@ -138,7 +138,8 @@ function useBuild(platform) {
       rearIo: { at: [holesX - 0.03, 1.72, L.pcbFront + 0.07], part: "board" },
       gpuPower: ports.pcie && { at: add(ports.pcie, [0, 0.06, 0.04]), part: "gpu" },
       psuSockets: panel && { at: psuToCase([0.02, 0.215, panel.face - 0.04]), part: "psu" },
-      frontIo: { at: FRONT_IO, part: null },
+      // on top of the case: the camera looks down at it from in front (view: the way back to the camera, case space)
+      frontIo: { at: FRONT_IO, part: null, view: { dir: [0.85, 1, 0.25], dist: 1.25 } },
     };
     for (const h of has) if (!["pled", "pwr", "hdd", "rst"].includes(h)) markers[h] = { at: add(header(h), [0, 0, 0.03]), part: "board" };
     for (const c of cables) markers[`cable:${c.id}`] = { at: add(c.port, [0, 0, 0.05]), part: c.to };
@@ -315,14 +316,30 @@ function SelectionBox({ targets }) {
   );
 }
 
+const NAME_SIZE = 0.045; // a marker's name, in the rig's units
+const NAME_FIT = 0.8; // at most this share of the view's width: smaller on a phone or close up
+
 /** A marker on a slot, header or socket: a ring, with its name while it's picked or pointed at. */
 function Marker({ at, label, active, onClick }) {
   const ring = useRef();
+  const name = useRef();
   const [hover, setHover] = useState(false);
-  useFrame(({ clock }) => {
-    if (!ring.current) return;
-    const s = (active ? 1.5 : 1) * (1 + Math.sin(clock.elapsedTime * 3.2) * 0.12);
-    ring.current.scale.setScalar(s);
+  const work = useMemo(() => ({ p: new THREE.Vector3(), s: new THREE.Vector3() }), []);
+  useFrame(({ clock, camera, gl }) => {
+    if (ring.current) ring.current.scale.setScalar((active ? 1.5 : 1) * (1 + Math.sin(clock.elapsedTime * 3.2) * 0.12));
+    const t = name.current;
+    if (!t) return;
+    // the name fits across the view: the view's width where it is, in the rig's units
+    let fit = 1;
+    if (camera.isPerspectiveCamera && !gl.xr.isPresenting) {
+      t.getWorldPosition(work.p);
+      t.parent.getWorldScale(work.s);
+      const across = (2 * camera.position.distanceTo(work.p) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect) / (work.s.x || 1);
+      const b = t.textRenderInfo?.blockBounds;
+      const wide = b ? b[2] - b[0] : label.length * 0.55 * NAME_SIZE;
+      fit = Math.min(1, (NAME_FIT * across) / wide);
+    }
+    t.scale.setScalar(fit);
   });
   return (
     <group position={at}>
@@ -350,8 +367,9 @@ function Marker({ at, label, active, onClick }) {
         </mesh>
         {(active || hover) && (
           <Text
+            ref={name}
             position={[0, 0.065, 0]}
-            fontSize={0.045}
+            fontSize={NAME_SIZE}
             color={active ? "#6ee7b7" : "#f8fafc"}
             outlineWidth={0.006}
             outlineColor="#0f172a"
@@ -428,9 +446,10 @@ function PartLabel({ target, text, side = "top", onClick }) {
  * markers      [{ id, label }]: the selected part's slots, headers, ports (PartGuide marker ids)
  * activeMarker the one picked
  * onPick(part, marker?)  a click on a part, or on a marker
- * apiRef       gets { tap(origin, dir), pointOf(marker), boxOf(part) } (AR taps, the camera's focus)
+ * onPower      a press of the case's power button (on top, at the front)
+ * apiRef       gets { tap(origin, dir), pointOf(marker), viewOf(marker), boxOf(part) } (AR taps, the camera's focus)
  */
-export default function ShowcaseRig({ platform = "am4", exploded = false, powered = true, labels = false, selected = null, markers = [], activeMarker = null, onPick, apiRef }) {
+export default function ShowcaseRig({ platform = "am4", exploded = false, powered = true, labels = false, selected = null, markers = [], activeMarker = null, onPick, onPower, apiRef }) {
   const build = useBuild(platform);
   const { L, bv, variant, wires, cables, panel } = build;
   const [caseBox, setCaseBox] = useState(null);
@@ -511,6 +530,7 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
         ray.set(origin, dir.clone().normalize());
         for (const h of ray.intersectObject(root.current, true)) {
           for (let o = h.object; o; o = o.parent) {
+            if (o.userData?.press) return o.userData.press(); // the case's buttons and ports
             const p = o.userData?.pick;
             if (p && p !== "marker") return onPick?.(p);
           }
@@ -522,6 +542,12 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
         if (!m || !root.current) return null;
         const d = m.part ? absDisp(disp.current, m.part) : ZERO;
         return root.current.localToWorld(new THREE.Vector3(...add(m.at, d)));
+      },
+      // a marker the camera looks at from its own side: the way back to the camera (world space) and how far
+      viewOf(id) {
+        const v = spotOf(id)?.view;
+        if (!v || !root.current) return null;
+        return { dir: new THREE.Vector3(...v.dir).transformDirection(root.current.matrixWorld), dist: v.dist };
       },
       boxOf(part) {
         const box = new THREE.Box3();
@@ -537,7 +563,13 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
     <group ref={root}>
       {/* the case stays put; its fans come out of their mounts when exploded. Only the fans take a
           click: the case's shell would catch clicks meant for the parts inside it */}
-      <CaseWithMeasure onMeasure={setCaseBox} />
+      {/* the card's own screws hold its bracket: the case's on its two slots are hidden. Its power
+          button works, and a click on its ports reads about them */}
+      <CaseWithMeasure
+        onMeasure={setCaseBox}
+        hideSlotScrews
+        io={{ powered, onPower, onSelect: () => onPick?.("case", "frontIo") }}
+      />
       <group userData={{ pick: "case" }} onClick={pick("fans")} {...hover}>
         {fans.map((f) => (
           <Fan key={f.key} f={f} disp={disp} spin={powered ? FAN_TURNS : 0} />
@@ -554,6 +586,10 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
             <PSUPanel layout={panel} plugs={Object.fromEntries(cables.map((c) => [c.id, { socket: c.socket, seated: true, flipped: false, waiting: false }]))} />
           )}
         </group>
+        {/* its screws, through the back of the case */}
+        {PSU_SCREWS.map((p, i) => (
+          <BoardScrew key={i} position={p} rotation={[0, 0, Math.PI / 2]} size={BACK_SCREW_SIZE} driven waiting={false} />
+        ))}
       </Moving>
 
       {/* the motherboard and everything on it */}
@@ -669,6 +705,10 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
               <CablePlug key={c.id} type={STUB_TYPE[c.id]} position={c.port} rotation={c.rot} plugged waiting={false} onClick={() => onPick?.("cables", `cable:${c.id}`)} />
             ))}
         </group>
+        {/* its screws, in the notches of its bracket's side tab */}
+        {GPU_SCREWS.map((p, i) => (
+          <BoardScrew key={i} position={p} rotation={GPU_SCREW_ROTATION} size={BACK_SCREW_SIZE} shank={GPU_SCREW_SHANK} driven waiting={false} />
+        ))}
       </Moving>
 
       {/* every cable and wire, plugged in at both ends */}

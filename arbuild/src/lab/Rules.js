@@ -1,6 +1,6 @@
 // Pure rules: what may be installed / removed right now, and what happens on boot.
 // No React, no Three.js. `installed` is { cpu: true, gpu: true, ... }.
-import { PART_LABEL } from "./Constants";
+import { PART_LABEL, PSU_SCREWS, GPU_SCREWS } from "./Constants";
 import { itemFor, requiredWatts, buildSlots } from "./Catalog";
 import { bootWires, wireSteps, anyWire } from "./Wires";
 
@@ -8,10 +8,12 @@ import { bootWires, wireSteps, anyWire } from "./Wires";
 //   1. On the bench, with the board on its box: CPU, then RAM, then the M.2 SSD (easy to reach here),
 //      then thermal paste and the CPU cooler.
 //   2. Mount the finished board in the case and drive in its 9 screws.
-//   3. Install the PSU, then plug the 24-pin and the 8-pin CPU cable into the board.
+//   3. Install the PSU and screw it to the back of the case, then plug the 24-pin and the 8-pin CPU
+//      cable into the board.
 //   4. The case's wires (front panel, USB, audio) and the fans' wires onto the board's small headers
 //      (lab/Wires.js), while the bottom of the board is still easy to reach.
-//   5. Graphics card last (it covers the M.2 slot), then its PCIe power cables (8-pin, and 6-pin if it has the socket).
+//   5. Graphics card last (it covers the M.2 slot), its bracket screwed to the back of the case, then
+//      its PCIe power cables (8-pin, and 6-pin if it has the socket).
 //   6. Power on.
 // A teardown has no fixed order: after power off, unplug and drain, parts can come out in any order
 // as long as nothing is physically in the way (REMOVE_NEEDS). The board may come out with its
@@ -97,7 +99,8 @@ export function installBlock(name, installed, picks = null, psuCables = null, m2
 
 /* ---------- cables and screws ---------- */
 
-// PSU cables: what each one plugs into. links = { cables: { atx24, eps8, pcie }, screws: [9 × bool] }
+// PSU cables: what each one plugs into. links = { cables: { atx24, eps8, pcie }, screws: [9 × bool],
+// psuScrews: [4 × bool], gpuScrews: [2 × bool] }
 // A cable has two ends: `cables` says the part end is in, `psuCables` the PSU end. On a modular PSU
 // the PSU end is plugged into a labelled socket (psuSocket); on a PSU with fixed cables it is already
 // attached, and the PSU-end step is routing the cable out of its bundle on the bench.
@@ -165,6 +168,8 @@ export function psuPlugBlock(cable, picks) {
   return null;
 }
 export const SCREW_COUNT = 9;
+export const PSU_SCREW_COUNT = PSU_SCREWS.length; // through the back of the case into the PSU
+export const GPU_SCREW_COUNT = GPU_SCREWS.length; // through the back of the case into the card's bracket
 
 /** Can this cable's part end be plugged in now? null, or { key, msg }. */
 export function plugBlock(cable, installed, picks = null, psuCables = null) {
@@ -200,7 +205,7 @@ export function removeBlock(name, installed, power, links = null) {
   const safety = safetyBlock(power);
   if (safety) return safety;
   if (links) {
-    const { cables = {}, screws = [], m2 = null, wires = null } = links;
+    const { cables = {}, screws = [], psuScrews = [], gpuScrews = [], m2 = null, wires = null } = links;
     if (name === "storage" && m2?.cover === "on") {
       return { key: "m2cover", msg: "Take the M.2 cover off first: unscrew its 2 screws, then lift it off the SSD." };
     }
@@ -209,6 +214,10 @@ export function removeBlock(name, installed, power, links = null) {
     }
     if (name === "gpu" && (cables.pcie || cables.pcie6)) {
       return { key: name, msg: cables.pcie && cables.pcie6 ? "Unplug the 8-pin and the 6-pin PCIe cables from the graphics card first." : `Unplug the ${cables.pcie ? "8-pin" : "6-pin"} PCIe cable from the graphics card first.` };
+    }
+    const cardScrews = gpuScrews.filter(Boolean).length;
+    if (name === "gpu" && cardScrews > 0) {
+      return { key: name, msg: `Unscrew the card's bracket first: ${cardScrews} of its ${GPU_SCREW_COUNT} screws on the back of the case are still in.` };
     }
     if (name === "motherboard" && (cables.atx24 || cables.eps8)) {
       return { key: name, msg: "Unplug the 24-pin and the 8-pin CPU cables from the board first." };
@@ -225,6 +234,10 @@ export function removeBlock(name, installed, power, links = null) {
     }
     if (name === "psu" && Object.values(cables).some(Boolean)) {
       return { key: name, msg: "Unplug the PSU's cables (24-pin, 8-pin CPU, PCIe) before taking it out." };
+    }
+    const psuIn = psuScrews.filter(Boolean).length;
+    if (name === "psu" && psuIn > 0) {
+      return { key: name, msg: `Unscrew the PSU first: ${psuIn} of its ${PSU_SCREW_COUNT} screws on the back of the case are still in.` };
     }
   }
   // "removed" = not installed
@@ -482,12 +495,14 @@ export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) =>
  * then every part can come out in any order (anyOrder: true).
  * state = { installed, picks, pasteApplied, booted, power }
  */
-export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuCables = {}, m2 = null, socket = null, wires = null }) {
+export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuScrews = [], gpuScrews = [], psuCables = {}, m2 = null, socket = null, wires = null }) {
   const slot = m2 || m2Start(installed.storage);
   const sock = socket || socketStart(installed.cpu);
   const lga = socketKind(picks) === "lga";
   const sockOpen = socketOpen(sock, socketKind(picks));
   const driven = screws.filter(Boolean).length;
+  const psuDriven = psuScrews.filter(Boolean).length;
+  const gpuDriven = gpuScrews.filter(Boolean).length;
   const has = (slot) => !!picks?.[slot];
   const modular = psuModular(picks);
   const psuEndsIn = psuCablesNeeded(picks).every((c) => psuEndDone(c, picks, psuCables));
@@ -502,11 +517,13 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       { label: "Unplug the power cable", done: power.unplugged },
       { label: "Hold the power button to drain leftover power", done: power.discharged },
       any(gpuSixPin(picks) ? "8-pin and 6-pin PCIe cables unplugged (before the graphics card comes out)" : "PCIe cable unplugged (before the graphics card comes out)", !cables.pcie && !cables.pcie6),
+      any(`Card's bracket screws out, on the back of the case (${GPU_SCREW_COUNT - gpuDriven} of ${GPU_SCREW_COUNT})`, out("gpu") || gpuDriven === 0),
       any("Graphics card out (it covers the M.2 slot)", out("gpu")),
       any("24-pin and 8-pin CPU cables unplugged (before the board comes out)", !cables.atx24 && !cables.eps8),
       any("Front-panel, USB, audio and fan wires unplugged (before the cooler and the board come out)", !anyWire(wires)),
       any(`Motherboard screws out (${SCREW_COUNT - driven} of ${SCREW_COUNT})`, out("motherboard") || driven === 0),
-      any("PSU out (its cables unplugged from the parts)", out("psu")),
+      any(`PSU screws out, on the back of the case (${PSU_SCREW_COUNT - psuDriven} of ${PSU_SCREW_COUNT})`, out("psu") || psuDriven === 0),
+      any("PSU out (its cables unplugged from the parts, its screws out)", out("psu")),
       ...(socketed.length ? [any("Cables off the PSU (once it's out)", socketed.every((c) => !psuCables[c]))] : []),
       any("Motherboard out (graphics card, cables and screws out first)", out("motherboard")),
       any("CPU cooler off", out("cpu_cooler")),
@@ -544,6 +561,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       done: psuEndsIn,
     },
     { label: "Install the PSU", done: !!installed.psu },
+    { label: `Screw the PSU in from the back of the case (${psuDriven} of ${PSU_SCREW_COUNT})`, done: psuDriven === PSU_SCREW_COUNT },
     { label: "Plug the 24-pin cable into the board", done: !!cables.atx24 },
     { label: "Plug the 8-pin CPU cable in (top-left)", done: !!cables.eps8 },
     // before the graphics card, which covers the bottom of the board
@@ -551,6 +569,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     ...(has("gpu")
       ? [
           { label: "Install the graphics card last", done: !!installed.gpu },
+          { label: `Screw its bracket in from the back of the case (${gpuDriven} of ${GPU_SCREW_COUNT})`, done: gpuDriven === GPU_SCREW_COUNT },
           gpuSixPin(picks)
             ? { label: "Plug the 8-pin and the 6-pin PCIe cables into the graphics card", done: !!cables.pcie && !!cables.pcie6 }
             : { label: "Plug PCIe power into the graphics card", done: !!cables.pcie },

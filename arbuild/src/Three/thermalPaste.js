@@ -278,7 +278,6 @@ const tubeMaterials = {
   plastic: new THREE.MeshStandardMaterial({ color: "#eef1f4", roughness: 0.45 }),
   plunger: new THREE.MeshStandardMaterial({ color: "#dfe3e8", roughness: 0.5 }),
   rubber: new THREE.MeshStandardMaterial({ color: "#1f2937", roughness: 0.75 }),
-  cap: new THREE.MeshStandardMaterial({ color: "#059669", roughness: 0.5 }),
 };
 
 let labelMaterial = null;
@@ -319,9 +318,9 @@ const lathe = (points, segments = 20) => new THREE.LatheGeometry(points.map(([r,
 
 /**
  * The syringe of paste: the tip at the origin, the barrel up +Y, the label facing +Z. Its plunger
- * follows what's left: object.userData.setFill(0..1). With `capped`, a cap on the tip (the tube on the bench).
+ * follows what's left: object.userData.setFill(0..1).
  */
-export function buildSyringe({ capped = false } = {}) {
+export function buildSyringe() {
   const root = new THREE.Group();
   root.name = "paste-tube";
   root.scale.setScalar(MM * TUBE_SCALE);
@@ -348,8 +347,6 @@ export function buildSyringe({ capped = false } = {}) {
   add(plunger, new THREE.CylinderGeometry(R - 0.4, R - 0.4, 2.6, 20).translate(0, 1.3, 0), tubeMaterials.rubber);
   add(plunger, new THREE.CylinderGeometry(1.5, 1.5, ROD, 10).translate(0, ROD / 2 + 2.6, 0), tubeMaterials.plunger);
   add(plunger, new THREE.CylinderGeometry(5.4, 5.4, 1.5, 20), tubeMaterials.plunger, ROD + 2.6);
-
-  if (capped) add(root, lathe([[0, -1.2], [1.8, -1.2], [2.4, 0], [2.6, 9.5], [0, 9.5]], 14), tubeMaterials.cap);
 
   root.userData.setFill = (share) => {
     const level = NOZZLE + 0.2 + (BARREL - 5) * Math.max(0, Math.min(1, share));

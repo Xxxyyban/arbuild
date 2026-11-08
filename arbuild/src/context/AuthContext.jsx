@@ -20,6 +20,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 import {
@@ -329,6 +330,14 @@ export function AuthProvider({ children }) {
           existingData.status || "active",
         updatedAt:
           new Date().toISOString(),
+        // their agreement to the Data Privacy Notice and the Terms of Use
+        // (lab/Policies.js): the versions, and when (the server's clock).
+        // firestore.rules won't finish a setup without it.
+        consent: {
+          privacy: profileData.consent?.privacy || "",
+          terms: profileData.consent?.terms || "",
+          at: serverTimestamp(),
+        },
       };
 
       // ========================================================
@@ -348,11 +357,16 @@ export function AuthProvider({ children }) {
           lastName:
             profileData.lastName || "",
 
+          // the setup form doesn't ask for these: keep what the admin set
           studentId:
-            profileData.studentId || "",
+            profileData.studentId ||
+            existingData.studentId ||
+            "",
 
           section:
-            profileData.section || "",
+            profileData.section ||
+            existingData.section ||
+            "",
 
           contactNumber:
             profileData.contactNumber ||
