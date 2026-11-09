@@ -13,13 +13,17 @@ const CC_BY = { license: "CC Attribution 4.0", licenseUrl: "https://creativecomm
 
 const MODELS = [
   { name: "Fractal Design Meshify C — PC Case", creator: "MUSHROOM_BUILDS", url: "https://skfb.ly/6ZrH9" },
+  { name: "Computer cooler, pc fan", creator: "Neutrino", url: "https://sketchfab.com/3d-models/computer-cooler-pc-fan-50adf2b7b06f42588825ab7f31f7ca87" },
+  { name: "Asus Strix b-550-f Gaming Motherboard Realistic", creator: "MUSHROOM_BUILDS", url: "https://sketchfab.com/3d-models/asus-strix-b-550-f-gaming-motherboard-realistic-3eba5f45bed74fbeb2647de38047000f" },
   { name: "MAXIMUS VI Formula (Motherboard)", creator: "Vivien Deroche", url: "https://skfb.ly/6SDPK" },
   { name: "Kingston Fury Beast DDR5 RAM Stick", creator: "Darky Vip 3D", url: "https://skfb.ly/pMxZQ" },
   { name: "Power supply Aerocool KCAS 500W ATX", creator: "nofurion", url: "https://skfb.ly/p9CIw" },
+  { name: "Power Supply - Basic", creator: "Up1x", url: "https://sketchfab.com/3d-models/power-supply-basic-02db33d66a784c82a6202a3ec6850498" },
   { name: "DDR5 RAM - Teamgroup T-Force Black", creator: "PolyDavid", url: "https://skfb.ly/pIOSZ" },
   { name: "Samsung 990 PRO SSD", creator: "PolyDavid", url: "https://skfb.ly/pKpq9" },
+  { name: "NVME SSD 2280", creator: "TDD", url: "https://sketchfab.com/3d-models/nvme-ssd-2280-3d478ac74728408890c2a03363138375" },
   { name: "AM4 Cpu [ Free ]", creator: "Igor.Jop", url: "https://skfb.ly/pqx6R" },
-  { name: "AMD Ryzen 5 7600X - HIGH POLY", creator: "PolyDavid", url: "https://skfb.ly/pKoWp" },
+  { name: "AMD Ryzen 5 7600 CPU chip (AM5 socket)", creator: "arsdever", url: "https://sketchfab.com/3d-models/amd-ryzen-5-7600-cpu-chip-am5-socket-a05c2732e0b847c2967e2c9282abd5f9" },
   { name: "RTX 3060 TI EAGLE", creator: "BlenderFace", url: "https://skfb.ly/oQUIt" },
   { name: "GPU AMD RX 6700 XT", creator: "BlenderFace", url: "https://skfb.ly/oRoEF" },
   { name: "Cooler Master CPU Cooler", creator: "BlenderFace", url: "https://skfb.ly/oQV6T" },
@@ -138,7 +142,8 @@ export default function About() {
           <h2 id="about-credits" className="section-label">3D model credits</h2>
           <p className="ins-muted">
             ARBuild&apos;s 3D parts are models shared under Creative Commons licences. Thank you to the people who
-            made them.
+            made them. Most were made lighter so they load faster, and phones and slower computers get simplified
+            copies.
           </p>
         </div>
         <ul className="credits-list">

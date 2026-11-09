@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Only on this computer: Firebase's deploy cache, your own clones of the GitHub repos, an old folder listing
+/.firebase/
+/arbuild/
+/final/
+/tree.txt

@@ -10,7 +10,7 @@ import { useFileExists } from "./useFileExists";
 const MODEL_PATH = "/models/cpu1.glb";
 
 // ---- FIT: tune these for cpu1.glb only ----
-// The file is 1.958 × 0.143 × 1.957, already lying flat (thin axis Y).
+// The file is 0.040 × 0.0057 × 0.040 (metres: a 40 mm chip), already lying flat (thin axis Y).
 const FIT = {
   width: 40 * MM, // side length: a 40 × 40 mm AM5 package, the same as AM4
   flip: false, // true if it shows the pads side up
