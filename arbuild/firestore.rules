@@ -11,8 +11,12 @@ service cloud.firestore {
 
     // ---------- helpers ----------
 
+    // Signed in, with a profile the admin hasn't turned off. A sign-in alone isn't enough: a deleted
+    // account's sign-in still works (only the Firebase console removes it), and an inactive one's too.
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'active') != 'inactive';
     }
 
     function isOwner(uid) {
@@ -121,7 +125,8 @@ service cloud.firestore {
     // ---------- profiles ----------
 
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      // your own, even when inactive: the app reads it to tell you so
+      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isOwner(uid) && lockedFieldsUntouched() && consentOnSetup());
     }
@@ -427,6 +432,7 @@ service cloud.firestore {
             && request.resource.data.authorUid == request.auth.uid
             && text(request.resource.data.text, 2000)
             && text(request.resource.data.authorName, 120)
+            && isMyName(request.resource.data.authorName)
             && request.resource.data.fromInstructor == teaches()
             && request.resource.data.createdAt == request.time;
           allow update: if false;

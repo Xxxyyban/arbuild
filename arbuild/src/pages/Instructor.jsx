@@ -45,6 +45,7 @@ import Avatar from "../components/class/Avatar";
 import AppShell from "../components/AppShell";
 import Icon from "../components/Icon";
 import { nextMeeting, formatRange, dayId, dayTime, CLASS_COLORS } from "../lab/Schedule";
+import { greetingFor } from "../lab/Screen";
 import "../styles/BuildLab.css";
 import "../styles/Instructor.css";
 import "../styles/InstructorClass.css";
@@ -169,8 +170,7 @@ function Dashboard() {
     .filter(({ next }) => next && (next.now || next.label.startsWith("Today")))
     .sort((x, y) => x.time.start.localeCompare(y.time.start));
   const showForm = making || (classes !== null && active.length === 0);
-  const hour = new Date(now).getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = greetingFor(new Date(now));
   const hello = profile?.firstName || profile?.lastName ? `${greeting}, ${me.name}` : greeting; // no name yet: NamePrompt asks
   const summary = active.length
     ? `${hello}. You teach ${active.length} ${active.length === 1 ? "class" : "classes"}${today.length ? `, ${today.length} today` : ""}.`

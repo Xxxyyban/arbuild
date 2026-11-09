@@ -830,6 +830,16 @@ export function AuthProvider({ children }) {
                 userRef
               );
 
+            // turned off by the admin: out whenever they come back, not only at the sign-in form
+            if (userSnap.data()?.status === "inactive") {
+              await signOut(auth);
+              setCurrentUser(null);
+              setUserProfile(null);
+              setAuthError("Your ARBuild account is currently inactive. Please contact the administrator.");
+              setLoading(false);
+              return;
+            }
+
             if (
               userSnap.exists()
             ) {

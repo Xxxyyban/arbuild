@@ -113,7 +113,7 @@ export default function Profile() {
   const [passSuccess, setPassSuccess] = useState("");
   const [changingPass, setChangingPass] = useState(false);
 
-  // Keep the form in sync when the profile updates
+  // Keep the form in sync with the saved fields, and only those: a new photo mustn't wipe what's being typed
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -123,7 +123,8 @@ export default function Profile() {
         contactNumber: profile.contactNumber || "",
       });
     }
-  }, [profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.firstName, profile?.middleName, profile?.lastName, profile?.contactNumber]);
 
   const accountEmail = profile?.email || user?.email || "";
   const role = profile?.role || "student";

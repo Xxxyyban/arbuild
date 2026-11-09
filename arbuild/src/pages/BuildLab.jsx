@@ -131,7 +131,7 @@ function ControlPanel({ buttons }) {
       aria-pressed={b.lit === undefined ? undefined : !!b.lit}
       aria-disabled={b.dim ? true : undefined}
       disabled={b.disabled || false}
-      onClick={b.onPress}
+      onClick={b.dim ? undefined : b.onPress}
     >
       <Icon name={b.done ? "check" : b.icon} size={17} className={b.turned ? "is-turned" : ""} />
       <span>{b.label}</span>
@@ -2395,12 +2395,11 @@ export default function BuildLab() {
       </header>
 
       <div className="assemble__viewport">
-        {/* The screen is only pixels in the 3D view: what it says, for screen readers. Both stay in the page,
+        {/* The screen is only pixels in the 3D view: what it says, for screen readers. They all stay in the page,
             as a change only gets read out in a region that was already there; a good message is read out
             here too, an error by its toast below. */}
-        <p className="lab-sr-only" role="status">
-          {screen?.level === "bad" ? "" : screenLine} {feedback?.type === "success" ? feedback.text : ""}
-        </p>
+        <p className="lab-sr-only" role="status">{screen?.level === "bad" ? "" : screenLine}</p>
+        <p className="lab-sr-only" role="status">{feedback?.type === "success" ? feedback.text : ""}</p>
         <p className="lab-sr-only" role="alert">{screen?.level === "bad" ? screenLine : ""}</p>
         <div className="assemble__scene-container">
           <div

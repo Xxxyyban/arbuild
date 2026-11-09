@@ -8,13 +8,15 @@ import "../styles/ProfileSetup.css";
 // ============================================================
 // PROFILE SETUP
 // Fields: School Email (read-only), First Name, Middle Name
-// (optional), Last Name. Then the person agrees to the Data Privacy
-// Notice and the Terms of Use (lab/Policies.js); their agreement is
-// saved with the profile (consent), and setup can't finish without it.
+// (optional), Last Name, then a new password in place of the
+// starting one the school gave out. Then the person agrees to the
+// Data Privacy Notice and the Terms of Use (lab/Policies.js); their
+// agreement is saved with the profile (consent), and setup can't
+// finish without it, or without the new password.
 // ============================================================
 
 export default function ProfileSetup() {
-  const { user, userProfile, completeProfile } = useAuth();
+  const { user, userProfile, completeProfile, changePassword } = useAuth();
 
   const isFaculty = userProfile?.role === "faculty";
 
@@ -33,6 +35,12 @@ export default function ProfileSetup() {
   const [lastName, setLastName] = useState(
     userProfile?.lastName || guessedNames.last
   );
+
+  // the starting password is for the first sign-in only: everyone sets their own here
+  const [startPass, setStartPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [newPass2, setNewPass2] = useState("");
+  const [passChanged, setPassChanged] = useState(false); // already done, if saving the profile then failed
 
   const [privacyOk, setPrivacyOk] = useState(false);
   const [termsOk, setTermsOk] = useState(false);
@@ -59,6 +67,12 @@ export default function ProfileSetup() {
       return;
     }
 
+    if (!passChanged) {
+      if (newPass.length < 6) return setError("Your new password needs at least 6 characters.");
+      if (newPass !== newPass2) return setError("The two new passwords don't match.");
+      if (newPass === startPass) return setError("Choose your own password, not the one from the school.");
+    }
+
     if (!privacyOk || !termsOk) {
       setError("To continue, agree to the Data Privacy Notice and the Terms of Use.");
       return;
@@ -67,6 +81,10 @@ export default function ProfileSetup() {
     setSubmitting(true);
 
     try {
+      if (!passChanged) {
+        await changePassword(startPass, newPass);
+        setPassChanged(true);
+      }
       await completeProfile({
         firstName: firstName.trim(),
         middleName: middleName.trim(),
@@ -78,8 +96,15 @@ export default function ProfileSetup() {
       // and App.jsx redirects the user to /main.
     } catch (err) {
       console.error("Profile setup error:", err);
+      const code = err?.code || "";
       setError(
-        "Something went wrong while saving your profile. Please try again."
+        code === "auth/wrong-password" || code === "auth/invalid-credential"
+          ? "That isn't the password the school gave you."
+          : code === "auth/too-many-requests"
+          ? "Too many tries. Wait a minute, then try again."
+          : code === "auth/weak-password"
+          ? "That password is too easy to guess. Choose a longer one."
+          : "Something went wrong while saving your profile. Please try again."
       );
       setSubmitting(false);
     }
@@ -146,7 +171,7 @@ export default function ProfileSetup() {
 
             <h2>Complete your profile</h2>
 
-            <p>Confirm your name before accessing the ARBuild workspace.</p>
+            <p>Confirm your name and set your own password before you start.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="setup-form-body">
@@ -182,6 +207,17 @@ export default function ProfileSetup() {
               onChange={setLastName}
               required
             />
+
+            {!passChanged && (
+              <fieldset className="setup-consent">
+                <legend className="field__label">Set your own password</legend>
+                <Field label="Password from the school" type="password" autoComplete="current-password" value={startPass} onChange={setStartPass} required />
+                <div className="setup__row">
+                  <Field label="Your new password" type="password" autoComplete="new-password" value={newPass} onChange={setNewPass} required />
+                  <Field label="Confirm new password" type="password" autoComplete="new-password" value={newPass2} onChange={setNewPass2} required />
+                </div>
+              </fieldset>
+            )}
 
             {/* what they agree to: each opens to read in full */}
             <fieldset className="setup-consent">
@@ -243,7 +279,7 @@ export default function ProfileSetup() {
 // FIELD COMPONENT
 // ============================================================
 
-function Field({ label, value, onChange, placeholder, required }) {
+function Field({ label, value, onChange, placeholder, required, type = "text", autoComplete }) {
   return (
     <label className="field">
       <span className="field__label">
@@ -253,6 +289,8 @@ function Field({ label, value, onChange, placeholder, required }) {
 
       <input
         className="field__input focus-ring"
+        type={type}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

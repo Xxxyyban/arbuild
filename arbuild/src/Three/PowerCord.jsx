@@ -185,7 +185,7 @@ export function PowerCord({ anchor, iec, wall, stored, onIec, onWall }) {
   const state = useRef({
     iec: newFollower(),
     wall: newFollower(),
-    coiled: 1,
+    coiled: stored ? 1 : 0, // a cord that starts plugged in has no coil to unwind
     size: stored ? 0 : 1,
     last: null,
     geometry: null,
@@ -216,7 +216,6 @@ export function PowerCord({ anchor, iec, wall, stored, onIec, onWall }) {
     const g = root.current;
     const seat = anchor?.current;
     if (!g || !tube.current) return;
-    const bob = (on) => (on ? Math.sin(frame.clock.elapsedTime * 4) * 0.006 : 0);
 
     // the IEC plug: in the PSU's inlet, or on the coil
     const iecAt = seat ? iec : "out";
@@ -231,14 +230,14 @@ export function PowerCord({ anchor, iec, wall, stored, onIec, onWall }) {
       g.getWorldQuaternion(s.rootQuat);
       s.aim.copy(s.rootQuat).invert().multiply(s.seatQuat);
       s.target.copy(s.seatPos);
-      if (iecAt === "hover") s.target.addScaledVector(v3(0, 1, 0).applyQuaternion(s.aim), IEC_OUT + bob(true));
+      if (iecAt === "hover") s.target.addScaledVector(v3(0, 1, 0).applyQuaternion(s.aim), IEC_OUT);
       follow(s.iec, iecAt, s.target, s.aim, dt);
     }
 
     // the wall plug: in the strip, on its way, on the bench in front of it, or on the coil
     if (wall === "in" || wall === "hover") {
       s.target.set(...STRIP_SOCKET);
-      if (wall === "hover") s.target.y += WALL_OUT + bob(true);
+      if (wall === "hover") s.target.y += WALL_OUT;
       follow(s.wall, wall, s.target, SEAT_TURN, dt);
     } else if (iecAt !== "out") {
       follow(s.wall, "rest", WALL_REST.pos, WALL_REST.quat, dt);
@@ -261,6 +260,10 @@ export function PowerCord({ anchor, iec, wall, stored, onIec, onWall }) {
     iecRef.current.quaternion.copy(s.iec.quat);
     wallRef.current.position.copy(s.wall.pos);
     wallRef.current.quaternion.copy(s.wall.quat);
+    // a plug waiting to go in bobs by itself, out over the cord's end (no gap), so the cord isn't rebuilt for it
+    const bob = (Math.sin(frame.clock.elapsedTime * 4) + 1) * 0.006;
+    if (iecAt === "hover") iecRef.current.translateY(bob);
+    if (wall === "hover") wallRef.current.translateY(bob);
 
     // the cord, rebuilt only when it moved
     const stamp = [s.iec.pos, s.wall.pos].flatMap((p) => [p.x, p.y, p.z]).concat(s.iec.quat.x, s.iec.quat.y, s.iec.quat.z, s.iec.quat.w, s.wall.quat.x, s.wall.quat.y, s.wall.quat.z, s.wall.quat.w, s.coiled);

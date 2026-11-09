@@ -21,6 +21,8 @@ const people = {
   juan: { role: "student", email: "juan@cdd.edu.ph", firstName: "Juan", lastName: "Dela Cruz", studentId: "2023-0142", section: "BSIT 3A", contactNumber: "0917 123 4567", photoThumb: "data:image/jpeg;base64,anVhbg==", profileCompleted: true },
   maria: { role: "student", email: "maria@cdd.edu.ph", firstName: "Maria", lastName: "Reyes", studentId: "2023-0177", section: "BSIT 3A", profileCompleted: true },
   eve: { role: "student", email: "eve@cdd.edu.ph", firstName: "Eve", lastName: "Hacker", studentId: "2023-0666", section: "BSIT 3A", contactNumber: "0999 000 1111", photoThumb: "data:image/jpeg;base64,ZXZl", profileCompleted: true },
+  // a student the admin turned off, still in a class
+  gone: { role: "student", email: "gone@cdd.edu.ph", firstName: "Gone", lastName: "Student", studentId: "2023-0999", section: "BSIT 3A", profileCompleted: true, status: "inactive" },
 };
 const as = (uid) => env.authenticatedContext(uid, { email: people[uid].email }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
@@ -35,6 +37,7 @@ async function seed() {
     await setDoc(doc(db, "classes", "closed"), { name: "Closed", code: "CLOSED", instructorUid: "profA", joinOpen: false, archived: false, studentCount: 0 });
     await setDoc(doc(db, "classes", "c1", "members", "juan"), { uid: "juan", name: "Juan Dela Cruz", email: people.juan.email, studentId: "2023-0142", section: "BSIT 3A", joinedAt: Timestamp.now(), seenStreamAt: Timestamp.now() });
     await setDoc(doc(db, "classes", "c1", "members", "maria"), { uid: "maria", name: "Maria Reyes", email: people.maria.email, studentId: "2023-0177", section: "BSIT 3A", joinedAt: Timestamp.now(), seenStreamAt: Timestamp.now() });
+    await setDoc(doc(db, "classes", "c1", "members", "gone"), { uid: "gone", name: "Gone Student", email: people.gone.email, studentId: "2023-0999", section: "BSIT 3A", joinedAt: Timestamp.now(), seenStreamAt: Timestamp.now() });
     await setDoc(doc(db, "classes", "c1", "posts", "p1"), { kind: "announcement", title: "Hi", body: "Welcome", authorUid: "profA", commentCount: 0, createdAt: Timestamp.now() });
     await setDoc(doc(db, "classes", "c1", "threads", "juan"), { studentUid: "juan", lastFrom: "juan", lastText: "help", lastAt: Timestamp.now(), readAt: { juan: Timestamp.now() } });
     await setDoc(doc(db, "classes", "c1", "threads", "juan", "messages", "m1"), { text: "help", from: "juan", fromName: "Juan Dela Cruz", createdAt: Timestamp.now() });
@@ -117,6 +120,8 @@ const goodComment = { text: "question?", authorUid: "juan", authorName: "Juan De
 await check("member comments", "ALLOWS", () => comment(as("juan"), goodComment));
 await check("student fakes the Instructor badge", "BLOCKS", () => comment(as("juan"), { ...goodComment, fromInstructor: true }));
 await check("student comments as a classmate", "BLOCKS", () => comment(as("juan"), { ...goodComment, authorUid: "maria" }));
+await check("student comments under a classmate's name", "BLOCKS", () => comment(as("juan"), { ...goodComment, authorName: "Maria Reyes" }));
+await check("student comments under the instructor's name", "BLOCKS", () => comment(as("juan"), { ...goodComment, authorName: "Rosa Santos" }));
 await check("student posts a giant comment", "BLOCKS", () => comment(as("juan"), { ...goodComment, text: "x".repeat(5000) }));
 
 /* ---------- private messages: off (classes use their own messenger) ---------- */
@@ -162,6 +167,16 @@ await check("student raises an existing score past 100", "BLOCKS", async () => {
 });
 await check("instructor corrects a student's score", "ALLOWS", () => updateDoc(doc(as("profA"), "sessions", "LAB1", "students", "maria"), { score: 95 }));
 
+/* ---------- turned-off and deleted accounts ---------- */
+// A sign-in that still works isn't enough: the profile has to be there, and not inactive.
+const ghost = () => env.authenticatedContext("ghost", { email: "ghost@cdd.edu.ph" }).firestore(); // deleted: no profile
+await check("app: inactive student reads their own profile (to be told why)", "ALLOWS", () => getDoc(doc(as("gone"), "users", "gone")));
+await check("inactive student reads their class's posts", "BLOCKS", () => getDocs(collection(as("gone"), "classes", "c1", "posts")));
+await check("inactive student comments", "BLOCKS", () => comment(as("gone"), { ...goodComment, authorUid: "gone", authorName: "Gone Student" }));
+await check("inactive student writes their lab progress", "BLOCKS", () => setDoc(doc(as("gone"), "sessions", "LAB1", "students", "gone"), { uid: "gone", score: 100 }));
+await check("deleted account reads a class", "BLOCKS", () => getDoc(doc(ghost(), "classes", "c1")));
+await check("deleted account logs a mistake in a running lab", "BLOCKS", () => setDoc(doc(ghost(), "sessions", "LAB1", "events", "g1"), { uid: "ghost", type: "miss" }));
+
 /* ---------- other people's class lists ---------- */
 await check("student reads another student's class list", "BLOCKS", () => getDocs(collection(as("eve"), "userClasses", "juan", "classes")));
 
@@ -187,7 +202,7 @@ await check("app: student comments (with the count)", "ALLOWS", () => {
 });
 await check("app: instructor comments with the badge", "ALLOWS", () => {
   const db = as("profA"); const b = writeBatch(db);
-  b.set(doc(db, "classes", "c1", "posts", "p1", "comments", "k8"), { text: "a", authorUid: "profA", authorName: "Prof. Rosa Santos", fromInstructor: true, createdAt: serverTimestamp() });
+  b.set(doc(db, "classes", "c1", "posts", "p1", "comments", "k8"), { text: "a", authorUid: "profA", authorName: "Rosa Santos", fromInstructor: true, createdAt: serverTimestamp() });
   b.update(doc(db, "classes", "c1", "posts", "p1"), { commentCount: increment(1) });
   return b.commit();
 });

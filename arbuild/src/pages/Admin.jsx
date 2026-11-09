@@ -135,7 +135,7 @@ function checkEmail(cleanEmail) {
 function friendlyAuthError(err) {
   switch (err.code) {
     case "auth/email-already-in-use":
-      return "Account already exists.";
+      return "This email already has a sign-in. If you deleted its account here, delete the sign-in too (Firebase console, Authentication, Users), then add it again.";
     case "auth/invalid-email":
       return "Invalid email address.";
     case "auth/weak-password":
@@ -479,7 +479,7 @@ export default function Admin() {
     }
 
     const ok = window.confirm(
-      `Delete ${userRecord.email}?\n\nThis removes their profile and data and can't be undone.`
+      `Delete ${userRecord.email}?\n\nThis removes their profile, so they can no longer use ARBuild. Their sign-in stays in Firebase: to add this email again later, first delete it in the Firebase console (Authentication, Users).`
     );
     if (!ok) return;
 
