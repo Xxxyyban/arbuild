@@ -10,6 +10,28 @@ import Avatar from "./Avatar";
 import Icon from "../Icon";
 import "../../styles/Classes.css";
 
+/** Lab activities still to do, each from its instructor. items: ClassFeed's todo. */
+export function TodoList({ items }) {
+  const navigate = useNavigate();
+  return (
+    <ul className="profile-todo">
+      {items.map((i) => (
+        <li key={i.key}>
+          <button type="button" onClick={() => navigate(i.to)}>
+            {/* from their instructor: their picture, with the task's wrench on it */}
+            <Avatar name={i.who?.name} photo={i.who?.photo} size={38} badge="wrench" />
+            <span>
+              {i.title}
+              <small>{[i.who && `From ${i.who.name}`, i.className, i.detail].filter(Boolean).join(" · ")}</small>
+            </span>
+            <Icon name="forward" size={16} className="profile-todo__go" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function ProfileClasses({ user, profile }) {
   return profile?.role === "faculty" ? <Teaching user={user} /> : <Enrolled user={user} profile={profile} />;
 }
@@ -51,7 +73,10 @@ function Enrolled({ user, profile }) {
   return (
     <div className="profile-classes">
       <form className="profile-classes__join" onSubmit={join}>
-        <label htmlFor="profile-class-code">Join a class</label>
+        <label htmlFor="profile-class-code">
+          <Icon name="key" size={15} />
+          Join a class
+        </label>
         <div className="cls-row">
           <input
             id="profile-class-code"
@@ -74,29 +99,22 @@ function Enrolled({ user, profile }) {
           feed.todo.length > 0 && (
             <section>
               <div className="profile-classes__head">
-                <h4>To do ({feed.todo.length})</h4>
+                <h4>
+                  To do
+                  <span className="section-count">{feed.todo.length}</span>
+                </h4>
               </div>
-              <ul className="profile-todo">
-                {feed.todo.map((i) => (
-                  <li key={i.key}>
-                    <button type="button" onClick={() => navigate(i.to)}>
-                      {/* from their instructor: their picture, with the task's wrench on it */}
-                      <Avatar name={i.who?.name} photo={i.who?.photo} size={34} badge="wrench" />
-                      <span>
-                        {i.title}
-                        <small>{[i.who && `From ${i.who.name}`, i.className, i.detail].filter(Boolean).join(" · ")}</small>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <TodoList items={feed.todo} />
             </section>
           )
         }
       </ClassFeed>
 
       <div className="profile-classes__head">
-        <h4>Your classes{sorted.length ? ` (${sorted.length})` : ""}</h4>
+        <h4>
+          Your classes
+          {sorted.length > 0 && <span className="section-count">{sorted.length}</span>}
+        </h4>
         {sorted.length > 0 && (
           <Link to="/classes" className="text-link">
             Open Classes
@@ -144,7 +162,10 @@ function Teaching({ user }) {
   return (
     <div className="profile-classes">
       <div className="profile-classes__head">
-        <h4>Classes you teach{active.length ? ` (${active.length})` : ""}</h4>
+        <h4>
+          Classes you teach
+          {active.length > 0 && <span className="section-count">{active.length}</span>}
+        </h4>
         <Link to="/instructor" className="text-link">
           Manage classes
           <Icon name="forward" size={14} />

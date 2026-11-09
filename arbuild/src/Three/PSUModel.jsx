@@ -21,6 +21,10 @@ export const MODULAR = {
   },
 };
 
+// The mains inlet on psu.glb's back (the +z face), measured by ray-casting the fitted model: the middle of
+// its recess (x, y) and the recess's rim (z), in the PSU's own frame. The power cord's plug seats here.
+export const INLET = { at: [0.254, 0.2745], rim: 0.325 };
+
 export default function PSUModel({ spinY = 0, ...props }) {
   // the placeholder while the file is checked and loading (or if it's missing), then the model
   const placeholder = <PlaceholderPSU {...props} rotation={[0, spinY, 0]} />;

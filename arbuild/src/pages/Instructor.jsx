@@ -39,7 +39,7 @@ import Stream from "../components/class/Stream";
 import Grades from "../components/class/Grades";
 import { TeachingClassCard } from "../components/class/ClassCards";
 import ClassForm from "../components/class/ClassForm";
-import { ClassMeta, CopyButton, Tabs } from "../components/class/ClassBits";
+import { ClassHero, CopyButton, Tabs } from "../components/class/ClassBits";
 import PersonCard from "../components/class/PersonCard";
 import Avatar from "../components/class/Avatar";
 import AppShell from "../components/AppShell";
@@ -374,18 +374,8 @@ function ClassPage() {
   const ended = !!cls.archived;
 
   return (
-    <AppShell
-      className="app-page--content"
-      back={BACK}
-      eyebrow={ended ? "Ended class" : cls.section || "Class"}
-      title={cls.name}
-      subtitle={
-        ended
-          ? `Ended${cls.endedAt ? ` ${fullWhen(cls.endedAt)}` : ""}. It's kept as a record: its students, grades and record stay here, and students can still read it. Nobody can join, post or comment.`
-          : null
-      }
-    >
-      <ClassMeta cls={cls}>
+    <AppShell className="app-page--content" back={BACK}>
+      <ClassHero cls={cls} eyebrow={ended ? "Ended class" : cls.section || "Class"}>
         <span className="class-meta__item">
           <Icon name="users" size={16} />
           {cls.studentCount || 0} {cls.studentCount === 1 ? "student" : "students"}
@@ -398,7 +388,13 @@ function ClassPage() {
             <CopyButton text={inviteLink(cls.code)} label="Invite link" className="btn btn--soft btn--sm" />
           </span>
         )}
-      </ClassMeta>
+      </ClassHero>
+
+      {ended && (
+        <div className="cls-banner">
+          Ended{cls.endedAt ? ` ${fullWhen(cls.endedAt)}` : ""}. It's kept as a record: its students, grades and record stay here, and students can still read it. Nobody can join, post or comment.
+        </div>
+      )}
 
       <Tabs tabs={tabs} current={tab} onChange={(t) => setTab(t)} />
 

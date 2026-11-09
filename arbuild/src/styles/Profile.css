@@ -1,51 +1,22 @@
 /* ==========================================================================
-   Profile Module Styles
-   Fits the screen with no page scrolling:
-   - Desktop / tablet / landscape: sidebar (profile + tabs) beside the form.
-   - Phones (portrait): compact header, tabs, then the form.
-   If a very small screen can't fit everything, only the form area scrolls
-   while the header and the action buttons stay in view.
+   The profile page (pages/Profile.jsx), inside the shared shell:
+   - Computers and tablets: the account's card and the menu, beside the open section.
+   - Phones: the card, the menu as a row, then the section.
    ========================================================================== */
 
 .profile-container {
-  --pf-gutter: clamp(12px, 2.4vw, 28px);
-  --pf-gap: clamp(10px, 1.6vw, 18px);
-  --pf-card-pad: clamp(14px, 2vw, 24px);
-  --pf-tap: 40px;
-  /* set this if a navbar sits above the page, e.g. --pf-offset: 64px */
-  --pf-offset: 0px;
-
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pf-gap);
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "card form"
+    "tabs form";
+  align-items: start;
+  gap: 16px;
   width: 100%;
-  max-width: 1240px;
-  height: calc(100vh - var(--pf-offset));
-  height: calc(100dvh - var(--pf-offset));
-  margin: 0 auto;
-  padding-top: clamp(10px, 2vh, 24px);
-  padding-bottom: calc(clamp(10px, 2vh, 24px) + env(safe-area-inset-bottom, 0px));
-  padding-left: calc(var(--pf-gutter) + env(safe-area-inset-left, 0px));
-  padding-right: calc(var(--pf-gutter) + env(safe-area-inset-right, 0px));
-  overflow: hidden;
-  color: var(--text-primary);
-  font-family: inherit;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+  max-width: var(--page-max);
+  color: var(--text-main);
   animation: fadeInProfile 0.3s ease-out;
-}
-
-.profile-container *,
-.profile-container *::before,
-.profile-container *::after {
-  box-sizing: border-box;
-}
-
-@media (pointer: coarse) {
-  .profile-container {
-    --pf-tap: 44px;
-  }
 }
 
 @keyframes fadeInProfile {
@@ -59,120 +30,100 @@
   }
 }
 
-.profile-breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  flex: 0 0 auto;
-  gap: 8px;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.profile-breadcrumb a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.profile-breadcrumb a:hover {
-  color: var(--accent-cyan);
-  text-decoration: underline;
-}
-
-/* ==========================================================================
-   Header Card (phones: compact row)
-   ========================================================================== */
-
-.profile-header-card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  gap: 14px;
-  padding: 12px 16px;
+/* ---------- the account's card ---------- */
+.pf-card {
+  grid-area: card;
+  padding: 0 18px 18px;
   overflow: hidden;
-  background: var(--bg-panel);
-  border: 1px solid var(--line-trace);
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-subtle);
+  text-align: center;
 }
 
-.profile-header-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: var(--accent-cyan);
-}
-
-.profile-avatar-wrapper {
+.pf-card__band {
   position: relative;
-  flex-shrink: 0;
+  height: 92px;
+  margin: 0 -18px;
+  overflow: hidden;
+  background: linear-gradient(130deg, #064e3b 0%, #047857 55%, #10b981 100%);
 }
 
-.profile-avatar {
+.pf-card__band .circuit {
+  width: 150px;
+  height: 150px;
+  color: #ffffff;
+  opacity: 0.32;
+}
+
+.pf-card__photo {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  margin: -52px auto 10px;
+}
+
+.pf-card__photo img {
   display: block;
-  width: 56px;
-  height: 56px;
+  width: 100%;
+  height: 100%;
+  border: 4px solid var(--card-bg);
   border-radius: 50%;
+  background: var(--card-bg);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
   object-fit: cover;
-  border: 2px solid var(--line-trace);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: opacity 0.2s;
 }
 
-.profile-avatar.is-uploading {
+.pf-card__photo img.is-uploading {
   opacity: 0.5;
 }
 
-.avatar-edit-btn {
+.pf-card__edit {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
+  right: 2px;
+  bottom: 2px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 2px solid var(--bg-panel);
+  border: 3px solid var(--card-bg);
   border-radius: 50%;
-  background: var(--accent-cyan);
+  background: var(--primary-btn);
   color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: filter 0.15s ease, transform 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s, transform 0.15s;
 }
 
-/* larger invisible tap area on touch */
-.avatar-edit-btn::after {
+/* a bigger target than it looks, for a finger */
+.pf-card__edit::after {
   content: "";
   position: absolute;
-  inset: -9px;
+  inset: -6px;
 }
 
-.avatar-edit-btn:focus-visible {
-  outline: 2px solid var(--accent-cyan);
-  outline-offset: 2px;
+.pf-card__edit:hover:not(:disabled) {
+  background: var(--primary-btn-hover);
+  transform: scale(1.06);
 }
 
-.avatar-edit-btn:disabled {
+.pf-card__edit:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.pf-card__edit:disabled {
   cursor: progress;
 }
 
 .spinner-dot {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #ffffff;
+  border-radius: 50%;
   animation: profileSpin 0.7s linear infinite;
 }
 
@@ -182,188 +133,168 @@
   }
 }
 
-.profile-header-info {
-  flex: 1 1 auto;
+.pf-card__who {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.pf-card__who h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.18rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.pf-card__role {
+  padding: 2px 11px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.pf-card__facts {
+  display: grid;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  list-style: none;
+  text-align: left;
+}
+
+.pf-card__facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
   min-width: 0;
 }
 
-.profile-name-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-bottom: 2px;
+.pf-card__facts .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--primary-strong);
 }
 
-.profile-header-info h2 {
-  margin: 0;
-  font-family: inherit;
-  font-size: clamp(1rem, 2.4vw, 1.2rem);
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: 0.01em;
-  color: var(--text-primary);
+.pf-card__facts span {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.profile-role-badge {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: capitalize;
-  white-space: nowrap;
-  background: color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-panel));
-  color: var(--accent-cyan);
-}
-
-.profile-role-badge.faculty {
-  background: color-mix(in srgb, #7c3aed 12%, var(--bg-panel));
-  color: #7c3aed;
-}
-
-.profile-meta,
-.profile-email {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 2px 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* ==========================================================================
-   Tabs (phones: underline row)
-   ========================================================================== */
-
+/* ---------- the menu ---------- */
 .profile-tabs {
-  display: flex;
-  flex: 0 0 auto;
-  border-bottom: 1px solid var(--line-trace);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.profile-tabs::-webkit-scrollbar {
-  display: none;
+  grid-area: tabs;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-subtle);
 }
 
 .tab-btn {
-  position: relative;
-  flex: 1 1 0;
-  min-height: var(--pf-tap);
-  padding: 8px 12px;
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
   background: none;
-  font-family: inherit;
+  color: var(--text-soft);
+  font: inherit;
   font-size: 0.9rem;
-  font-weight: 500;
-  text-align: center;
-  color: var(--text-muted);
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s, color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 
-.tab-btn:hover {
-  color: var(--text-primary);
+.tab-btn .icon {
+  flex: none;
+  color: var(--text-muted);
 }
 
-.tab-btn:focus-visible {
-  outline: 2px solid var(--accent-cyan);
-  outline-offset: -2px;
-  border-radius: 4px;
+.tab-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-main);
 }
 
 .tab-btn.active {
-  color: var(--accent-cyan);
-  font-weight: 600;
+  background: var(--primary-light);
+  color: var(--primary-strong);
 }
 
-.tab-btn.active::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background-color: var(--accent-cyan);
+.tab-btn.active .icon {
+  color: inherit;
 }
 
-/* ==========================================================================
-   Form card: header and actions stay put, the middle scrolls only if it must
-   ========================================================================== */
+.tab-btn:focus-visible {
+  outline: none;
+  box-shadow: inset var(--ring);
+}
 
+/* ---------- the open section ---------- */
 .profile-form-section {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  background: var(--bg-panel);
-  border: 1px solid var(--line-trace);
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.03);
+  grid-area: form;
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-subtle);
 }
 
 .section-card-header {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
-  gap: 12px;
-  padding: var(--pf-card-pad);
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line-trace);
+  gap: 14px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: radial-gradient(60% 170% at 0% 0%, color-mix(in srgb, var(--primary) 11%, transparent), transparent 70%);
 }
 
 .section-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
-  color: var(--accent-cyan);
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
 }
 
 .section-card-header h3 {
   margin: 0;
-  font-family: inherit;
-  font-size: 1rem;
+  color: var(--text-main);
+  font-size: 1.05rem;
   font-weight: 700;
-  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .section-card-header p {
   margin: 2px 0 0;
-  font-size: 0.8rem;
-  line-height: 1.35;
-  color: var(--text-muted);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .profile-form-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  gap: clamp(10px, 1.8vh, 18px);
-  min-height: 0;
-  padding: clamp(12px, 2vh, 20px) var(--pf-card-pad);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 22px;
 }
 
 .form-row {
   display: grid;
-  gap: 12px 16px;
+  gap: 14px 16px;
 }
 
 .form-row.cols-3 {
@@ -374,95 +305,89 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* ==========================================================================
-   Fields
-   ========================================================================== */
-
+/* ---------- fields ---------- */
 .form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
   min-width: 0;
 }
 
 .form-field label {
-  font-size: 0.76rem;
+  color: var(--text-soft);
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--text-muted);
 }
 
 .required-star {
   margin-left: 3px;
-  color: var(--accent-cyan);
+  color: var(--primary-strong);
 }
 
-.form-field input,
-.form-field select {
+.form-field input {
   width: 100%;
-  min-height: var(--pf-tap);
-  padding: 8px 12px;
-  border: 1px solid var(--line-trace);
-  border-radius: var(--radius-sm);
-  background-color: color-mix(in srgb, var(--accent-cyan) 3%, var(--bg-panel));
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.9rem;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.92rem;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .form-field input::placeholder {
   color: var(--text-muted);
-  opacity: 0.7;
 }
 
-.form-field input:focus,
-.form-field select:focus {
-  border-color: var(--accent-cyan);
-  background-color: var(--bg-panel);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+.form-field input:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.form-field input:focus {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
 }
 
 .field-hint {
-  font-size: 0.74rem;
-  line-height: 1.35;
   color: var(--text-muted);
-  opacity: 0.85;
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 
-/* Read-only field (school email) */
+/* the school email: it can't be changed here */
 .readonly-wrap {
   position: relative;
 }
 
 .form-field .readonly-wrap input {
-  padding-right: 36px;
-  border-style: dashed;
-  background-color: color-mix(in srgb, var(--text-muted) 8%, var(--bg-panel));
-  color: var(--text-muted);
+  padding-right: 38px;
+  border-color: var(--border-color);
+  background: var(--surface-2);
+  color: var(--text-soft);
   cursor: not-allowed;
   text-overflow: ellipsis;
-  -webkit-text-fill-color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-soft);
   opacity: 1;
 }
 
 .readonly-lock {
   position: absolute;
   top: 50%;
-  right: 12px;
-  transform: translateY(-50%);
+  right: 13px;
   color: var(--text-muted);
+  transform: translateY(-50%);
   pointer-events: none;
 }
 
-/* Password fields */
+/* ---------- passwords ---------- */
 .password-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  gap: 14px;
   width: 100%;
   max-width: 440px;
 }
@@ -479,10 +404,9 @@
 
 .password-toggle {
   position: absolute;
-  right: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  right: 4px;
+  display: grid;
+  place-items: center;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -491,31 +415,66 @@
   background: none;
   color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color 0.15s, background-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 
-.password-toggle:focus-visible {
-  outline: 2px solid var(--accent-cyan);
-  outline-offset: 1px;
+.password-toggle:hover {
+  background: var(--primary-light);
+  color: var(--primary-strong);
 }
 
-/* ==========================================================================
-   Privacy notice, alerts
-   ========================================================================== */
+.password-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
 
-.data-privacy-notice {
-  padding: 10px 14px;
-  border-left: 3px solid var(--accent-cyan);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent-cyan) 5%, var(--bg-panel));
-  font-size: 0.78rem;
-  line-height: 1.5;
+.pass-rules {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
   color: var(--text-muted);
+  font-size: 0.8rem;
+  list-style: none;
+}
+
+.pass-rules li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pass-rules li.is-met {
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
+/* ---------- the privacy notice, and messages ---------- */
+.data-privacy-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.data-privacy-notice .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--primary-strong);
+}
+
+.data-privacy-notice p {
+  margin: 0;
 }
 
 .data-privacy-notice strong {
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 
 .error-message,
@@ -524,7 +483,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
   font-size: 0.84rem;
   font-weight: 500;
   line-height: 1.4;
@@ -533,193 +492,56 @@
 }
 
 @keyframes fadeInAlert {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .error-message {
-  background: color-mix(in srgb, #ef4444 10%, var(--bg-panel));
-  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
-  color: #ef4444;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .success-message {
-  background: color-mix(in srgb, #10b981 10%, var(--bg-panel));
-  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
-  color: #059669;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  background: var(--primary-light);
+  color: var(--primary-strong);
 }
 
-/* ==========================================================================
-   Action buttons (always visible at the bottom of the card)
-   ========================================================================== */
-
+/* ---------- the section's button, always in reach at the bottom of a long form ---------- */
 .form-actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  flex: 0 0 auto;
-  gap: 12px;
-  padding: 12px var(--pf-card-pad);
-  border-top: 1px solid var(--line-trace);
-}
-
-.form-actions-end {
   justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--card-bg);
 }
 
-.save-btn {
-  min-height: var(--pf-tap);
-  font-family: inherit;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+.form-actions__note {
+  color: var(--text-soft);
+  font-size: 0.8rem;
 }
 
-.save-btn {
-  padding: 8px 24px;
-  border: none;
-  background-color: var(--accent-cyan);
-  color: #ffffff;
-  font-size: 0.9rem;
-  font-weight: 600;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
-  transition: filter 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+.form-actions .btn--primary:disabled {
+  border-color: var(--border-color);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  opacity: 1;
 }
 
-.save-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.save-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ==========================================================================
-   Hover effects only where a real pointer exists
-   ========================================================================== */
-
-@media (hover: hover) and (pointer: fine) {
-  .profile-avatar:hover {
-    transform: scale(1.03);
-  }
-
-  .avatar-edit-btn:hover:not(:disabled) {
-    filter: brightness(0.92);
-    transform: scale(1.1);
-  }
-
-  .form-field input:hover:not(:disabled),
-  .form-field select:hover {
-    border-color: color-mix(in srgb, var(--accent-cyan) 40%, var(--line-trace));
-  }
-
-  .password-toggle:hover {
-    color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
-  }
-
-  .save-btn:hover:not(:disabled) {
-    filter: brightness(0.92);
-    transform: translateY(-1px);
-  }
-}
-
-/* ==========================================================================
-   SIDE-BY-SIDE LAYOUT
-   Desktop / laptop / tablet, and phones held sideways.
-   Left column: profile card + tabs. Right column: the form, full height.
-   ========================================================================== */
-
-@media (min-width: 900px), (min-width: 560px) and (max-height: 520px) {
-  .profile-container {
-    display: grid;
-    grid-template-columns: clamp(220px, 26vw, 320px) minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
-    grid-template-areas:
-      "crumb crumb"
-      "head  form"
-      "tabs  form";
-    column-gap: var(--pf-gap);
-    row-gap: var(--pf-gap);
-  }
-
-  .profile-breadcrumb { grid-area: crumb; }
-  .profile-header-card { grid-area: head; }
-  .profile-tabs { grid-area: tabs; align-self: start; }
-  .profile-form-section { grid-area: form; }
-
-  /* Header becomes a centered profile card */
-  .profile-header-card {
-    flex-direction: column;
-    justify-content: center;
-    gap: 12px;
-    padding: clamp(16px, 3vh, 28px) 16px;
-    text-align: center;
-  }
-
-  .profile-header-card::before {
-    width: 100%;
-    height: 4px;
-  }
-
-  .profile-avatar {
-    width: clamp(64px, 12vh, 96px);
-    height: clamp(64px, 12vh, 96px);
-  }
-
-  .avatar-edit-btn {
-    right: 0;
-    bottom: 0;
-  }
-
-  .profile-name-row,
-  .profile-meta,
-  .profile-email {
-    justify-content: center;
-  }
-
-  /* Tabs become a vertical menu card */
-  .profile-tabs {
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    overflow: visible;
-    background: var(--bg-panel);
-    border: 1px solid var(--line-trace);
-    border-radius: var(--radius-md);
-  }
-
-  .tab-btn {
-    flex: 0 0 auto;
-    padding: 8px 14px;
-    border-radius: 8px;
-    text-align: left;
-  }
-
-  .tab-btn.active {
-    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
-  }
-
-  .tab-btn.active::after {
-    display: none;
-  }
-}
-
-/* Large monitors: a little more air */
-@media (min-width: 1600px) {
-  .profile-container {
-    max-width: 1360px;
-  }
-}
-
-/* ==========================================================================
-   Smaller screens
-   ========================================================================== */
-
-/* Narrow phones: names in two columns where they fit, contact/email stack */
-@media (max-width: 560px) {
+/* ---------- smaller screens ---------- */
+@media (max-width: 1100px) {
   .form-row.cols-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -729,25 +551,106 @@
   }
 
   .form-row.cols-2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .profile-container {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "card"
+      "tabs"
+      "form";
+    gap: 12px;
   }
 
-  .section-card-header p {
-    display: none;
+  /* the card: the band across the top, the picture beside the words */
+  .pf-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 14px;
+    text-align: left;
   }
 
-  /* 16px inputs stop iOS Safari from zooming on focus */
-  .form-field input,
-  .form-field select {
-    font-size: 16px;
+  .pf-card__band {
+    grid-column: 1 / -1;
+    height: 56px;
+  }
+
+  .pf-card__band .circuit {
+    width: 90px;
+    height: 90px;
+  }
+
+  .pf-card__photo {
+    width: 76px;
+    height: 76px;
+    margin: -28px 0 0;
+  }
+
+  .pf-card__photo img {
+    border-width: 3px;
+  }
+
+  .pf-card__edit {
+    right: -2px;
+    bottom: -2px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .pf-card__who {
+    justify-items: start;
+    align-self: start;
+    padding-top: 8px;
+  }
+
+  .pf-card__facts {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 6px 18px;
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  /* the menu: a row of three */
+  .profile-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 4px;
+  }
+
+  .tab-btn {
+    justify-content: center;
+    gap: 7px;
+    padding: 0 6px;
+    font-size: 0.86rem;
+    text-align: center;
+  }
+
+  .section-card-header {
+    padding: 14px 16px;
+  }
+
+  .profile-form-body {
+    padding: 16px;
   }
 
   .form-actions {
-    gap: 8px;
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-actions .btn {
+    flex: 1;
   }
 
-  .save-btn {
-    flex: 1 1 auto;
+  /* 16 px inputs stop iOS Safari zooming in on focus */
+  .form-field input {
+    font-size: 16px;
   }
 
   .password-block {
@@ -755,80 +658,16 @@
   }
 }
 
-/* Very small phones */
-@media (max-width: 360px) {
-  .profile-container {
-    --pf-gutter: 10px;
-    --pf-card-pad: 12px;
-  }
-
-  .form-row.cols-3 {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-header-card {
-    padding: 10px 12px;
-  }
-
-  .data-privacy-notice {
-    padding: 8px 10px;
-    font-size: 0.74rem;
-  }
-}
-
-/* Short screens (small laptops, phones sideways): tighten the vertical rhythm */
-@media (max-height: 700px) {
-  .profile-container {
-    --pf-gap: 10px;
-    --pf-card-pad: 14px;
-  }
-
-  .section-card-header {
-    padding-bottom: 10px;
-  }
-
-  .section-card-header p {
-    display: none;
-  }
-
-  .data-privacy-notice {
-    font-size: 0.74rem;
-    line-height: 1.4;
-  }
-
-  .profile-meta {
-    display: none;
-  }
-}
-
-@media (max-height: 520px) {
-  .profile-breadcrumb {
-    display: none;
-  }
-
-  .data-privacy-notice {
-    display: none;
-  }
-}
-
-/* Printing */
+/* ---------- printing, and less motion ---------- */
 @media print {
   .profile-container {
-    height: auto;
-    overflow: visible;
     animation: none;
   }
 
-  .profile-breadcrumb,
   .profile-tabs,
-  .avatar-edit-btn,
+  .pf-card__edit,
   .form-actions {
     display: none;
-  }
-
-  .profile-header-card,
-  .profile-form-section {
-    box-shadow: none;
   }
 }
 
@@ -839,9 +678,8 @@
     animation: none;
   }
 
-  .profile-avatar,
-  .avatar-edit-btn,
-  .save-btn {
+  .pf-card__edit,
+  .form-field input {
     transition: none;
   }
 

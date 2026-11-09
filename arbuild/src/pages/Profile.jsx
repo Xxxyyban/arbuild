@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+// The profile page: the account's card and a menu beside the open section (details, classes, password).
+// Styles: styles/Profile.css.
+import { useId, useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import ProfileClasses from "../components/class/ProfileClasses";
 import AppShell from "../components/AppShell";
+import Circuit from "../components/Circuit";
+import Icon from "../components/Icon";
 import PolicyDialog from "../components/PolicyDialog";
 import { makeThumb } from "../lab/People";
 import "../styles/Profile.css";
@@ -13,22 +17,33 @@ const FALLBACK_AVATAR =
     `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#d1fae5"/><circle cx="50" cy="38" r="18" fill="#6ee7b7"/><path d="M14 92c4-22 20-32 36-32s32 10 36 32z" fill="#6ee7b7"/></svg>`
   );
 
+const TABS = [
+  { id: "profile", label: "Profile", icon: "user" },
+  { id: "classes", label: "Classes", icon: "users" },
+  { id: "password", label: "Password", icon: "key" },
+];
+
+const ROLE_LABEL = { student: "Student", faculty: "Instructor", admin: "Admin" };
+
 // ============================================================
 // PASSWORD FIELD (label + input + show/hide toggle)
 // ============================================================
 
-function PasswordField({ label, value, onChange }) {
+function PasswordField({ label, value, onChange, autoComplete }) {
   const [visible, setVisible] = useState(false);
+  const id = useId();
 
   return (
     <div className="form-field password-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
 
       <div className="password-wrap">
         <input
+          id={id}
           type={visible ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          autoComplete={autoComplete}
           required
         />
 
@@ -39,18 +54,23 @@ function PasswordField({ label, value, onChange }) {
           title={visible ? "Hide password" : "Show password"}
           aria-label={visible ? "Hide password" : "Show password"}
         >
-          {visible ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-              <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          )}
+          <Icon name={visible ? "eyeOff" : "eye"} size={18} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** The top of the open section: its icon on a tile, its name and what it's for. */
+function SectionHead({ icon, title, text }) {
+  return (
+    <div className="section-card-header">
+      <span className="icon-tile section-icon" aria-hidden="true">
+        <Icon name={icon} size={20} />
+      </span>
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
       </div>
     </div>
   );
@@ -119,12 +139,6 @@ export default function Profile() {
       .trim()
       .replace(/\s+/g, " ") ||
     (accountEmail ? accountEmail.split("@")[0].toUpperCase() : "USER");
-
-  // Show ID / block only if the account has them
-  const metaParts = [
-    profile?.studentId && `ID: ${profile.studentId}`,
-    profile?.section && `Block: ${profile.section}`,
-  ].filter(Boolean);
 
   // Unsaved changes: lets the Save button reflect what's pending
   const dirty =
@@ -274,6 +288,12 @@ export default function Profile() {
     }
   };
 
+  // what a new password still needs, ticked off as it's typed
+  const passRules = [
+    { text: "At least 6 characters", met: passData.newPassword.length >= 6 },
+    { text: "Both new passwords match", met: !!passData.newPassword && passData.newPassword === passData.confirmPassword },
+  ];
+
   // ============================================================
   // UI
   // ============================================================
@@ -286,14 +306,17 @@ export default function Profile() {
       subtitle={role === "faculty" ? "Your details, the classes you teach, and your password." : "Your details, your classes and to-dos, and your password."}
     >
       <div className="profile-container">
+        {/* The account's card */}
+        <section className="pf-card" aria-label="Your account">
+          <div className="pf-card__band">
+            <Circuit />
+          </div>
 
-        {/* Header card */}
-        <div className="profile-header-card">
-          <div className="profile-avatar-wrapper">
+          <div className="pf-card__photo">
             <img
               src={profile?.photoURL || user?.photoURL || FALLBACK_AVATAR}
-              alt="Profile Avatar"
-              className={`profile-avatar ${uploadingAvatar ? "is-uploading" : ""}`}
+              alt="Your profile"
+              className={uploadingAvatar ? "is-uploading" : ""}
             />
 
             <input
@@ -305,97 +328,73 @@ export default function Profile() {
             />
 
             <button
-              className="avatar-edit-btn"
-              title="Change Avatar"
+              className="pf-card__edit"
+              title="Change profile picture"
               aria-label="Change profile picture"
               type="button"
               onClick={handleAvatarClick}
               disabled={uploadingAvatar}
             >
-              {uploadingAvatar ? (
-                <span className="spinner-dot"></span>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              )}
+              {uploadingAvatar ? <span className="spinner-dot" /> : <Icon name="camera" size={15} />}
             </button>
           </div>
 
-          <div className="profile-header-info">
-            <div className="profile-name-row">
-              <h2>{fullName}</h2>
-              <span className={`profile-role-badge ${role}`}>{role}</span>
-            </div>
-
-            {metaParts.length > 0 && (
-              <p className="profile-meta">{metaParts.join(" • ")}</p>
-            )}
-
-            <p className="profile-email">{accountEmail}</p>
+          <div className="pf-card__who">
+            <h2>{fullName}</h2>
+            <span className="pf-card__role">{ROLE_LABEL[role] || role}</span>
           </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="profile-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "profile"}
-            className={`tab-btn ${activeTab === "profile" ? "active" : ""}`}
-            onClick={() => switchTab("profile")}
-          >
-            Profile
-          </button>
+          <ul className="pf-card__facts">
+            <li>
+              <Icon name="mail" size={15} />
+              <span>{accountEmail}</span>
+            </li>
+            {profile?.studentId && (
+              <li>
+                <Icon name="idCard" size={15} />
+                <span>ID {profile.studentId}</span>
+              </li>
+            )}
+            {profile?.section && (
+              <li>
+                <Icon name="users" size={15} />
+                <span>Block {profile.section}</span>
+              </li>
+            )}
+          </ul>
+        </section>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "classes"}
-            className={`tab-btn ${activeTab === "classes" ? "active" : ""}`}
-            onClick={() => switchTab("classes")}
-          >
-            Classes
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "password"}
-            className={`tab-btn ${activeTab === "password" ? "active" : ""}`}
-            onClick={() => switchTab("password")}
-          >
-            Password
-          </button>
+        {/* The menu */}
+        <div className="profile-tabs" role="tablist" aria-label="Profile sections">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              className={`tab-btn ${activeTab === t.id ? "active" : ""}`}
+              onClick={() => switchTab(t.id)}
+            >
+              <Icon name={t.icon} size={17} />
+              <span>{t.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Tab: Profile */}
         {activeTab === "profile" && (
           <form onSubmit={handleProfileSubmit} className="profile-form-section">
-            <div className="section-card-header">
-              <div className="section-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-              </div>
-
-              <div>
-                <h3>Personal Information</h3>
-                <p>Manage your name and contact details.</p>
-              </div>
-            </div>
+            <SectionHead icon="user" title="Personal information" text="Your name and contact details." />
 
             <div className="profile-form-body">
-              {profileError && <div className="error-message">{profileError}</div>}
-              {profileSuccess && <div className="success-message">{profileSuccess}</div>}
+              {profileError && <div className="error-message" role="alert">{profileError}</div>}
+              {profileSuccess && <div className="success-message" role="status">{profileSuccess}</div>}
 
               {/* Names */}
               <div className="form-row cols-3">
                 <div className="form-field">
                   <label htmlFor="profile-first">
-                    First Name<span className="required-star">*</span>
+                    First name<span className="required-star" aria-hidden="true">*</span>
                   </label>
                   <input
                     id="profile-first"
@@ -409,7 +408,7 @@ export default function Profile() {
                 </div>
 
                 <div className="form-field">
-                  <label htmlFor="profile-middle">Middle Name</label>
+                  <label htmlFor="profile-middle">Middle name</label>
                   <input
                     id="profile-middle"
                     type="text"
@@ -423,7 +422,7 @@ export default function Profile() {
 
                 <div className="form-field">
                   <label htmlFor="profile-last">
-                    Last Name<span className="required-star">*</span>
+                    Last name<span className="required-star" aria-hidden="true">*</span>
                   </label>
                   <input
                     id="profile-last"
@@ -440,7 +439,7 @@ export default function Profile() {
               {/* Email (read-only) + contact */}
               <div className="form-row cols-2">
                 <div className="form-field readonly-field">
-                  <label htmlFor="profile-email">School Email</label>
+                  <label htmlFor="profile-email">School email</label>
 
                   <div className="readonly-wrap">
                     <input
@@ -451,17 +450,17 @@ export default function Profile() {
                       disabled
                     />
 
-                    <svg className="readonly-lock" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg className="readonly-lock" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
                   </div>
 
-                  <small className="field-hint">Managed by ARBuild Administrator</small>
+                  <small className="field-hint">Managed by the ARBuild administrator</small>
                 </div>
 
                 <div className="form-field">
-                  <label htmlFor="profile-contact">Contact Number</label>
+                  <label htmlFor="profile-contact">Contact number</label>
                   <input
                     id="profile-contact"
                     type="tel"
@@ -476,15 +475,19 @@ export default function Profile() {
 
               {/* Data privacy notice */}
               <div className="data-privacy-notice">
-                <strong>Data Privacy Notice:</strong> By updating your profile, you consent to the processing of your academic information in compliance with the Data Privacy Act. Data collected is strictly utilized for institutional laboratory records, grading, and AR simulation credentials within Universidad de Dagupan.{" "}
-                <button type="button" className="policy-link" onClick={() => setReading("privacy")}>Read the full notice</button>
+                <Icon name="info" size={16} />
+                <p>
+                  <strong>Data privacy notice:</strong> By updating your profile, you consent to the processing of your academic information in compliance with the Data Privacy Act. Data collected is strictly utilized for institutional laboratory records, grading, and AR simulation credentials within Universidad de Dagupan.{" "}
+                  <button type="button" className="policy-link" onClick={() => setReading("privacy")}>Read the full notice</button>
+                </p>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="form-actions form-actions-end">
-              <button type="submit" className="save-btn" disabled={saving || !dirty}>
-                {saving ? "Saving..." : "Save Changes"}
+            <div className="form-actions">
+              {dirty && <span className="form-actions__note">Unsaved changes</span>}
+              <button type="submit" className="btn btn--primary" disabled={saving || !dirty}>
+                {saving ? "Saving…" : "Save changes"}
               </button>
             </div>
           </form>
@@ -493,24 +496,11 @@ export default function Profile() {
         {/* Tab: Classes */}
         {activeTab === "classes" && (
           <section className="profile-form-section" aria-label="Classes">
-            <div className="section-card-header">
-              <div className="section-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-              </div>
-
-              <div>
-                <h3>{role === "faculty" ? "Classes You Teach" : "My Classes"}</h3>
-                <p>
-                  {role === "faculty"
-                    ? "Your classes, their join codes, and messages waiting for you."
-                    : "The classes you've joined, and what's new in each."}
-                </p>
-              </div>
-            </div>
+            <SectionHead
+              icon="users"
+              title={role === "faculty" ? "Classes you teach" : "My classes"}
+              text={role === "faculty" ? "Your classes, their join codes, and messages waiting for you." : "The classes you've joined, and what's new in each."}
+            />
 
             <div className="profile-form-body">
               <ProfileClasses user={user} profile={profile} />
@@ -521,50 +511,48 @@ export default function Profile() {
         {/* Tab: Password */}
         {activeTab === "password" && (
           <form onSubmit={handlePasswordChange} className="profile-form-section">
-            <div className="section-card-header">
-              <div className="section-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-              </div>
-
-              <div>
-                <h3>Change Password</h3>
-                <p>Update your account security credentials here.</p>
-              </div>
-            </div>
+            <SectionHead icon="key" title="Change password" text="Choose one you don't use anywhere else." />
 
             <div className="profile-form-body">
-              {passError && <div className="error-message">{passError}</div>}
-              {passSuccess && <div className="success-message">{passSuccess}</div>}
+              {passError && <div className="error-message" role="alert">{passError}</div>}
+              {passSuccess && <div className="success-message" role="status">{passSuccess}</div>}
 
               <div className="password-block">
                 <PasswordField
-                  label="Current Password"
+                  label="Current password"
                   value={passData.currentPassword}
                   onChange={(v) => setPassData({ ...passData, currentPassword: v })}
+                  autoComplete="current-password"
                 />
 
                 <PasswordField
-                  label="New Password"
+                  label="New password"
                   value={passData.newPassword}
                   onChange={(v) => setPassData({ ...passData, newPassword: v })}
+                  autoComplete="new-password"
                 />
 
                 <PasswordField
-                  label="Confirm New Password"
+                  label="Confirm new password"
                   value={passData.confirmPassword}
                   onChange={(v) => setPassData({ ...passData, confirmPassword: v })}
+                  autoComplete="new-password"
                 />
 
-                <small className="field-hint">At least 6 characters.</small>
+                <ul className="pass-rules">
+                  {passRules.map((r) => (
+                    <li key={r.text} className={r.met ? "is-met" : ""}>
+                      <Icon name={r.met ? "check" : "minus"} size={14} strokeWidth={2.6} />
+                      {r.text}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
-            <div className="form-actions form-actions-end">
-              <button type="submit" className="save-btn" disabled={changingPass}>
-                {changingPass ? "Updating..." : "Update Password"}
+            <div className="form-actions">
+              <button type="submit" className="btn btn--primary" disabled={changingPass}>
+                {changingPass ? "Updating…" : "Update password"}
               </button>
             </div>
           </form>

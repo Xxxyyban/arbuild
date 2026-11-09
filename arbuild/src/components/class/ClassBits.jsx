@@ -1,8 +1,9 @@
-// Small pieces both class pages use (the instructor's and the student's): the line under the
-// class name (schedule, room, students, join code) and the section tabs.
-// Styles: styles/AppShell.css (.class-meta, .ctabs, .copy-btn).
+// Small pieces both class pages use (the instructor's and the student's): the top of the page (the
+// class's tile and name, then its schedule, room, students and join code) and the section tabs.
+// Styles: styles/AppShell.css (.class-hero, .class-meta, .ctabs, .copy-btn).
 import { useEffect, useRef, useState } from "react";
-import { formatWhen } from "../../lab/Schedule";
+import { formatWhen, initials, CLASS_COLORS } from "../../lab/Schedule";
+import Circuit from "../Circuit";
 import Icon from "../Icon";
 
 /** Copies `text` (a code or an invite link). iconOnly shows just the icon, with `label` for screen readers. */
@@ -50,6 +51,21 @@ export function ClassMeta({ cls, children }) {
       )}
       {children}
     </div>
+  );
+}
+
+/** The top of a class's page, in the class's colour. eyebrow: its section; children: more for the row under the name. */
+export function ClassHero({ cls, eyebrow, children }) {
+  return (
+    <header className="class-hero" style={{ "--class-color": cls.color || CLASS_COLORS[0] }}>
+      <Circuit />
+      <span className="class-hero__tile" aria-hidden="true">{initials(cls.name)}</span>
+      <div className="class-hero__text">
+        {eyebrow && <span className="class-hero__eyebrow">{eyebrow}</span>}
+        <h1>{cls.name}</h1>
+        <ClassMeta cls={cls}>{children}</ClassMeta>
+      </div>
+    </header>
   );
 }
 

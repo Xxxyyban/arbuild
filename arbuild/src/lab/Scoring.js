@@ -34,6 +34,7 @@ export const POINTS = {
   psu_eps8: 10,
   psu_pcie: 10,
   psu_pcie6: 10,
+  power_cord: 10, // the mains cord in at both ends, ready to power on
   screws: 20,
   psu_screws: 10, // the PSU's 4 screws, on the back of the case
   gpu_screws: 8, // the graphics card's 2 bracket screws, on the back of the case
@@ -225,6 +226,7 @@ export function taskLedger(ledger, req) {
     if (!req.gpu && (name === "gpu" || name === "gpu_screws" || name === "cable_pcie" || name === "psu_pcie")) continue;
     if (!(req.gpu && req.gpu6) && (name === "cable_pcie6" || name === "psu_pcie6")) continue;
     if (!req.dualRam && name === "ram2") continue;
+    if (!req.boot && name === "power_cord") continue; // only a task that has to start needs it plugged in
     if (k === "assemble:boot") {
       if (!req.boot) continue;
       out[k] = Math.min(v, bootMax(req));
@@ -257,7 +259,7 @@ export function maxPoints(mode, { slots, gpu, dualRam, gpu6 = false, psuEnds = [
   if (mode === "disassemble") {
     max += perfect(POINTS.shutdown) + perfect(POINTS.unplug) + perfect(POINTS.discharge) + perfect(REMOVE_POINTS.paste);
   } else {
-    max += POINTS.paste + (boot ? bootMax({ gpu, dualRam }) : 0);
+    max += POINTS.paste + (boot ? bootMax({ gpu, dualRam }) + perfect(POINTS.power_cord) : 0);
   }
   return max;
 }

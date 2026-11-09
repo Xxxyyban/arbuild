@@ -43,6 +43,9 @@ export const FIXED = {
   },
 };
 
+// INLET: the mains inlet on its back, measured by ray-casting the fitted model (see INLET in PSUModel.jsx).
+export const INLET = { at: [0.2155, 0.1895], rim: 0.3205 };
+
 export default function PSUModel1({ spinY = 0, ...props }) {
   const ok = useFileExists(MODEL_PATH);
   if (ok === null) return null;

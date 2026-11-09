@@ -28,13 +28,16 @@
   --lab-line-strong: rgba(15, 23, 42, 0.18);
   --lab-text: #0f172a;
   --lab-text-soft: #334155;
-  --lab-muted: #64748b;
+  --lab-muted: #566377;
   --lab-placeholder: #94a3b8;
-  --lab-accent: #059669;
+  --lab-accent: #047857;
   --lab-accent-soft: rgba(5, 150, 105, 0.12);
   --lab-accent-glow: rgba(5, 150, 105, 0.3);
   --lab-on-accent: #ffffff;
   --lab-danger: #dc2626;
+  --lab-warn-bg: #fef3c7;
+  --lab-warn-line: #d97706;
+  --lab-warn-text: #78350f;
   --lab-shadow: rgba(15, 23, 42, 0.16);
   --lab-popup-bg: rgba(255, 255, 255, 0.92);
 }
@@ -67,6 +70,9 @@
   --lab-accent-glow: rgba(52, 211, 153, 0.28);
   --lab-on-accent: #06281d;
   --lab-danger: #f87171;
+  --lab-warn-bg: #3a2a06;
+  --lab-warn-line: #fbbf24;
+  --lab-warn-text: #fde68a;
   --lab-shadow: rgba(0, 0, 0, 0.45);
   --lab-popup-bg: rgba(18, 20, 26, 0.88);
 }
@@ -96,6 +102,9 @@
     --lab-on-accent: #06281d;
   --lab-on-accent: #06281d;
     --lab-danger: #f87171;
+    --lab-warn-bg: #3a2a06;
+    --lab-warn-line: #fbbf24;
+    --lab-warn-text: #fde68a;
     --lab-shadow: rgba(0, 0, 0, 0.45);
     --lab-popup-bg: rgba(18, 20, 26, 0.88);
   }
@@ -349,6 +358,90 @@
 
 .assemble__toast--success { border-left: 3px solid var(--lab-accent); }
 .assemble__toast--fail    { border-left: 3px solid var(--lab-danger); }
+
+/* a safety warning: an icon, bold words, and an amber strip that breathes slowly */
+.assemble__toast--safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border-color: var(--lab-warn-line);
+  background: var(--lab-warn-bg);
+  color: var(--lab-warn-text);
+  font-weight: 700;
+  text-align: left;
+  animation-name: labToastMiddle, labSafetyPulse;
+  animation-duration: 0.2s, 2.6s;
+  animation-timing-function: ease-out, ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: forwards, none;
+}
+
+.assemble__toast--safety .icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* the same warning, staying put on the guide card until the PC is safe */
+.lab-safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px;
+  border-block: 1px solid var(--lab-warn-line);
+  background: var(--lab-warn-bg);
+  color: var(--lab-warn-text);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  animation: labSafetyStrip 2.6s ease-in-out infinite;
+}
+
+.lab-safety .icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.lab-safety strong {
+  font-weight: 700;
+}
+
+.lab-ar-top .lab-safety {
+  width: 100%;
+  border: 1px solid var(--lab-warn-line);
+  border-radius: 10px;
+}
+
+@keyframes labSafetyStrip {
+  50% {
+    box-shadow: inset 4px 0 0 var(--lab-warn-line), 0 0 14px color-mix(in srgb, var(--lab-warn-line) 45%, transparent);
+  }
+}
+
+@keyframes labSafetyPulse {
+  50% {
+    box-shadow: 0 12px 30px var(--lab-shadow), 0 0 0 4px color-mix(in srgb, var(--lab-warn-line) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-safety,
+  .assemble__toast--safety {
+    animation: none;
+  }
+}
+
+/* for screen readers only: what the 3D screen shows */
+.lab-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 @keyframes labToast {
   from { opacity: 0; transform: translateY(10px); }
@@ -608,12 +701,12 @@
 }
 
 .lab-tools__btn.is-accent {
-  background: #059669;
+  background: #047857;
   color: #ffffff;
 }
 
 .lab-tools__btn.is-accent:hover {
-  background: #047857;
+  background: #065f46;
 }
 
 .lab-tools__btn.is-danger .icon {
@@ -627,7 +720,7 @@
 
 .lab-tools__btn.is-dim,
 .lab-tools__btn:disabled {
-  opacity: 0.45;
+  opacity: 0.7;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -759,13 +852,13 @@
 }
 
 .flow-btn--primary {
-  background: #059669;
-  border-color: #059669;
+  background: #047857;
+  border-color: #047857;
   color: #ffffff;
 }
 
 .flow-btn--primary:hover:not(:disabled) {
-  background: #047857;
+  background: #065f46;
   color: #ffffff;
 }
 
@@ -809,15 +902,6 @@
     transform: none;
   }
 
-  .lab-choice__traces path {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-
-  .lab-choice__traces circle {
-    animation: none;
-    opacity: 1;
-  }
 
   .lab-start__spin {
     animation-duration: 3s;
@@ -921,44 +1005,6 @@
 
 .lab-choice:hover .lab-choice__traces {
   opacity: 0.7;
-}
-
-.lab-choice__traces path {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: labDraw 1s ease-out forwards;
-}
-
-.lab-choice__traces circle {
-  fill: var(--card-bg);
-  stroke: var(--primary);
-  stroke-width: 1.5;
-  opacity: 0;
-  animation: labFade 0.35s ease-out forwards;
-}
-
-.lab-choice__traces rect {
-  fill: none;
-  fill: color-mix(in srgb, var(--primary) 12%, transparent);
-  stroke: var(--primary);
-  stroke-width: 1.5;
-}
-
-@keyframes labDraw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes labFade {
-  to {
-    opacity: 1;
-  }
 }
 
 /* the icon's tile on the left, the arrow on the right; the words sit at the bottom of the card */

@@ -4,13 +4,14 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { useAuth } from "../context/AuthContext";
-import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PSU_FIXED } from "../Three/PartModel";
+import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, PSU_FIXED, PSU_INLETS } from "../Three/PartModel";
 import { renderSettings } from "../Three/graphics";
 import { CablePlug, HeaderPlug, CableRun, PortMarker, LatchTab, BoardScrew, PSUPanel, FixedCables, M2Cover, M2CoverOnBench, SsdScrew, SocketLever, SocketPlate, SocketSlide, SocketCapOnBench, LeverHook, PLUG_REACH } from "../Three/Hardware";
+import { PowerCord, PowerStrip } from "../Three/PowerCord";
 import CableDrawer from "../components/lab/CableDrawer";
 import { ThermalPaste, PasteStage, PasteCapture, PastePanel, PasteResult, newPasteWork } from "../components/lab/PasteTask";
 import { gradePaste, lidFor } from "../lab/Paste";
-import { MM, headerPlugReach } from "../Three/cableStubs";
+import { MM, STRIP_SOCKET, headerPlugReach } from "../Three/cableStubs";
 import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
 import { ARContext } from "../Three/xrSetup";
@@ -33,14 +34,15 @@ import {
   MOTHERBOARD_TARGET, PSU_TARGET, GPU_TARGET, PSU_SCREWS, GPU_SCREWS, GPU_SCREW_ROTATION, GPU_SCREW_SHANK, BACK_SCREW_SIZE, MOBO_LYING_ROTATION, MOBO_MOUNTED_ROTATION,
   boardLayout, STORAGE_MOUNT_ROTATION,
   COOLER_SPIN_X, COOLER_SPIN_Y, COOLER_SPIN_Z, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z,
-  LAY_ANGLE, LAY_CENTER, AR_SCALE, HOME_CAM, HOME_TARGET,
+  LAY_ANGLE, LAY_CENTER, AR_SCALE, HOME_CAM, HOME_TARGET, PART_DOT,
 } from "../lab/Constants";
 import {
   installBlock, removeBlock, evaluateBoot, bootTime, isFullyBuilt, isFullyStripped, expertSteps,
   CABLES, SCREW_COUNT, PSU_SCREW_COUNT, GPU_SCREW_COUNT, plugBlock, safetyBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, psuSocketed,
   M2_COVER_SCREWS, m2Start, m2LiftBlock, m2RefitBlock, m2Done, cableNeeded, isGpuCable, gpuSixPin,
-  socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone,
+  socketKind, socketStart, leverBlock, plateBlock, capBlock, socketDone, NO_CORD, cordIn, cordBlock,
 } from "../lab/Rules";
+import { screenSays, screenStatus } from "../lab/Screen";
 import {
   POINTS, REMOVE_POINTS, pastePoints, basePoints, actionPoints, ledgerKey, timedScore, timeFactor, revertPenalty,
   maxPoints, officialScore, officialDelta, taskRequirements, taskLedger, OFFICIAL_MAX,
@@ -111,7 +113,7 @@ function powerAndMonitor(s) {
   if (s.mode !== "disassemble") return { power: { ...POWER_ON }, monitor: { status: "off" } };
   const boot = evaluateBoot(s);
   if (boot.status === "hello") {
-    return { power: { ...POWER_ON }, monitor: { status: "hello", lowRes: boot.lowRes, note: SAFETY_NOTE } };
+    return { power: { ...POWER_ON }, monitor: { status: "hello", lowRes: boot.lowRes, safety: SAFETY_NOTE } };
   }
   return { power: { ...POWER_ON, shutdown: true }, monitor: { status: "off" } };
 }
@@ -127,6 +129,7 @@ function ControlPanel({ buttons }) {
       title={b.title}
       className={["lab-tools__btn", b.lit ? "is-on" : "", b.accent ? "is-accent" : "", b.danger ? "is-danger" : "", b.dim ? "is-dim" : ""].join(" ").trim()}
       aria-pressed={b.lit === undefined ? undefined : !!b.lit}
+      aria-disabled={b.dim ? true : undefined}
       disabled={b.disabled || false}
       onClick={b.onPress}
     >
@@ -192,6 +195,10 @@ export default function BuildLab() {
   const [psuSockOf, setPsuSockOf] = useState(init.psuSockOf ?? {});
   const [power, setPower] = useState(init.power);
   const [monitor, setMonitor] = useState(init.monitor);
+  // the mains power cord: in the PSU's inlet, in the power strip; and it being plugged in: { end: "psu" | "wall", ready (the plug is at its socket) }
+  const [cord, setCord] = useState(init.cord ?? NO_CORD);
+  const [cordTask, setCordTask] = useState(null);
+  const cordInlet = useRef(null); // in the case, at the PSU's inlet: the cord's plug follows it (Three/PowerCord.jsx)
   const [flights, setFlights] = useState({}); // name -> { position, rotation } where a pulled part was let go
   const [motherboardPos, setMotherboardPos] = useState(
     init.installed.motherboard ? MOTHERBOARD_TARGET.position : trayPosition("motherboard")
@@ -416,9 +423,9 @@ export default function BuildLab() {
 
   // With hints off, failure toasts stay vague (`vague`, or a generic line). reportEvent still gets the full text.
   function showHint(text, type = "fail", vague = HINT_HIDDEN) {
-    setFeedback({ type, text: type === "fail" && !hintsOn ? vague : text });
+    setFeedback({ type, text: type !== "success" && !hintsOn ? vague : text });
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-    feedbackTimer.current = setTimeout(() => setFeedback(null), 2800);
+    feedbackTimer.current = setTimeout(() => setFeedback(null), type === "safety" ? 4500 : 2800); // a safety warning stays longer
   }
 
   function award(key, points, message, part) {
@@ -445,7 +452,7 @@ export default function BuildLab() {
     const k = ledgerKey(mode, name);
     misses.current[k] = (misses.current[k] || 0) + 1;
     reportEvent(type, name, message);
-    showHint(message, "fail", vague);
+    showHint(message, type === "safety" ? "safety" : "fail", vague);
   }
 
   // Sends a part that was let go over its slot back to the bench (DraggablePart keeps it "placed" otherwise).
@@ -568,6 +575,7 @@ export default function BuildLab() {
   function startPaste() {
     setCableTask(null);
     setWireTask(null);
+    setCordTask(null);
     setCableDrawer(false);
     setSelectedPart(null);
     setInspectId(null);
@@ -676,11 +684,14 @@ export default function BuildLab() {
     if (monitor.status === "shuttingDown") return showHint("Wait for the PC to finish shutting down.");
     if (!power.shutdown) return miss("shutdown", "Shut the PC down first, then unplug it.", "safety");
     setPower((p) => ({ ...p, unplugged: true }));
+    // out of the wall first, then out of the PSU, and the cord goes back in its coil
+    setCord((c) => ({ ...c, wall: false }));
+    later(() => setCord(NO_CORD), 350);
     const k = ledgerKey("disassemble", "unplug");
     award(k, actionPoints(POINTS.unplug, misses.current[k] || 0), "Unplugged. Now hold the power button to drain leftover power.", "unplug");
   }
 
-  // Holding the power button with the cable out empties the capacitors: the last safety step.
+  // Holding the power button with the cord out empties the capacitors: the last safety step.
   function discharge() {
     if (power.discharged) return;
     if (!power.unplugged) {
@@ -706,6 +717,51 @@ export default function BuildLab() {
     award(ledgerKey("disassemble", "paste"), actionPoints(REMOVE_POINTS.paste, 0), "Old thermal paste wiped clean.", "paste");
   }
 
+  /* ---------- the mains power cord (Three/PowerCord.jsx) ---------- */
+  // Last thing before powering on, Packet Tracer style like the other cables: pick it in the Cables
+  // drawer, click the PSU's inlet at the back of the case, push the plug in; then the same at the power
+  // strip. PSU first, wall last. Every PSU model has its own inlet (PSU_INLETS).
+  const psuInlet = PSU_INLETS[itemFor("psu", picks)?.variant ?? 0] || PSU_INLETS[0];
+  const cordNext = cordBlock(installed, picks, psuScrews);
+
+  function startCord() {
+    if (mode !== "assemble" || exploding) return;
+    if (cordIn(cord)) return showHint("The power cord is plugged in at both ends.", "success");
+    if (cordNext) return showHint(cordNext.msg);
+    setCableDrawer(false);
+    setCableTask(null);
+    setWireTask(null);
+    setInspectId(null); // on a phone a part's info would cover what's to be clicked
+    setCordTask({ end: cord.psu ? "wall" : "psu", ready: false });
+  }
+
+  function chooseCordPort(end) {
+    if (cordTask?.end !== end) return showHint("Open Cables and pick the power cord first.");
+    setCordTask({ ...cordTask, ready: true });
+  }
+
+  function pushCord() {
+    if (!cordTask?.ready) return;
+    if (cordTask.end === "psu") {
+      setCord((c) => ({ ...c, psu: true }));
+      setCordTask({ end: "wall", ready: false });
+      return showHint("In the PSU. The other end goes into the power strip, always last.", "success");
+    }
+    setCord({ psu: true, wall: true });
+    setCordTask(null);
+    const k = ledgerKey(mode, "power_cord");
+    award(k, actionPoints(basePoints(mode, "power_cord"), misses.current[k] || 0), "Power cord plugged in. The PC has power now.", "power_cord");
+  }
+
+  // Clicking a plug: push it in while connecting; taking the PC apart, it's the Unplug button.
+  function clickCord(end) {
+    if (exploding) return;
+    if (mode === "disassemble") return power.unplugged ? showHint("The power cord is already out.", "success") : unplug();
+    if (cordTask?.end === end && cordTask.ready) return pushCord();
+    if (cord[end]) return showHint(`The power cord is plugged into the ${end === "psu" ? "PSU" : "power strip"}.`, "success");
+    showHint("Open Cables and pick the power cord first.");
+  }
+
   /* ---------- cables and screws ---------- */
   const gpuPort = itemFor("gpu", picks)?.powerPort;
   const gpuPort6 = itemFor("gpu", picks)?.powerPort6; // a card's 6-pin power socket, if it has one
@@ -726,6 +782,8 @@ export default function BuildLab() {
   //   3. line the clip up with the yellow tab (turn the plug if needed), then push it in
   function startCable(c) {
     if (mode !== "assemble" || exploding) return;
+    setCordTask(null);
+    setInspectId(null); // on a phone a part's info would cover what's to be clicked
     const label = CABLES[c].label;
     if (!psuEndDone(c, picks, psuCables)) {
       const b = psuPlugBlock(c, picks);
@@ -888,6 +946,8 @@ export default function BuildLab() {
     if (b) return showHint(b.msg);
     setCableDrawer(false);
     setCableTask(null);
+    setCordTask(null);
+    setInspectId(null);
     setWireTask({ wire: id, at: null, flipped: false });
   }
 
@@ -1280,6 +1340,18 @@ export default function BuildLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cableTask?.cable, cableTask?.end, installed.psu, rig, L]);
 
+  // The power cord: the camera goes round to the back of the case, then to the power strip.
+  const cordFocus = useMemo(() => {
+    if (!cordTask) return null;
+    if (cordTask.end === "wall") {
+      const [x, y, z] = STRIP_SOCKET;
+      return { key: "cord:wall", target: [x - 0.1, y + 0.1, z + 0.1], position: [x + 0.3, y + 1.15, z + 1.35] };
+    }
+    const at = toWorldPose(psuToCase([psuInlet.at[0], psuInlet.at[1], psuInlet.rim]), [0, 0, 0], rig).position;
+    return { key: "cord:psu", target: at, position: [at[0] - 1.45, at[1] + 0.5, at[2] + 0.7] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cordTask?.end, rig, psuInlet]);
+
   // A RAM stick picked up with a click moves the camera in on the DIMM slots; once it is in (or put
   // down) the camera glides back to the bench, where the next stick is.
   const ramHeld = !arLike && mode === "assemble" && (selectedPart === "ram1" || selectedPart === "ram2") ? selectedPart : null;
@@ -1362,8 +1434,8 @@ export default function BuildLab() {
     if (installed.gpu && gpuScrews.some((s) => !s)) {
       return miss("gpu_screws", "Screw the graphics card's bracket to the case before powering on. A loose card can rock out of its slot.", "safety");
     }
-    setPower({ ...POWER_ON }); // powering on plugs it back in
-    const result = evaluateBoot({ installed, pasteApplied, pasteThin, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf }, { hints: hintsOn });
+    setPower({ ...POWER_ON }); // a teardown's safety steps start over
+    const result = evaluateBoot({ installed, pasteApplied, pasteThin, ramSlot, picks, cables: liveCables, wires, headers, psuSockOf, cord }, { hints: hintsOn });
     // troubleshooting: the task is done when the PC starts with nothing wrong
     const clean = trouble && faultsNow.length === 0;
     if (result.status === "dead") {
@@ -1441,6 +1513,8 @@ export default function BuildLab() {
     setPsuSockOf(s.psuSockOf ?? {});
     setWires(s.wires ?? wiresStart(false));
     setWireTask(null);
+    setCord(s.cord ?? NO_CORD);
+    setCordTask(null);
     setPower(pm.power);
     setMonitor(pm.monitor);
     setMotherboardPos(s.installed.motherboard ? MOTHERBOARD_TARGET.position : trayPosition("motherboard"));
@@ -1464,6 +1538,7 @@ export default function BuildLab() {
     setPasteTask(null);
     if (!pasteApplied) setPaste(null); // left half way: no paste
     setCableTask(null);
+    setCordTask(null);
     setCableDrawer(false);
     setSelectedPart(null);
     setPromptDismissed(false);
@@ -1474,7 +1549,7 @@ export default function BuildLab() {
         applyState(buildStart({ ...cfg, startMode: "disassemble", startState: "full" }));
         return;
       }
-      if (monitor.status === "hello") setMonitor((m) => ({ ...m, note: SAFETY_NOTE }));
+      if (monitor.status === "hello") setMonitor((m) => ({ ...m, safety: SAFETY_NOTE }));
       else {
         setMonitor({ status: "off" });
         setPower({ ...POWER_ON, shutdown: true });
@@ -1834,6 +1909,8 @@ export default function BuildLab() {
       else if (id.startsWith("psucable:")) clickPsuCable(id.slice(9));
       else if (id.startsWith("psuport:")) chooseSocket(id.slice(8));
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
+      else if (id.startsWith("cordport:")) chooseCordPort(id.slice(9));
+      else if (id.startsWith("cord:")) clickCord(id.slice(5));
       else if (id === "m2cover") clickM2Cover();
       else if (id === "socketlever") clickLever();
       else if (id === "socketplate") clickPlate();
@@ -2179,7 +2256,7 @@ export default function BuildLab() {
           },
           {
             key: "discharge", work: true, icon: "bolt", label: power.discharged ? "Drained" : "Drain power",
-            title: "Hold the power button for a few seconds with the cable out",
+            title: "Hold the power button for a few seconds with the cord out",
             lit: power.discharged, done: power.discharged, dim: !power.unplugged && !power.discharged,
             accent: hintsOn && power.unplugged && !power.discharged, onPress: discharge,
           },
@@ -2204,7 +2281,7 @@ export default function BuildLab() {
   }
 
   const classLocked = inClass && classPhase !== "running"; // waiting for the instructor, or class over
-  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables, screws, psuScrews, gpuScrews, psuCables, m2, socket, wires });
+  const steps = expertSteps(mode, { installed, picks, pasteApplied, booted, power, cord, cables, screws, psuScrews, gpuScrews, psuCables, m2, socket, wires });
   // only steps that must happen in order get a "next" highlight (a teardown's parts can go in any order)
   const nextStep = steps.findIndex((s) => !s.done && !s.anyOrder);
   const stepsDone = steps.filter((s) => s.done).length;
@@ -2219,10 +2296,27 @@ export default function BuildLab() {
 
   const showMarkers = arLike && mode === "assemble" && selectedPart;
 
+  // where the power cord's plugs are: out, on their way in (they bob, and take the next click), or in
+  const iecAt = !installed.psu || exploding ? "out" : cord.psu ? "in" : cordTask?.end === "psu" && cordTask.ready ? "hover" : "out";
+  const wallAt = exploding ? "out" : cord.wall ? "in" : cordTask?.end === "wall" && cordTask.ready ? "hover" : "out";
+  const tagsOn = !cableTask && !cordTask && !pasteTask; // name tags are hidden while the camera is up close
+  // a teardown isn't safe until the PC is off, unplugged and drained (with hints off, working that out is the test)
+  const notSafeYet = mode === "disassemble" && hintsOn && !power.discharged && !classLocked && !pasteTask && !exploding;
+  const safetyStrip = notSafeYet && (
+    <p className="lab-safety" role="alert">
+      <Icon name="alert" size={16} strokeWidth={2.4} />
+      <span>
+        <strong>Not safe to touch yet.</strong> {!power.shutdown ? "Shut it down first." : !power.unplugged ? "Unplug it next." : "Drain the power next."}
+      </span>
+    </p>
+  );
+  const screen = screenStatus(monitor);
+  const screenLine = screenSays(monitor, userName);
+
   return (
     <div className="assemble">
       <header className="assemble__bar">
-        <Link to={fromClass ? `/classes/${fromClass}?tab=labs` : "/main"} className="assemble__back focus-ring">
+        <Link to={fromClass ? `/classes/${fromClass}?tab=labs` : "/main"} className="assemble__back focus-ring" aria-label="Exit lab">
           <Icon name="back" size={16} />
           <span className="assemble__back-label">Exit Lab</span>
         </Link>
@@ -2287,7 +2381,12 @@ export default function BuildLab() {
             </div>
           </div>
           )}
-          <button type="button" className={`assemble__rotate-btn focus-ring ${inAR || camMode ? "assemble__rotate-btn--active" : ""}`} onClick={toggleAR}>
+          <button
+            type="button"
+            className={`assemble__rotate-btn focus-ring ${inAR || camMode ? "assemble__rotate-btn--active" : ""}`}
+            aria-label={inAR || camMode ? "Exit AR" : "Show the bench in AR"}
+            onClick={toggleAR}
+          >
             <Icon name={inAR || camMode ? "x" : "cube"} size={16} />
             <span>{inAR || camMode ? "Exit AR" : "AR"}</span>
           </button>
@@ -2296,8 +2395,19 @@ export default function BuildLab() {
       </header>
 
       <div className="assemble__viewport">
+        {/* The screen is only pixels in the 3D view: what it says, for screen readers. Both stay in the page,
+            as a change only gets read out in a region that was already there; a good message is read out
+            here too, an error by its toast below. */}
+        <p className="lab-sr-only" role="status">
+          {screen?.level === "bad" ? "" : screenLine} {feedback?.type === "success" ? feedback.text : ""}
+        </p>
+        <p className="lab-sr-only" role="alert">{screen?.level === "bad" ? screenLine : ""}</p>
         <div className="assemble__scene-container">
-          <div style={{ position: "relative", width: "100%", height: "100%", background: camMode ? "transparent" : "#d9dbe0" }}>
+          <div
+            role="img"
+            aria-label={`3D view of the bench, with the PC ${mode === "assemble" ? "being built" : "being taken apart"}. ${screenLine}`}
+            style={{ position: "relative", width: "100%", height: "100%", background: camMode ? "transparent" : "#d9dbe0" }}
+          >
             {camMode && (
               <video
                 ref={videoRef} playsInline muted autoPlay
@@ -2315,7 +2425,7 @@ export default function BuildLab() {
               <FitFov enabled={!inAR} />
               <ARContext.Provider value={arLike}>
                 <GLBridge glRef={glRef} />
-                {!arLike && <CameraFocus focus={pasteFocus || cableFocus || wireFocus || ramFocus} home={HOME_VIEW} />}
+                {!arLike && <CameraFocus focus={pasteFocus || cableFocus || cordFocus || wireFocus || ramFocus} home={HOME_VIEW} />}
                 {!arLike && <ViewControls apiRef={viewRef} home={HOME_VIEW} />}
                 <ambientLight intensity={2.0} />
                 <hemisphereLight skyColor="#ffffff" groundColor="#666666" intensity={1.2} />
@@ -2337,7 +2447,7 @@ export default function BuildLab() {
                         <Workbench />
 
                         {/* name tags (hidden while a cable is connected: the camera is up close then) */}
-                        {!cableTask && !pasteTask && benchParts.map((name) => (
+                        {tagsOn && benchParts.map((name) => (
                           <TrayLabel key={name} name={name} text={PART_LABEL[name]} sub={traySub(name)} />
                         ))}
 
@@ -2368,6 +2478,26 @@ export default function BuildLab() {
                                 </group>
                               )}
                             </Blast>
+                          )}
+
+                          {/* the PSU's mains inlet, wherever this model has it: the power cord's plug follows this */}
+                          {installed.psu && !exploding && (
+                            <group position={PSU_TARGET.position} rotation={PSU_TARGET.rotation}>
+                              <group ref={cordInlet} position={[psuInlet.at[0], psuInlet.at[1], psuInlet.rim]} rotation={[Math.PI / 2, 0, 0]} />
+                              {cordTask?.end === "psu" && !cordTask.ready && (
+                                <PortMarker
+                                  partId="cordport:psu"
+                                  position={[psuInlet.at[0], psuInlet.at[1], psuInlet.rim + 0.03]}
+                                  size={0.085}
+                                  pill
+                                  dot={PART_DOT.power}
+                                  fontSize={0.03}
+                                  label={hintsOn && help.labels ? "Power socket" : null}
+                                  labelAt={[0, -0.135, 0.05]}
+                                  onClick={() => chooseCordPort("psu")}
+                                />
+                              )}
+                            </group>
                           )}
 
                           {/* motherboard screws, at this board's 9 ATX holes */}
@@ -2429,6 +2559,8 @@ export default function BuildLab() {
                                 key={`port-${p}`} partId={`port:${p}`}
                                 position={[portPos[p][0], portPos[p][1], portPos[p][2] + 0.03]}
                                 label={hintsOn && help.labels ? PORT_LABEL[p] : null}
+                                pill
+                                dot={PART_DOT[p === "pcie" || p === "pcie6" ? "gpu" : "motherboard"]}
                                 onClick={() => choosePort(p)}
                               />
                             ))}
@@ -2500,6 +2632,32 @@ export default function BuildLab() {
                               />
                             ))}
                         </CaseRig>
+
+                        {/* the mains power: the strip on the bench; the cord only once it's out of the Cables compartment */}
+                        <PowerStrip />
+                        <PowerCord
+                          anchor={cordInlet}
+                          iec={iecAt}
+                          wall={wallAt}
+                          stored={exploding || (!cord.psu && !cord.wall && !cordTask)}
+                          onIec={() => clickCord("psu")}
+                          onWall={() => clickCord("wall")}
+                        />
+                        {cordTask?.end === "wall" && !cordTask.ready && (
+                          <group position={STRIP_SOCKET} rotation={[-Math.PI / 2, 0, 0]}>
+                            <PortMarker
+                              partId="cordport:wall"
+                              position={[0, 0, 0.02]}
+                              size={0.11}
+                              pill
+                              dot={PART_DOT.power}
+                              fontSize={0.035}
+                              label={hintsOn && help.labels ? "Socket" : null}
+                              labelAt={[0, 0.15, 0.13]}
+                              onClick={() => chooseCordPort("wall")}
+                            />
+                          </group>
+                        )}
 
                         {/* the thermal paste isn't on the bench: it's docked in the parts rail (PartPicker) */}
                         {benchParts.map(renderTrayPart)}
@@ -2609,6 +2767,7 @@ export default function BuildLab() {
                 </div>
               )}
               {arError && <p className="lab-ar-top__error" role="alert">{arError}</p>}
+              {arLike && safetyStrip}
             </div>
           )}
 
@@ -2666,14 +2825,15 @@ export default function BuildLab() {
                 }}
                 onPaste={applyPaste}
                 cables={{
-                  open: cableDrawer || !!cableTask || !!wireTask,
-                  done: cablesDone && wiresDone,
+                  open: cableDrawer || !!cableTask || !!wireTask || !!cordTask,
+                  done: cablesDone && wiresDone && cordIn(cord),
                   dim: !picks.psu && !installed.motherboard,
                   disabled: exploding,
                 }}
                 onCables={() => {
                   setCableTask(null);
                   setWireTask(null);
+                  setCordTask(null);
                   setCableDrawer((o) => !o);
                 }}
                 onOpenPart={() => setCableDrawer(false)}
@@ -2688,6 +2848,7 @@ export default function BuildLab() {
                 besidePicker={showPicker}
                 onPick={startCable} onClose={() => setCableDrawer(false)}
                 wires={wires} headers={headers} activeWire={wireTask?.wire} onPickWire={startWire} labels={help.labels}
+                cord={cord} cordActive={!!cordTask} cordNext={cordNext} onPickCord={startCord}
               />
             </div>
           )}
@@ -2753,6 +2914,31 @@ export default function BuildLab() {
             </section>
           )}
 
+          {cordTask && mode === "assemble" && !classLocked && (
+            <section className={`cable-task ${showPicker ? "is-beside-picker" : ""}`} aria-live="polite" style={{ pointerEvents: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
+              <span className="cable-task__step">
+                Power cord · {cordTask.end === "psu" ? "PSU end" : "power strip"} · step {(cordTask.end === "psu" ? 1 : 3) + (cordTask.ready ? 1 : 0)} of 4
+              </span>
+              {cordTask.end === "psu" ? (
+                <p>
+                  {cordTask.ready
+                    ? "Push the plug into the socket. Its cut corners match the socket's, so it only fits one way."
+                    : `${arLike ? "Tap" : "Click"} the power socket on the back of the PSU, at the back of the case.`}
+                  {hintsOn && !cordTask.ready && " It's the 3-pin socket beside the I/O switch."}
+                </p>
+              ) : (
+                <p>
+                  {cordTask.ready ? "Push the plug into the socket, all the way in." : `${arLike ? "Tap" : "Click"} a socket on the power strip.`}
+                  {hintsOn && !cordTask.ready && " The wall end always goes in last, so the PC never gets power while you're still handling the cord."}
+                </p>
+              )}
+              <div className="cable-task__actions">
+                {cordTask.ready && <button type="button" className="is-primary" onClick={pushCord}>Push in</button>}
+                <button type="button" onClick={() => setCordTask(null)}>Cancel</button>
+              </div>
+            </section>
+          )}
+
           {wireTask && mode === "assemble" && !classLocked && (
             <section className={`cable-task ${showPicker ? "is-beside-picker" : ""}`} aria-live="polite" style={{ pointerEvents: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
               <span className="cable-task__step">
@@ -2809,6 +2995,7 @@ export default function BuildLab() {
                   <Icon name={taskOpen ? "up" : "down"} size={16} />
                 </span>
               </button>
+              {safetyStrip}
               {showStepCount && (
                 <div className="lab-task__bar" role="progressbar" aria-label="Steps done" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={stepsDone}>
                   <i style={{ width: `${(stepsDone / steps.length) * 100}%` }} />
@@ -2958,7 +3145,8 @@ export default function BuildLab() {
           )}
 
           {feedback && (
-            <div className={`assemble__toast assemble__toast--${feedback.type}`} role="status" aria-live="polite">
+            <div className={`assemble__toast assemble__toast--${feedback.type}`} role={feedback.type === "success" ? undefined : "alert"}>
+              {feedback.type === "safety" && <Icon name="alert" size={17} strokeWidth={2.4} />}
               <span>{feedback.text}</span>
             </div>
           )}

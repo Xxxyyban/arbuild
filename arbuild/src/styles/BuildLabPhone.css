@@ -244,6 +244,11 @@
     text-align: center;
   }
 
+  .assemble__toast--safety {
+    animation-name: labToast, labSafetyPulse;
+    text-align: left;
+  }
+
   /* ---------- AR: under the parts strip ---------- */
   .lab-ar-top,
   .lab-ar-top.is-beside-picker {

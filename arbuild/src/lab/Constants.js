@@ -200,8 +200,8 @@ export const LAY_CENTER = [0, -0.38];
 
 /* ---------- AR / camera ---------- */
 export const AR_SCALE = 0.07;
-export const HOME_CAM = [0, 6, 9.5];
-export const HOME_TARGET = [0, 1.75, 0]; // low enough for the bench, high enough for the whole monitor
+export const HOME_CAM = [0, 7, 11.9];
+export const HOME_TARGET = [0, 2.7, 0]; // low enough for the whole bench, high enough for the whole monitor
 
 /* ---------- case fans ---------- */
 export const FAN_CONFIG = {
@@ -218,11 +218,30 @@ export const FAN_GROUPS = {
   rear: { count: 1, size: null, dims: null, nudge: [0, 0.225, 0.145], flip: false },
 };
 
+/* ---------- the power cord (Three/PowerCord.jsx) ---------- */
+// On the bench's back left, clear of the case both standing and laid down, and of the parts' trays.
+export const POWER_STRIP = { position: [-1.95, 0, -1.7] }; // the middle of its underside; long way along X
+export const CORD_COIL = { center: [-2.0, -0.72], radius: 0.25, turns: 3 }; // where the cord lies when it's taken out: x, z
+
+/* ---------- name tags in the 3D view ---------- */
+// The coloured dot on a tag says what kind of part it is (the words always say which).
+export const PART_DOT = {
+  motherboard: "#34d399", // the board
+  cpu: "#60a5fa", // processing
+  cpu_cooler: "#22d3ee", // cooling
+  ram1: "#a78bfa", // memory
+  ram2: "#a78bfa",
+  storage: "#f472b6", // storage
+  gpu: "#fb923c", // graphics
+  psu: "#fbbf24", // power
+  power: "#fbbf24",
+};
+
 /* ---------- monitor ---------- */
 export const SCREEN_W = 1.64;
 export const SCREEN_H = 0.99;
 export const MONITOR_SCALE = 5;
-export const STATION = { position: [0, 3.05, -4.5], rotationY: 0 }; // upright; its whole screen in the first view, above the case
+export const STATION = { position: [0, 5.1, -4.5], rotationY: 0 }; // upright, its bottom edge above the case's top from any view
 export const SCREEN_RES = { high: 1280, low: 240 };
 
 /* ---------- geometry helpers ---------- */

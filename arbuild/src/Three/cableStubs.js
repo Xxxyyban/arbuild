@@ -11,6 +11,7 @@
 //   SATA power     15-pin flat plug, to SATA drives
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { POWER_STRIP } from "../lab/Constants";
 
 export const MM = 1.467 / 305; // scene units per millimetre
 
@@ -300,6 +301,150 @@ export function buildCableStub(type) {
   g.name = `cable_${type}`;
   inner.scale.setScalar(MM);
   g.add(inner);
+  return merged(g);
+}
+
+/* ---------- the mains power cord and the power strip (Three/PowerCord.jsx) ---------- */
+// Real sizes again. Each plug: what goes in points down (-Y), its cord leaves up (+Y), and y = 0 is its
+// shoulder, the place that meets what it plugs into.
+
+export const CORD_RADIUS = 3.6 * MM; // a 7 mm mains cord
+const SHOULDER_TO_CORD = 46; // the plug's body and its ribbed sleeve, mm
+export const PLUG_REACH_MAINS = SHOULDER_TO_CORD * MM; // where the cord leaves either plug
+const SHROUD = 6.2; // how deep an IEC plug goes into the PSU's inlet, mm (the shallowest inlet is 7.4 mm)
+export const STRIP_SIZE = { w: 232, d: 58, h: 34 };
+const STRIP_SOCKETS = [78, 20, -38]; // each socket's x, mm from the strip's middle, the case's end first
+const STRIP_SWITCH = -88;
+/** Where the strip's first socket is, on the bench: the wall plug's shoulder when it's in. */
+export const STRIP_SOCKET = [
+  POWER_STRIP.position[0] + STRIP_SOCKETS[0] * MM,
+  POWER_STRIP.position[1] + (STRIP_SIZE.h + 0.5) * MM,
+  POWER_STRIP.position[2],
+];
+
+/** An outline in the XZ plane ([x, z], mm) standing from y0 to y1, its top and bottom edges softened. */
+function prism(outline, y0, y1, material, bevel = 0) {
+  const shape = new THREE.Shape();
+  outline.forEach(([x, z], i) => (i ? shape.lineTo(x, -z) : shape.moveTo(x, -z)));
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: y1 - y0 - 2 * bevel,
+    bevelEnabled: bevel > 0,
+    bevelSize: bevel,
+    bevelThickness: bevel,
+    bevelOffset: -bevel,
+    bevelSegments: 2,
+    curveSegments: 4,
+  });
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(0, y0 + bevel, 0);
+  // merged() needs every piece indexed, as boxes and cylinders are
+  geometry.setIndex(Array.from({ length: geometry.attributes.position.count }, (_, i) => i));
+  return new THREE.Mesh(geometry, material);
+}
+
+/** The outline of a rounded rectangle, w × d mm, for prism. */
+function roundedRect(w, d, r) {
+  const out = [];
+  [[1, 1], [-1, 1], [-1, -1], [1, -1]].forEach(([sx, sz], q) => {
+    for (let i = 0; i <= 4; i++) {
+      const a = ((q + i / 4) * Math.PI) / 2;
+      out.push([sx * (w / 2 - r) + r * Math.cos(a), sz * (d / 2 - r) + r * Math.sin(a)]);
+    }
+  });
+  return out;
+}
+
+/** The ribbed sleeve where a cord leaves a moulded plug: from y0 to y1, tapering from radius r0 to r1. */
+function strainRelief(g, y0, y1, r0, r1, material) {
+  const RIBS = 5;
+  const step = (y1 - y0) / RIBS;
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(r1 * 0.86, r0 * 0.86, y1 - y0 + 2, 14), material);
+  core.position.y = (y0 + y1) / 2 + 1;
+  g.add(core);
+  for (let i = 0; i < RIBS; i++) {
+    const r = r0 + ((r1 - r0) * i) / (RIBS - 1);
+    const rib = new THREE.Mesh(new THREE.CylinderGeometry(r, r, step * 0.6, 16), material);
+    rib.position.y = y0 + step * (i + 0.5);
+    g.add(rib);
+  }
+}
+
+/**
+ * The cord's PSU end, an IEC C13 plug, in scene units. What goes into the inlet has its corners cut on
+ * one side (+Z), so it only fits one way; its three holes are in the end of it.
+ */
+export function buildIecPlug() {
+  const g = new THREE.Group();
+  g.name = "plug_iec";
+  const black = mat("#17181b", { roughness: 0.62 });
+  const groove = mat("#0d0e10", { roughness: 0.8 });
+  const [W, D, CUT] = [22, 15.4, 4];
+  g.add(prism([[W / 2, -D / 2], [W / 2, D / 2 - CUT], [W / 2 - CUT, D / 2], [-W / 2 + CUT, D / 2], [-W / 2, D / 2 - CUT], [-W / 2, -D / 2]], -SHROUD, 0, black));
+  g.add(box(2.2, 0.3, 4.8, HOLE(), -6.6, -SHROUD - 0.1, -2.8));
+  g.add(box(2.2, 0.3, 4.8, HOLE(), 6.6, -SHROUD - 0.1, -2.8));
+  g.add(box(2.2, 0.3, 4.8, HOLE(), 0, -SHROUD - 0.1, 3.2));
+  // the grip: a broad shoulder, narrowing toward the cord, with ribs for the fingers
+  g.add(prism(roundedRect(31, 23, 4), 0, 14, black, 1.2));
+  g.add(prism(roundedRect(26, 19, 4), 13, 25, black, 1.2));
+  for (let i = 0; i < 3; i++) {
+    g.add(box(25, 0.8, 0.5, groove, 0, 4 + i * 3.2, 11.6));
+    g.add(box(25, 0.8, 0.5, groove, 0, 4 + i * 3.2, -11.6));
+  }
+  strainRelief(g, 25, 44, 6.4, 4.4, black);
+  g.scale.setScalar(MM);
+  return merged(g);
+}
+
+/** The cord's wall plug, in scene units: two flat brass blades and a round earth pin (Philippine and US sockets). */
+export function buildMainsPlug() {
+  const g = new THREE.Group();
+  g.name = "plug_mains";
+  const black = mat("#17181b", { roughness: 0.62 });
+  const brass = mat("#d8bd7f", { metalness: 0.85, roughness: 0.35 });
+  g.add(prism(roundedRect(30, 30, 7), 0, 20, black, 1.6));
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(7.4, 13.5, 9, 20), black);
+  neck.position.y = 24.5;
+  g.add(neck);
+  strainRelief(g, 28, 44, 6.4, 4.4, black);
+  g.add(box(1.5, 16, 6.3, brass, -6.35, -8, -3));
+  g.add(box(1.5, 16, 6.3, brass, 6.35, -8, -3));
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 17, 14), brass);
+  pin.position.set(0, -8.5, 9);
+  g.add(pin);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(2.4, 12, 8), brass);
+  tip.position.set(0, -17, 9);
+  g.add(tip);
+  g.scale.setScalar(MM);
+  return merged(g);
+}
+
+/**
+ * A power strip, in scene units, standing on the bench at y = 0, long way along X: three sockets for the
+ * wall plug (their middle at the plug's origin: blades 3 mm behind, the earth hole 9 mm in front) and a
+ * lit rocker switch at the far end.
+ */
+export function buildPowerStrip() {
+  const g = new THREE.Group();
+  g.name = "power_strip";
+  const { w, d, h } = STRIP_SIZE;
+  // greyer than they look: the lab's lights are bright, and paler ones wash out to plain white
+  const shell = mat("#a9adb6", { roughness: 0.62 });
+  const plate = mat("#7d828d", { roughness: 0.7 });
+  g.add(prism(roundedRect(w, d, 10), 0, h, shell, 2));
+  STRIP_SOCKETS.forEach((x) => {
+    const p = prism(roundedRect(42, 42, 8), h - 0.2, h + 0.5, plate);
+    p.position.x = x;
+    g.add(p);
+    g.add(box(1.9, 0.3, 7.4, HOLE(), x - 6.35, h + 0.55, -3));
+    g.add(box(1.9, 0.3, 7.4, HOLE(), x + 6.35, h + 0.55, -3));
+    const earth = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 0.3, 14), HOLE());
+    earth.position.set(x, h + 0.55, 9);
+    g.add(earth);
+  });
+  g.add(box(19, 1, 31, mat("#2a2b2f", { roughness: 0.7 }), STRIP_SWITCH, h + 0.4, 0));
+  g.add(box(15, 3, 26, mat("#b91c1c", { emissive: "#991b1b", emissiveIntensity: 0.55, roughness: 0.4 }), STRIP_SWITCH, h + 2.2, 0));
+  g.scale.setScalar(MM);
   return merged(g);
 }
 

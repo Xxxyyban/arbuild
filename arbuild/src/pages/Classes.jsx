@@ -22,8 +22,11 @@ import { studentCard, syncStudentCard, subscribeInstructorCard, ensureThumb } fr
 import { useNow } from "../components/instructor/LabMonitor";
 import Stream from "../components/class/Stream";
 import { StudentClassCard } from "../components/class/ClassCards";
-import { ClassMeta, Tabs } from "../components/class/ClassBits";
+import { ClassHero, Tabs } from "../components/class/ClassBits";
+import ClassFeed from "../components/class/ClassFeed";
+import { TodoList } from "../components/class/ProfileClasses";
 import AppShell from "../components/AppShell";
+import Circuit from "../components/Circuit";
 import Icon from "../components/Icon";
 import "../styles/BuildLab.css";
 import "../styles/Instructor.css";
@@ -107,6 +110,34 @@ function MyClasses() {
 
   const sorted = [...(list || [])].sort((a, b) => toMs(b.joinedAt) - toMs(a.joinedAt));
 
+  // beside the classes once there are some; alone and bigger while there are none
+  const joinCard = (first) => (
+    <form className={`cls-join ${first ? "cls-join--first" : ""}`.trim()} onSubmit={join}>
+      <Circuit />
+      <span className="icon-tile" aria-hidden="true">
+        <Icon name="key" size={first ? 26 : 22} />
+      </span>
+      <div className="cls-join__text">
+        <h2>{first ? "Join your first class" : "Join a class"}</h2>
+        <p>Enter the code from your instructor, or open their invite link. You only need it once.</p>
+      </div>
+      <div className="cls-join__go">
+        <input
+          className="cls-input cls-code-input"
+          value={code}
+          onChange={(e) => setCode(normalizeCode(e.target.value).slice(0, CODE_LENGTH))}
+          placeholder="CLASS CODE"
+          aria-label="Class code"
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <button type="submit" className="btn btn--primary" disabled={busy}>{busy ? "Joining…" : "Join class"}</button>
+      </div>
+      {error && <div className="ins-alert" role="alert">{error}</div>}
+    </form>
+  );
+
   return (
     <AppShell
       className="app-page--content"
@@ -114,48 +145,39 @@ function MyClasses() {
       title="My classes"
       subtitle="Announcements, learning materials and lab activities from your instructors."
     >
-      <form className="ins-panel cls-join" onSubmit={join}>
-        <div>
-          <h2 className="panel-title">
-            <Icon name="key" />
-            Join a class
-          </h2>
-          <p className="ins-muted ins-small">
-            Type the class code your instructor gave you (or open their invite link). You only need it once.
-          </p>
-        </div>
-        <div className="cls-row">
-          <input
-            className="cls-input cls-code-input"
-            value={code}
-            onChange={(e) => setCode(normalizeCode(e.target.value).slice(0, CODE_LENGTH))}
-            placeholder="CLASS CODE"
-            aria-label="Class code"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button type="submit" className="btn btn--primary" disabled={busy}>{busy ? "Joining…" : "Join class"}</button>
-        </div>
-        {error && <div className="ins-alert" role="alert">{error}</div>}
-      </form>
-
-      {list === null ? (
-        <p className="ins-muted">Loading…</p>
-      ) : sorted.length === 0 ? (
-        <div className="cls-empty cls-empty--big">
-          <strong>You're not in a class yet</strong>
-          <span>Enter the code from your instructor above. Then your announcements, materials and lab activities are all here.</span>
-        </div>
+      {list !== null && sorted.length === 0 ? (
+        joinCard(true)
       ) : (
-        <section className="page-section" aria-label="Your classes">
-          <h2 className="section-label">Your classes ({sorted.length})</h2>
-          <div className="cgrid">
-            {sorted.map((m) => (
-              <StudentClassCard key={m.id} entry={m} uid={user.uid} onOpen={() => navigate(`/classes/${m.id}`)} />
-            ))}
-          </div>
-        </section>
+        <div className="cls-home">
+          <section className="page-section" aria-label="Your classes">
+            <h2 className="section-label">
+              Your classes
+              {sorted.length > 0 && <span className="section-count">{sorted.length}</span>}
+            </h2>
+            <div className="cgrid">
+              {list === null
+                ? [0, 1].map((i) => <div key={i} className="ccard ccard--skeleton" aria-hidden="true" />)
+                : sorted.map((m) => <StudentClassCard key={m.id} entry={m} uid={user.uid} onOpen={() => navigate(`/classes/${m.id}`)} />)}
+            </div>
+          </section>
+          <aside className="cls-home__side">
+            <ClassFeed user={user} profile={profile}>
+              {(feed) =>
+                feed.todo.length > 0 && (
+                  <section className="ins-panel cls-todo">
+                    <h2 className="panel-title">
+                      <Icon name="todo" />
+                      To do
+                      <span className="section-count">{feed.todo.length}</span>
+                    </h2>
+                    <TodoList items={feed.todo} />
+                  </section>
+                )
+              }
+            </ClassFeed>
+            {joinCard(false)}
+          </aside>
+        </div>
       )}
     </AppShell>
   );
@@ -249,15 +271,15 @@ function ClassPage() {
   const joinedAt = toMs(member.joinedAt);
 
   return (
-    <AppShell className="app-page--content" back={BACK} eyebrow={ended ? "Ended class" : cls.section || "Class"} title={cls.name}>
-      <ClassMeta cls={cls}>
+    <AppShell className="app-page--content" back={BACK}>
+      <ClassHero cls={cls} eyebrow={ended ? "Ended class" : cls.section || "Class"}>
         {teacherName && (
           <span className="class-meta__item">
             <Icon name="user" size={16} />
             {teacherName}
           </span>
         )}
-      </ClassMeta>
+      </ClassHero>
 
       {ended && (
         <div className="cls-banner">

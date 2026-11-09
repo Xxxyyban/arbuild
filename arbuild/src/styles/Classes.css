@@ -504,16 +504,127 @@
   margin-left: 6px;
 }
 
+/* ---------- My classes: the classes, with the to-do list and joining beside them ---------- */
+.cls-home {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 20px;
+}
+
+.cls-home__side {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+@media (max-width: 1160px) {
+  .cls-home {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cls-join__go {
+    grid-template-columns: minmax(0, 340px) auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .cls-join__go {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- joining ---------- */
 .cls-join {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr minmax(260px, 380px);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 12px 20px;
+  gap: 14px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  background:
+    radial-gradient(90% 110% at 0% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    var(--card-bg);
+  box-shadow: var(--shadow-subtle);
+}
+
+.cls-join > :not(.circuit) {
+  position: relative;
+}
+
+.cls-join .circuit {
+  width: 150px;
+  height: 150px;
+  opacity: 0.22;
+}
+
+.cls-join__text h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cls-join__text p {
+  margin: 3px 0 0;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.cls-join__go {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
 }
 
 .cls-join .ins-alert {
   grid-column: 1 / -1;
+}
+
+/* no classes yet: joining is the whole page */
+.cls-join--first {
+  justify-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-height: 300px;
+  align-content: center;
+  padding: clamp(24px, 5vw, 44px);
+}
+
+.cls-join--first .circuit {
+  width: 240px;
+  height: 240px;
+  opacity: 0.3;
+}
+
+.cls-join--first .icon-tile {
+  width: 60px;
+  height: 60px;
+  border-radius: 17px;
+}
+
+.cls-join--first .cls-join__text h2 {
+  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cls-join--first .cls-join__text p {
+  max-width: 44ch;
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+.cls-join--first .cls-join__go {
+  grid-template-columns: minmax(0, 260px) auto;
+  width: min(100%, 420px);
 }
 
 .cls-code-input {
@@ -524,14 +635,22 @@
   text-transform: uppercase;
 }
 
+@media (max-width: 640px) {
+  .cls-join .circuit {
+    width: 110px;
+    height: 110px;
+  }
+
+  .cls-join--first .cls-join__go {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .cls-labform .ins-grid {
   margin-top: 10px;
 }
 
 @media (max-width: 760px) {
-  .cls-join {
-    grid-template-columns: 1fr;
-  }
   .cls-input--sm {
     width: 100%;
   }
@@ -541,76 +660,65 @@
   flex: none;
 }
 
-/* ---------- the profile page's Classes tab (pages/Profile.jsx) ----------
-   The profile page has its own theme tokens; map the class styles onto them. */
+/* ---------- the profile page's Classes tab (pages/Profile.jsx) ---------- */
 .profile-classes {
-  --lab-bg: var(--bg-void);
-  --lab-panel: var(--bg-panel);
-  --lab-card: var(--bg-panel);
-  --lab-line: var(--line-trace);
-  --lab-line-strong: var(--line-trace);
-  --lab-text: var(--text-primary);
-  --lab-text-soft: var(--text-primary);
-  --lab-muted: var(--text-muted);
-  --lab-accent: var(--accent-cyan);
-  --lab-accent-soft: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
-  --lab-surface: var(--bg-panel-raised);
-  --lab-surface-hover: var(--bg-panel-raised);
-  --lab-shadow: rgba(0, 0, 0, 0.08);
   display: grid;
-  gap: 14px;
-  color: var(--text-primary);
+  gap: 16px;
+  color: var(--text-main);
 }
 
-.profile-classes .ins-muted {
-  color: var(--text-muted);
-}
-
-.profile-classes .ins-small {
-  font-size: 0.8rem;
-}
-
-.profile-classes .ins-code-sm {
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
-  color: var(--accent-cyan);
-  font-family: var(--font-display, ui-monospace, monospace);
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
+.profile-classes section {
+  display: grid;
+  gap: 10px;
 }
 
 .profile-classes__join {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   max-width: 460px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  background:
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 70%),
+    var(--card-bg);
 }
 
 .profile-classes__join label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-main);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.profile-classes__join label .icon {
+  color: var(--primary-strong);
 }
 
 .profile-classes__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
 .profile-classes__head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  font-size: 0.95rem;
+  color: var(--text-main);
+  font-size: 0.98rem;
+  font-weight: 700;
 }
 
 .profile-classes a {
-  color: var(--accent-cyan);
+  color: var(--primary-strong);
   font-size: 0.85rem;
   font-weight: 600;
-}
-
-.profile-classes .cgrid {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 
 /* ---------- notification bell (components/class/NotificationBell.jsx) ----------
@@ -647,7 +755,7 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #ef5b4e;
+  background: #dc2626;
   color: #fff;
   font-size: 0.68rem;
   font-weight: 700;
@@ -844,26 +952,42 @@ body.rig-covered .nbell__toasts {
 .profile-todo button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line-trace);
-  background: var(--bg-panel);
-  color: var(--text-primary);
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
   font: inherit;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.profile-todo button > span:not(.avatar) {
+  flex: 1;
+  min-width: 0;
 }
 
 .profile-todo button:hover {
-  border-color: var(--accent-cyan);
+  border-color: var(--primary);
+  background: var(--primary-light);
 }
 
 .profile-todo small {
   display: block;
-  color: var(--text-muted);
+  margin-top: 2px;
+  color: var(--text-soft);
   font-size: 0.76rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.profile-todo__go {
+  flex: none;
+  color: var(--text-muted);
 }
 
 /* ---------- a student's profile card (components/class/PersonCard.jsx) ---------- */

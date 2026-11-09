@@ -10,7 +10,7 @@
 // Pure functions: no React, no Firebase.
 import { CATALOG, MEMORY_LABEL, PLATFORM_LABEL, categoryOf, correctPicks, itemFor, normalizePlatform, requiredWatts } from "./Catalog";
 import {
-  CABLES, PSU_SOCKET_KIND, SCREW_COUNT, PSU_SCREW_COUNT, GPU_SCREW_COUNT, cableNeeded, isGpuCable, m2Done, m2Start, psuCableFixed, psuMixUps, socketLocked, socketStart,
+  CABLES, CORD_IN, PSU_SOCKET_KIND, SCREW_COUNT, PSU_SCREW_COUNT, GPU_SCREW_COUNT, cableNeeded, isGpuCable, m2Done, m2Start, psuCableFixed, psuMixUps, socketLocked, socketStart,
 } from "./Rules";
 import { HEADERS, WIRES, WIRE_IDS, headerName, wireName, wireRight, wiresStart } from "./Wires";
 
@@ -167,6 +167,7 @@ export function scenarioStart(scenario, platform) {
     pasteApplied: !!installed.cpu && s.paste, // the paste goes on the CPU
     ramSlot: { ram1: installed.ram1 ? s.ramSlots[0] : null, ram2: installed.ram2 ? s.ramSlots[1] : null },
     power: { shutdown: false, unplugged: false, discharged: false },
+    cord: CORD_IN, // the faulty PC is plugged in, ready to try
     cables,
     psuCables,
     psuSockOf: s.swapped ? { ...SWAP } : {},

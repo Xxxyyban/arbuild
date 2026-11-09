@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { PLATFORMS } from "../../lab/Catalog";
 import { useAuth } from "../../context/AuthContext";
 import AppShell from "../AppShell";
+import Circuit from "../Circuit";
 import Icon from "../Icon";
 import Logo from "../Logo";
 import "../../styles/BuildLab.css";
@@ -30,24 +31,6 @@ const CHOICES = [
     start: { startMode: "assemble", startState: "empty" },
   },
 ];
-
-// the corner of each card: a bit of circuit board running out of a chip, as on the sign-in page
-const TRACES = ["M150 172 H112 V132 H72", "M150 192 H58", "M172 150 V112 H132 V72", "M192 150 V58"];
-const PADS = [[72, 132], [58, 192], [132, 72], [192, 58]];
-
-function Traces() {
-  return (
-    <svg className="lab-choice__traces" viewBox="0 0 200 200" aria-hidden="true">
-      {TRACES.map((d, i) => (
-        <path key={d} d={d} pathLength="1" style={{ animationDelay: `${0.1 + i * 0.08}s` }} />
-      ))}
-      {PADS.map(([cx, cy], i) => (
-        <circle key={cx} cx={cx} cy={cy} r="4" style={{ animationDelay: `${0.7 + i * 0.06}s` }} />
-      ))}
-      <rect x="150" y="150" width="80" height="80" rx="8" />
-    </svg>
-  );
-}
 
 // opening: a class's lab is on its way; status: why it couldn't open; backTo: that class
 export default function StartScreen({ onPractice, opening = false, status = null, backTo = null }) {
@@ -80,7 +63,7 @@ export default function StartScreen({ onPractice, opening = false, status = null
       <div className="lab-choices">
         {CHOICES.map((c) => (
           <button key={c.title} type="button" className="lab-choice" onClick={() => onPractice({ ...c.start, platform: randomPlatform() })}>
-            <Traces />
+            <Circuit className="lab-choice__traces" />
             <span className="lab-choice__top" aria-hidden="true">
               <span className="lab-choice__icon">
                 <Icon name={c.icon} size={28} strokeWidth={1.7} />

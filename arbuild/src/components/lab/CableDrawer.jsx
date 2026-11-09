@@ -3,7 +3,7 @@
 // bundle), then the part end. Under them, the case's and the fans' wires (lab/Wires.js): pick one,
 // then the header it goes on. Styles: styles/BuildLabParts.css (.cable-drawer*); the option cards
 // reuse .picker__*.
-import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, cableNeeded } from "../../lab/Rules";
+import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, cableNeeded, cordIn } from "../../lab/Rules";
 import { WIRES, WIRE_GROUPS, WIRE_IDS, wireBlock, headerName } from "../../lab/Wires";
 import Icon from "../Icon";
 
@@ -23,7 +23,8 @@ const PINS = {
 const PART_END = { atx24: "Motherboard", eps8: "Motherboard", pcie: "Graphics card", pcie6: "Graphics card" };
 
 // labels: false when the instructor hides the board's labels (a wire's header isn't named then)
-export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose, wires, headers, activeWire, onPickWire, labels = true }) {
+// cord: the mains power cord, { psu, wall }; cordNext: why it can't go in yet (Rules cordBlock)
+export default function CableDrawer({ cables, psuCables, installed, picks, active, besidePicker, onPick, onClose, wires, headers, activeWire, onPickWire, labels = true, cord, cordActive, cordNext, onPickCord }) {
   const modular = psuModular(picks);
   const anyFixed = Object.keys(CABLES).some((c) => psuCableFixed(c, picks));
   return (
@@ -84,6 +85,28 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
               </li>
             );
           })}
+          {/* the mains cord: last of all, into the PSU and then the power strip */}
+          <li className={cordIn(cord) || cordActive ? "is-chosen" : ""}>
+            <button type="button" className="picker__option" disabled={cordIn(cord) || !!cordNext} onClick={onPickCord}>
+              <span className="picker__name">Power cord</span>
+              <span className="cable-drawer__swatch" aria-hidden="true">
+                <i style={{ background: "#141518" }} />
+              </span>
+              <span className="cable-drawer__ends">
+                <End label="PSU" done={!!cord?.psu} />
+                <End label="Power strip" done={!!cord?.wall} />
+              </span>
+              <span className="picker__state">
+                {cordIn(cord)
+                  ? "Plugged in at both ends ✓"
+                  : cordActive
+                  ? "Connecting…"
+                  : cordNext
+                  ? cordNext.msg
+                  : "A 3-pin plug and a wall plug. It goes in last: the PSU first, then the power strip."}
+              </span>
+            </button>
+          </li>
         </ul>
 
         {WIRE_GROUPS.map((g) => (

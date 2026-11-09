@@ -101,14 +101,6 @@ export function formatWhen(s) {
   return groups.map((g) => [formatDays(g.days), formatRange(g.start, g.end)].filter(Boolean).join(" ")).join(" · ");
 }
 
-/** The whole schedule on one line: "MWF · 9:00–10:30 AM · Lab 2" */
-export function formatSchedule(s) {
-  return [formatWhen(s), normalizeSchedule(s).room].filter(Boolean).join(" · ");
-}
-
-/** One line under a class's name: section, then the schedule (or the old free-text subject). */
-export const classLine = (cls) => [cls?.section, formatSchedule(cls?.schedule) || cls?.subject].filter(Boolean).join(" · ");
-
 const minutes = (t) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;

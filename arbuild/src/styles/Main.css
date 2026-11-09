@@ -182,12 +182,12 @@ body {
 
 .sidebar__link:hover {
   background-color: var(--primary-light);
-  color: var(--primary);
+  color: var(--primary-strong);
 }
 
 .sidebar__link.active {
   background-color: var(--primary-light);
-  color: var(--primary);
+  color: var(--primary-strong);
   font-weight: 600;
 }
 
@@ -285,7 +285,7 @@ body {
   align-items: center;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-strong);
   background-color: var(--primary-light);
   padding: 4px 10px;
   border-radius: 20px;
@@ -323,7 +323,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--primary);
+  color: var(--primary-strong);
   background-color: var(--primary-light);
   padding: 8px;
   border-radius: var(--radius-sm);
@@ -477,7 +477,7 @@ body {
 .modal-badge-tag {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-strong);
   background-color: var(--primary-light);
   padding: 4px 10px;
   border-radius: 20px;

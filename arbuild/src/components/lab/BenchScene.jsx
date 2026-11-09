@@ -6,9 +6,10 @@ import { Text, Billboard } from "@react-three/drei";
 import CaseModel from "../../Three/CaseModel";
 import PartModel from "../../Three/PartModel";
 import CaseFanModel from "../../Three/CaseFanModel";
+import { PillLabel } from "../../Three/Hardware";
 import { ARContext } from "../../Three/xrSetup";
 import {
-  TABLE, LABEL_OFFSETS, trayPosition, LAY_ANGLE, measureLocalBox,
+  TABLE, LABEL_OFFSETS, PART_DOT, trayPosition, LAY_ANGLE, measureLocalBox,
   FAN_CONFIG, FRONT_SIGN, FAN_GROUPS, CPU_SOCKET_ABS,
   MOBO_LYING_ROTATION, RAM_LYING_ROTATION, CPU_TRAY_ROTATION,
   PSU_TRAY_ROTATION, GPU_TRAY_ROTATION, GPU_SPIN_X, GPU_SPIN_Y, GPU_SPIN_Z,
@@ -228,40 +229,11 @@ export function Workbench() {
   );
 }
 
-// Always faces the camera and always draws on top of models.
-// A part's name tag on the bench. `sub` (the model, e.g. "DDR4") is a second, dimmer line.
+// A part's name tag on the bench: faces the camera and draws on top of the models. `sub` (the model, e.g.
+// "DDR4") is a second, dimmer line. Up close a tag would fill the screen, so it hides when the camera comes near.
 export function TrayLabel({ name, text, sub = null, offset = LABEL_OFFSETS[name] ?? [0, 0.3, 0] }) {
   const [x, y, z] = trayPosition(name);
-  const w = Math.max(text.length, sub ? sub.length * 0.8 : 0) * 0.062 + 0.18;
-  const h = sub ? 0.2 : 0.13;
-  // up close a tag would fill the screen, so it hides when the camera comes near
-  const ref = useRef();
-  const inAR = useContext(ARContext); // in AR the whole bench is scaled down: keep tags on
-  useFrame(({ camera }) => {
-    if (ref.current) ref.current.visible = inAR || camera.position.distanceTo(ref.current.position) > 2.4;
-  });
-  return (
-    <Billboard ref={ref} position={[x + offset[0], y + offset[1], z + offset[2]]}>
-      <mesh raycast={() => null} renderOrder={999}>
-        <planeGeometry args={[w, h]} />
-        <meshBasicMaterial color="#0f172a" transparent opacity={0.8} depthTest={false} />
-      </mesh>
-      <Text
-        position={[0, sub ? 0.035 : 0, 0.001]} fontSize={0.074} color="#ffffff" anchorX="center" anchorY="middle"
-        renderOrder={1000} material-depthTest={false} raycast={() => null}
-      >
-        {text}
-      </Text>
-      {sub && (
-        <Text
-          position={[0, -0.05, 0.001]} fontSize={0.05} color="#94a3b8" anchorX="center" anchorY="middle"
-          renderOrder={1000} material-depthTest={false} raycast={() => null}
-        >
-          {sub}
-        </Text>
-      )}
-    </Billboard>
-  );
+  return <PillLabel text={text} sub={sub} dot={PART_DOT[name]} position={[x + offset[0], y + offset[1], z + offset[2]]} hideNear={2.4} />;
 }
 
 /**

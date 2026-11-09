@@ -14,9 +14,9 @@ import StorageModel from "./StorageModel";
 import StorageModel1 from "./StorageModel1";
 import GPUModel from "./GPUModel";
 import GPUModel1 from "./GPUModel1";
-import PSUModel, { MODULAR as PSU_PANEL_0 } from "./PSUModel";
-import PSUModel1, { MODULAR as PSU_PANEL_1, FIXED as PSU_FIXED_1 } from "./PSUModel1";
-import PSUModel2, { MODULAR as PSU_PANEL_2 } from "./PSUModel2";
+import PSUModel, { MODULAR as PSU_PANEL_0, INLET as PSU_INLET_0 } from "./PSUModel";
+import PSUModel1, { MODULAR as PSU_PANEL_1, FIXED as PSU_FIXED_1, INLET as PSU_INLET_1 } from "./PSUModel1";
+import PSUModel2, { MODULAR as PSU_PANEL_2, INLET as PSU_INLET_2 } from "./PSUModel2";
 
 const MODELS = {
   motherboard: [MotherboardModel, MotherboardModel1],
@@ -51,6 +51,8 @@ export const BOARD_SOCKETS = [SOCKET_0, SOCKET_1];
 export const PSU_PANELS = [PSU_PANEL_0, PSU_PANEL_1, PSU_PANEL_2];
 // where a PSU with fixed cables has them (by variant): the Aerocool's grommet and coils
 export const PSU_FIXED = [null, PSU_FIXED_1, null];
+// where each PSU's mains inlet is (by variant), for the Build Lab's power cord: every PSU has one
+export const PSU_INLETS = [PSU_INLET_0, PSU_INLET_1, PSU_INLET_2];
 
 /** <PartModel category="cpu" variant={1} /> draws CPUModel1. Other props go to that component. */
 export default function PartModel({ category, variant = 0, ...props }) {

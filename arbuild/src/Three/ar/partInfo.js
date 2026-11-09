@@ -98,6 +98,7 @@ export const PARTS = {
       "Plug the 24-pin cable into the board.",
       "Plug the 8-pin cable into the CPU power spot.",
       "Run PCIe cables straight to the graphics card.",
+      "Last of all, plug the power cord in: the PSU first, then the wall.",
     ],
     dos: ["Pick enough watts for your parts.", "Use the cables that came with it."],
     donts: ["Never open it. It holds a dangerous charge.", "Don't mix cables from other brands."],

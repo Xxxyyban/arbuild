@@ -2,7 +2,7 @@
 // live preview of the card students will see. Each day it meets has its own time. Styles:
 // styles/AppShell.css (.cform*).
 import { useState } from "react";
-import { DAYS, CLASS_COLORS, EMPTY_SCHEDULE, normalizeSchedule, formatSchedule } from "../../lab/Schedule";
+import { DAYS, CLASS_COLORS, EMPTY_SCHEDULE, normalizeSchedule, formatWhen } from "../../lab/Schedule";
 import { ClassCardView } from "./ClassCards";
 
 const NO_TIME = { start: "", end: "" };
@@ -50,7 +50,6 @@ export default function ClassForm({ initial = null, submitLabel, busy, onSubmit,
     onSubmit({ name: name.trim(), section: section.trim(), schedule: clean, color });
   }
 
-  const line = [section.trim(), formatSchedule(schedule)].filter(Boolean).join(" · ");
 
   return (
     <form className="cform" onSubmit={submit}>
@@ -131,7 +130,13 @@ export default function ClassForm({ initial = null, submitLabel, busy, onSubmit,
 
       <aside className="cform__preview" aria-label="Preview">
         <span className="cform__preview-label">Students will see</span>
-        <ClassCardView name={name || "Subject name"} line={line || "Section · schedule"} color={color} />
+        <ClassCardView
+          name={name || "Subject name"}
+          section={section.trim() || "Section"}
+          meets={formatWhen(schedule) || "Days and times"}
+          room={schedule.room?.trim()}
+          color={color}
+        />
       </aside>
 
       {error && <div className="ins-alert cform__error" role="alert">{error}</div>}

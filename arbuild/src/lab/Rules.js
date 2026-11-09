@@ -14,7 +14,8 @@ import { bootWires, wireSteps, anyWire } from "./Wires";
 //      (lab/Wires.js), while the bottom of the board is still easy to reach.
 //   5. Graphics card last (it covers the M.2 slot), its bracket screwed to the back of the case, then
 //      its PCIe power cables (8-pin, and 6-pin if it has the socket).
-//   6. Power on.
+//   6. The power cord, last: into the PSU first, then the wall (here, the power strip on the bench).
+//   7. Power on.
 // A teardown has no fixed order: after power off, unplug and drain, parts can come out in any order
 // as long as nothing is physically in the way (REMOVE_NEEDS). The board may come out with its
 // CPU, cooler, RAM and SSD still on it, the way technicians usually do it.
@@ -187,6 +188,20 @@ export function plugBlock(cable, installed, picks = null, psuCables = null) {
 /** Which cables a build needs plugged in right now. */
 export const neededCables = (installed) => Object.keys(CABLES).filter((c) => CABLES[c].needs.every((p) => installed[p]));
 
+/* ---------- the mains power cord ---------- */
+// cord = { psu: in the PSU's inlet, wall: in the power strip }. It goes in at the PSU first, the wall last.
+export const NO_CORD = { psu: false, wall: false };
+export const CORD_IN = { psu: true, wall: true };
+export const cordIn = (cord) => !!cord?.psu && !!cord?.wall;
+
+/** Can the power cord be plugged in now? null, or { key, msg }. */
+export function cordBlock(installed, picks, psuScrews = []) {
+  if (!picks?.psu) return { key: "power_cord", msg: "Pick a PSU first." };
+  if (!installed.psu) return { key: "power_cord", msg: "Put the PSU in the case first: the cord goes into the socket on its back." };
+  if (psuScrews.some((s) => !s)) return { key: "power_cord", msg: "Screw the PSU to the case first, then plug the cord into it." };
+  return null;
+}
+
 /** The safety steps every hands-on step needs first (null when safe). */
 export function safetyBlock(power) {
   if (!power.unplugged) {
@@ -252,15 +267,15 @@ export function removeBlock(name, installed, power, links = null) {
 
 /**
  * Decides what the monitor shows when the student presses POWER ON.
- * state = { installed, pasteApplied, pasteThin, ramSlot: { ram1, ram2 }, picks, cables, wires, headers, psuSockOf }
+ * state = { installed, pasteApplied, pasteThin, ramSlot: { ram1, ram2 }, picks, cables, wires, headers, psuSockOf, cord }
  * (wires: lab/Wires.js, headers: the board's MOUNTS.headers; without wires they aren't checked;
- * psuSockOf: the PSU socket each cable is in, when not its own).
+ * psuSockOf: the PSU socket each cable is in, when not its own; cord: the power cord, unchecked without it).
  * `hints` false hides the "fix" text so students must troubleshoot on their own. A running PC's
  * `symptoms` ([{ text, cause }]: a dark power light, dead front USB...) always show, they're what
  * you'd notice; only with hints on does each come with its cause.
  */
 export function evaluateBoot(state, { hints = true } = {}) {
-  const { installed, pasteApplied, pasteThin = false, ramSlot, picks = null, cables = null, wires = null, headers = null, psuSockOf = null } = state;
+  const { installed, pasteApplied, pasteThin = false, ramSlot, picks = null, cables = null, wires = null, headers = null, psuSockOf = null, cord = null } = state;
   const ramCount = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   const lowRes = !installed.gpu;
   const fix = (text) => (hints ? text : "");
@@ -269,6 +284,14 @@ export function evaluateBoot(state, { hints = true } = {}) {
 
   if (!installed.motherboard) return { status: "dead", message: "Nothing happens, there is no motherboard in the case." };
   if (!installed.psu) return { status: "dead", message: "Nothing happens, there's no power supply installed." };
+  if (cord && !cordIn(cord)) {
+    return {
+      status: "dead", part: "power_cord",
+      message: hints
+        ? `Nothing happens. The power cord isn't plugged into the ${cord.psu ? "power strip" : "PSU"}, so the PC has no power. Open Cables and plug it in.`
+        : "Nothing happens.",
+    };
+  }
   if (cables && !cables.atx24) {
     return {
       status: "dead", part: "cable_atx24",
@@ -493,9 +516,9 @@ export const isFullyBuilt = (installed, picks) => buildSlots(picks).every((p) =>
  * Checklist for the lab's guide card: [{ label, done, anyOrder }].
  * Building follows the expert order. Taking apart starts with the safety steps (in order),
  * then every part can come out in any order (anyOrder: true).
- * state = { installed, picks, pasteApplied, booted, power }
+ * state = { installed, picks, pasteApplied, booted, power, cord }
  */
-export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cables = {}, screws = [], psuScrews = [], gpuScrews = [], psuCables = {}, m2 = null, socket = null, wires = null }) {
+export function expertSteps(mode, { installed, picks, pasteApplied, booted, power, cord = null, cables = {}, screws = [], psuScrews = [], gpuScrews = [], psuCables = {}, m2 = null, socket = null, wires = null }) {
   const slot = m2 || m2Start(installed.storage);
   const sock = socket || socketStart(installed.cpu);
   const lga = socketKind(picks) === "lga";
@@ -514,7 +537,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
     const any = (label, done) => ({ label, done, anyOrder: true });
     return [
       { label: "Shut the PC down", done: power.shutdown },
-      { label: "Unplug the power cable", done: power.unplugged },
+      { label: "Unplug the power cord", done: power.unplugged },
       { label: "Hold the power button to drain leftover power", done: power.discharged },
       any(gpuSixPin(picks) ? "8-pin and 6-pin PCIe cables unplugged (before the graphics card comes out)" : "PCIe cable unplugged (before the graphics card comes out)", !cables.pcie && !cables.pcie6),
       any(`Card's bracket screws out, on the back of the case (${GPU_SCREW_COUNT - gpuDriven} of ${GPU_SCREW_COUNT})`, out("gpu") || gpuDriven === 0),
@@ -575,6 +598,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
             : { label: "Plug PCIe power into the graphics card", done: !!cables.pcie },
         ]
       : []),
+    { label: "Plug the power cord in: the PSU first, then the power strip", done: cordIn(cord) },
     { label: "Power on and check it boots", done: !!booted },
   ];
 }

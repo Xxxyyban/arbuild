@@ -1,13 +1,13 @@
-// Class cards, used on Classes, the instructor's classes and the profile page: the class's
-// initials in its colour, its section and schedule, when it next meets, and what's new.
-// Each card keeps itself up to date. Styles: styles/AppShell.css (.ccard*).
+// Class cards, used on Classes, the instructor's classes and the profile page: the class's initials on
+// a tile in its colour, its section and schedule, when it next meets, and what's new. Each card keeps
+// itself up to date. Styles: styles/AppShell.css (.ccard*).
 import { useEffect, useState } from "react";
 import { subscribeClass, subscribeMember, subscribeMyRemoval, shownName, when, toMs } from "../../lab/Classes";
-import { classLine, nextMeeting, initials, CLASS_COLORS } from "../../lab/Schedule";
+import { formatWhen, nextMeeting, normalizeSchedule, initials, CLASS_COLORS } from "../../lab/Schedule";
 import Icon from "../Icon";
 
 /** The card itself. As a button with onOpen; as a plain box without (the class form's preview). */
-export function ClassCardView({ name, line, color, next, onOpen, children }) {
+export function ClassCardView({ name, section, meets, room, color, next, onOpen, children }) {
   const Tag = onOpen ? "button" : "div";
   return (
     <Tag
@@ -19,13 +19,34 @@ export function ClassCardView({ name, line, color, next, onOpen, children }) {
         <span className="ccard__avatar" aria-hidden="true">{initials(name || "Class")}</span>
         <span className="ccard__titles">
           <strong className="ccard__name">{name || "Class"}</strong>
-          <span className="ccard__line">{line || " "}</span>
+          {section && <span className="ccard__section">{section}</span>}
         </span>
+        {onOpen && (
+          <span className="ccard__go" aria-hidden="true">
+            <Icon name="forward" size={16} />
+          </span>
+        )}
       </span>
+      {(meets || room) && (
+        <span className="ccard__facts">
+          {meets && (
+            <span>
+              <Icon name="calendar" size={15} />
+              {meets}
+            </span>
+          )}
+          {room && (
+            <span>
+              <Icon name="room" size={15} />
+              {room}
+            </span>
+          )}
+        </span>
+      )}
       {next && (
         <span className={`ccard__next ${next.now ? "is-now" : ""}`}>
           <Icon name="clock" size={14} />
-          {next.label}
+          {next.now ? next.label : `Next: ${next.label}`}
         </span>
       )}
       {children && <span className="ccard__foot">{children}</span>}
@@ -37,7 +58,9 @@ function Card({ cls, fallbackName, onOpen, children }) {
   return (
     <ClassCardView
       name={cls?.name || fallbackName}
-      line={classLine(cls)}
+      section={cls?.section}
+      meets={formatWhen(cls?.schedule) || cls?.subject}
+      room={normalizeSchedule(cls?.schedule).room}
       color={cls?.color}
       next={cls?.archived ? null : nextMeeting(cls?.schedule)}
       onOpen={onOpen}
@@ -70,9 +93,12 @@ export function StudentClassCard({ entry, uid, onOpen }) {
       ) : cls?.archived ? (
         <span className="chip">Ended</span>
       ) : newPosts ? (
-        <span className="chip chip--alert">New posts</span>
+        <span className="chip chip--live">New posts</span>
       ) : (
-        <span className="chip">Up to date</span>
+        <span className="chip">
+          <Icon name="check" size={12} strokeWidth={2.6} />
+          Up to date
+        </span>
       )}
     </Card>
   );

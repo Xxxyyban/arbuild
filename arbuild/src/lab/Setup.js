@@ -1,7 +1,7 @@
 // Session setup (what the instructor controls) and join codes.
 import { ALL_PARTS } from "./Constants";
 import { correctPicks, normalizePlatform } from "./Catalog";
-import { m2Start, socketStart, gpuSixPin, PSU_SCREW_COUNT, GPU_SCREW_COUNT } from "./Rules";
+import { m2Start, socketStart, gpuSixPin, PSU_SCREW_COUNT, GPU_SCREW_COUNT, CORD_IN, NO_CORD } from "./Rules";
 import { wiresStart } from "./Wires";
 import { scenarioStart } from "./Faults";
 
@@ -68,6 +68,8 @@ export function buildStart(setup) {
     // slots 1+3 so a "full" PC boots with dual channel and no warning
     ramSlot: { ram1: installed.ram1 ? 0 : null, ram2: installed.ram2 ? 2 : null },
     power: { shutdown: false, unplugged: false, discharged: false },
+    // a PC to take apart, or one that was running, has its power cord in; building, it goes in last
+    cord: installed.psu && (full || s.startMode === "disassemble") ? CORD_IN : NO_CORD,
     // a PC that was running has its cables plugged in and its board screwed down
     cables: { atx24: full, eps8: full, pcie: full && !!picks.gpu, pcie6: full && gpuSixPin(picks) },
     // a PSU in the case has its modular cables on it already (only the ones this build uses)

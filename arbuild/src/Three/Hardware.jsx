@@ -4,13 +4,15 @@
 // A plug sits on its header when plugged in; otherwise it hovers a little way out along its wires.
 // A screw sits flush in its hole when driven in; loose, it hovers above the hole.
 // Anything waiting to be used bobs gently. Clicks go to onClick; userData.partId lets AR taps find them.
-import { useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
+import { ARContext } from "./xrSetup";
 import { buildCableStub, buildHeaderPlug, buildScrew, buildPcieSocket, MM } from "./cableStubs";
 import { buildM2Cover, restingOffset, M2_COVER_SCREWS, SSD_SCREW, SSD_TOP } from "./m2Cover";
 import { buildZifLever, buildLeverHook, buildLoadPlate, buildSocketCap, LEVER_LIFT, LEVER_OUT, PLATE_OPEN } from "./cpuSocket";
+import { PART_DOT } from "../lab/Constants";
 
 const PLUG_OUT = 0.11; // how far an unplugged plug hovers out from its socket (scene units)
 const SCREW_OUT = 0.035; // how far a loose screw hovers above its hole
@@ -29,7 +31,7 @@ function useSlide(ref, out, waiting, spin = false) {
   });
 }
 
-const pointer = {
+export const pointer = {
   onPointerOver: (e) => {
     e.stopPropagation();
     document.body.style.cursor = "pointer";
@@ -39,7 +41,7 @@ const pointer = {
   },
 };
 
-const click = (fn) => (e) => {
+export const click = (fn) => (e) => {
   e.stopPropagation();
   fn?.();
 };
@@ -49,10 +51,101 @@ const click = (fn) => (e) => {
  * rings, depth test off) or that are the student's next move (a plug to push in), so a part in front
  * (a tall header, a tower cooler) can't swallow the click. Use as a mesh's `raycast`.
  */
-function raycastOnTop(raycaster, intersects) {
+export function raycastOnTop(raycaster, intersects) {
   const from = intersects.length;
   THREE.Mesh.prototype.raycast.call(this, raycaster, intersects);
   for (let i = from; i < intersects.length; i++) intersects[i].distance = 0;
+}
+
+const pillShapes = new Map(); // a pill's size -> its shape, kept: labels come and go, sizes repeat
+/** A rounded bar, w × h, centred on the origin. r: its corners (half the height: a pill). */
+export function pillGeometry(w, h, r = h / 2) {
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}|${r.toFixed(3)}`;
+  if (!pillShapes.has(key)) {
+    const [x, y] = [w / 2 - r, h / 2 - r];
+    const s = new THREE.Shape();
+    s.moveTo(-x, -h / 2);
+    s.lineTo(x, -h / 2);
+    s.absarc(x, -y, r, -Math.PI / 2, 0);
+    s.lineTo(w / 2, y);
+    s.absarc(x, y, r, 0, Math.PI / 2);
+    s.lineTo(-x, h / 2);
+    s.absarc(-x, y, r, Math.PI / 2, Math.PI);
+    s.lineTo(-w / 2, -y);
+    s.absarc(-x, -y, r, Math.PI, Math.PI * 1.5);
+    pillShapes.set(key, new THREE.ShapeGeometry(s, 10));
+  }
+  return pillShapes.get(key);
+}
+
+const PILL_BG = "#0b1220"; // white on it is 18:1, its second line 12:1: it reads over the bench, a dark case or a camera picture
+const PILL_EDGE = "#475569";
+const PILL_SUB = "#cbd5e1";
+const noRay = () => null;
+
+/**
+ * A name tag in the 3D view: a dark pill with a coloured dot for the kind of part (Constants PART_DOT),
+ * drawn over everything and sized to its words once they're laid out. `sub`: a dimmer second line.
+ * hideNear: hidden when the camera is closer than this, where it would fill the view (not in AR, where
+ * the bench is small). billboard false: fixed in the scene, facing +Z, its left end at `position`, and
+ * things in front of it hide it.
+ */
+export function PillLabel({ text, sub = null, dot = null, size = 0.074, position, hideNear = 0, billboard = true }) {
+  const inAR = useContext(ARContext);
+  const ref = useRef();
+  const [wide, setWide] = useState({});
+  const measure = (id) => (mesh) => {
+    const box = mesh.textRenderInfo?.blockBounds;
+    if (box) setWide((w) => (w[id] === box[2] - box[0] ? w : { ...w, [id]: box[2] - box[0] }));
+  };
+  useFrame(({ camera }) => {
+    if (hideNear && ref.current) ref.current.visible = inAR || camera.position.distanceTo(ref.current.position) > hideNear;
+  });
+  // the words' width, guessed until they're laid out
+  const textW = Math.max(wide.main ?? text.length * size * 0.56, sub ? wide.sub ?? sub.length * size * 0.42 : 0);
+  const pad = size * 0.68;
+  const dotD = dot ? size * 0.58 : 0;
+  const gap = dot ? size * 0.44 : 0;
+  const w = pad * 2 + dotD + gap + textW;
+  const h = sub ? size * 2.45 : size * 1.8;
+  const left = -w / 2 + pad + dotD + gap;
+  const mainY = sub ? size * 0.42 : 0;
+  const Holder = billboard ? Billboard : "group";
+  const edge = size * 0.07;
+  const shift = billboard ? 0 : w / 2 + edge;
+  const look = { transparent: true, depthTest: !billboard, depthWrite: false, toneMapped: false };
+  return (
+    <Holder ref={ref} position={position}>
+      <group position={[shift, 0, 0]}>
+        <mesh geometry={pillGeometry(w + edge * 2, h + edge * 2)} raycast={noRay} renderOrder={998}>
+          <meshBasicMaterial color={PILL_EDGE} {...look} />
+        </mesh>
+        <mesh geometry={pillGeometry(w, h)} raycast={noRay} renderOrder={999}>
+          <meshBasicMaterial color={PILL_BG} {...look} />
+        </mesh>
+        {dot && (
+          <mesh position={[-w / 2 + pad + dotD / 2, mainY, 0]} raycast={noRay} renderOrder={1000}>
+            <circleGeometry args={[dotD / 2, 20]} />
+            <meshBasicMaterial color={dot} {...look} />
+          </mesh>
+        )}
+        <Text
+          position={[left, mainY, 0]} fontSize={size} fontWeight={600} color="#ffffff" anchorX="left" anchorY="middle"
+          renderOrder={1001} material-depthTest={!billboard} material-toneMapped={false} raycast={noRay} onSync={measure("main")}
+        >
+          {text}
+        </Text>
+        {sub && (
+          <Text
+            position={[left, -size * 0.66, 0]} fontSize={size * 0.72} color={PILL_SUB} anchorX="left" anchorY="middle"
+            renderOrder={1001} material-depthTest={!billboard} material-toneMapped={false} raycast={noRay} onSync={measure("sub")}
+          >
+            {sub}
+          </Text>
+        )}
+      </group>
+    </Holder>
+  );
 }
 
 /**
@@ -133,8 +226,9 @@ export function CableRun({ points, radius = 0.014, color = "#16171a", ghost = fa
 /**
  * A header the student can click while connecting a cable: a pulsing ring, with a name when hints are on.
  * The small headers for the case's wires use a small ring, and their label (as printed) close beside it.
+ * pill: the name in a pill (the board's small headers are too close together for that).
  */
-export function PortMarker({ position, label, onClick, partId, size = 0.06, labelAt = [0, 0.1, 0.04], fontSize = 0.035, hit = null }) {
+export function PortMarker({ position, label, onClick, partId, size = 0.06, labelAt = [0, 0.1, 0.04], fontSize = 0.035, hit = null, pill = false, dot = "#34d399" }) {
   const ring = useRef();
   useFrame((state) => {
     if (ring.current) ring.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 5) * 0.12);
@@ -158,7 +252,8 @@ export function PortMarker({ position, label, onClick, partId, size = 0.06, labe
         {hit ? <planeGeometry args={hit} /> : <circleGeometry args={[size, 20]} />}
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      {label && (
+      {label && pill && <PillLabel text={label} dot={dot} size={fontSize} position={labelAt} />}
+      {label && !pill && (
         <Billboard position={labelAt}>
           <Text fontSize={fontSize} color="#ffffff" outlineWidth={fontSize * 0.11} outlineColor="#0f172a" anchorX="center" renderOrder={999} material-depthTest={false}>
             {label}
@@ -406,13 +501,7 @@ export function M2CoverOnBench({ look = BUILT_M2_COVER, position, label, waiting
       <group ref={lift} userData={{ partId: "m2cover" }} onPointerDown={(e) => e.stopPropagation()} onClick={click(onClick)} {...pointer}>
         <look.Body resting />
       </group>
-      {label && (
-        <Billboard position={[0, 0.09, 0]}>
-          <Text fontSize={0.05} color="#e5e7eb" outlineWidth={0.004} outlineColor="#111827" anchorX="center">
-            {label}
-          </Text>
-        </Billboard>
-      )}
+      {label && <PillLabel text={label} dot={PART_DOT.storage} size={0.05} position={[0, 0.11, 0]} />}
     </group>
   );
 }
@@ -514,13 +603,7 @@ export function SocketCapOnBench({ size, position, label, waiting, onClick }) {
         {/* the cover's z (out of the socket) points up */}
         <primitive object={object} rotation={[-Math.PI / 2, 0, 0]} />
       </group>
-      {label && (
-        <Billboard position={[0, 0.09, 0]}>
-          <Text fontSize={0.05} color="#e5e7eb" outlineWidth={0.004} outlineColor="#111827" anchorX="center">
-            {label}
-          </Text>
-        </Billboard>
-      )}
+      {label && <PillLabel text={label} dot={PART_DOT.cpu} size={0.05} position={[0, 0.11, 0]} />}
     </group>
   );
 }
