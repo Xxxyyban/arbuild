@@ -2,6 +2,7 @@
    (components/rig/GuidePanel.jsx). Uses the --lab-* variables (AppShell.css). */
 
 .rig {
+  --rig-h: min(74vh, 760px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
@@ -12,7 +13,7 @@
 /* ---------- the 3D view ---------- */
 .rig__stage {
   position: relative;
-  height: min(74vh, 760px);
+  height: var(--rig-h);
   min-height: 420px;
   border-radius: 16px;
   overflow: hidden;
@@ -274,6 +275,8 @@
   min-height: 0;
   max-height: min(48vh, 420px);
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lab-line-strong) transparent;
   border-radius: 14px;
   background: var(--lab-card);
   border: 1px solid var(--lab-line);
@@ -565,47 +568,57 @@
 }
 
 /* ---------- the guide ---------- */
+/* beside the view, and as tall as it: the top and foot stay put, the middle scrolls */
 .rig__guide {
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
+  height: var(--rig-h);
+  min-height: 420px;
+  overflow: hidden;
   border-radius: 16px;
   background: var(--lab-card);
   border: 1px solid var(--lab-line);
-  box-shadow: 0 12px 30px var(--lab-shadow);
 }
 
 .rguide {
-  display: grid;
-  gap: 12px;
-  padding: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   color: var(--lab-text);
 }
 
-.rguide--compact {
+.rguide__top {
+  flex: none;
+  display: grid;
   gap: 10px;
-  padding: 14px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--lab-line);
 }
 
-.rguide__nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 32px;
+.rguide__body {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px 18px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lab-line-strong) transparent;
 }
 
-.rguide__ends {
-  display: inline-flex;
-  gap: 6px;
-  margin-left: auto;
+.rguide__foot {
+  flex: none;
+  padding: 12px 18px;
+  border-top: 1px solid var(--lab-line);
 }
 
 .rguide__back {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
   gap: 6px;
+  margin-left: -4px;
   padding: 4px 8px 4px 4px;
   border: 0;
   border-radius: 8px;
@@ -621,48 +634,210 @@
   background: var(--lab-accent-soft);
 }
 
-.rguide__close {
-  margin-left: auto;
+/* fold and close, on the sheet over the view */
+.rguide__ends {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  gap: 6px;
 }
 
+/* what's open: its picture, its name, and what it is in the build */
 .rguide__head {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
-.rguide__kicker {
-  color: var(--lab-accent);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.rguide__head > div {
+  min-width: 0;
 }
 
 .rguide__head h2 {
   margin: 0;
   font-size: 1.12rem;
+  line-height: 1.25;
+  outline: none; /* it only takes focus to keep the keyboard's place */
+}
+
+.rguide__head p {
+  margin: 2px 0 0;
+  color: var(--lab-muted);
+  font-size: 0.82rem;
   line-height: 1.3;
+}
+
+.rguide__tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+}
+
+/* the words: what it is, then its details one by one */
+.rguide__lead {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .rguide__text {
   margin: 0;
   color: var(--lab-text-soft);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
-.rguide__note {
+.rguide__facts {
+  display: grid;
+  gap: 8px;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rguide__facts li {
+  position: relative;
+  padding-left: 15px;
+  color: var(--lab-text-soft);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.rguide__facts li::before {
+  content: "";
+  position: absolute;
+  top: 0.6em;
+  left: 1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lab-accent);
+}
+
+.rguide__hint {
+  margin: 0;
+  color: var(--lab-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* a part's numbers, each in its own tile; an odd one out takes the whole row */
+.rguide__specs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.rguide__specs div {
+  display: grid;
+  align-content: start;
+  gap: 2px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--lab-accent-soft);
-  color: var(--lab-text);
-  font-size: 0.84rem;
-  line-height: 1.45;
+  background: var(--lab-surface);
+}
+
+.rguide__specs div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.rguide__specs dt {
+  color: var(--lab-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.rguide__specs dd {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* the rows that open something; they reach past the padding so their hover lines up with the text */
+.rguide__rows {
+  display: grid;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.rguide__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.rguide__row:hover,
+.rguide__row:focus-visible {
+  background: var(--lab-surface);
+  outline: none;
+}
+
+.rguide__row:focus-visible {
+  box-shadow: var(--ring);
+}
+
+.rguide__row > .icon {
+  flex: none;
+  color: var(--lab-muted);
+  transition: transform 0.15s, color 0.15s;
+}
+
+.rguide__row:hover > .icon {
+  color: var(--lab-accent);
+  transform: translateX(2px);
+}
+
+.rguide__label {
+  flex: 1;
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rguide__label b {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rguide__label small {
+  color: var(--lab-muted);
+  font-size: 0.79rem;
+  line-height: 1.3;
+}
+
+/* a part's slots, headers and cables: plain rows with a line between them, under a heading */
+.rguide__group {
+  display: grid;
+  gap: 4px;
 }
 
 .rguide__sub {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--lab-muted);
   font-size: 0.72rem;
   font-weight: 700;
@@ -670,78 +845,154 @@
   text-transform: uppercase;
 }
 
-.rguide__build,
-.rguide__specs {
-  display: grid;
-  gap: 1px;
-  margin: 0;
-  overflow: hidden;
-  border-radius: 10px;
-  border: 1px solid var(--lab-line);
+.rguide__rows--sub li {
+  position: relative;
 }
 
-.rguide__build div,
-.rguide__specs div {
+.rguide__rows--sub li + li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  background: var(--lab-line);
+}
+
+.rguide__rows--sub .rguide__row {
+  min-height: 44px;
+}
+
+.rguide__rows--sub .rguide__label b {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+/* the build's power against what the power supply gives */
+.rguide__power {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 7px;
+}
+
+.rguide__power-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 10px;
-  padding: 7px 10px;
-  background: var(--lab-surface);
-}
-
-.rguide__build dt,
-.rguide__specs dt {
   color: var(--lab-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.rguide__build dd,
-.rguide__specs dd {
-  margin: 0;
   font-size: 0.82rem;
   font-weight: 600;
 }
 
-.rguide__list {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.rguide__power-head strong {
+  color: var(--lab-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.rguide__list button {
+.rguide__power-head small {
+  color: var(--lab-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.rguide__meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--lab-accent-soft);
+}
+
+.rguide__meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-btn);
+}
+
+/* the ones either side of this one */
+.rguide__steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rguide__steps button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 42px;
-  padding: 8px 12px;
-  border-radius: 10px;
+  gap: 6px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
   border: 1px solid var(--lab-line);
-  background: var(--lab-surface);
+  border-radius: 10px;
+  background: none;
   color: var(--lab-text);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  text-align: left;
   cursor: pointer;
+  transition: border-color 0.15s;
 }
 
-.rguide__list button:hover {
+.rguide__steps button:hover {
   border-color: var(--lab-accent);
 }
 
-.rguide__list button .icon {
+.rguide__steps button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.rguide__steps .icon {
   flex: none;
   color: var(--lab-muted);
 }
 
-.rguide__list--sub button {
-  min-height: 38px;
-  font-size: 0.84rem;
+.rguide__steps span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rguide__steps .is-next {
+  grid-column: 2;
+  justify-content: flex-end;
+}
+
+/* the sheet over the full-screen view and AR: the sheet itself scrolls, so everything just flows */
+.rguide--compact {
+  height: auto;
+}
+
+.rguide--compact .rguide__top {
+  gap: 6px;
+  padding: 12px 14px 10px;
+}
+
+.rguide--compact .rguide__head {
+  padding-right: 72px;
+}
+
+.rguide--compact .rguide__tile {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.rguide--compact .rguide__head h2 {
+  font-size: 1rem;
+}
+
+.rguide--compact .rguide__body {
+  gap: 10px;
+  padding: 10px 14px 14px;
+  overflow: visible;
+}
+
+.rig-sheet.is-folded .rguide__top {
+  border-bottom: 0;
 }
 
 /* a header's or plug's pins */
@@ -755,14 +1006,29 @@
   color: #e2e8f0;
 }
 
-.pins__scroll {
-  overflow-x: auto;
-}
-
 .pins__grid {
   display: grid;
   gap: 6px 4px;
-  min-width: max-content;
+}
+
+/* a long plug on its side: two columns of pins meeting in the middle, each label beside its pin */
+.pins__grid.is-tall {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pins__grid.is-tall .pins__pin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pins__grid.is-tall .pins__pin:nth-child(odd) {
+  flex-direction: row-reverse;
+}
+
+.pins__grid.is-tall .pins__pin small {
+  font-size: 0.72rem;
 }
 
 .pins__pin {
@@ -829,8 +1095,17 @@
   }
 
   .rig__guide {
-    position: static;
-    max-height: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .rguide {
+    height: auto;
+  }
+
+  .rguide__body {
+    overflow: visible;
   }
 }
 
@@ -848,15 +1123,26 @@
     gap: 6px;
   }
 
+  /* one row of buttons, each with its word under its icon, so they cover less of the PC */
   .rig-tools {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 2px;
+    width: 100%;
     padding: 4px;
   }
 
   .rig-tools button {
-    min-height: 36px;
-    padding: 0 9px;
-    font-size: 0.78rem;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 3px;
+    min-height: 54px;
+    padding: 7px 2px 5px;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
   }
 
   .rig-sheet {
@@ -865,7 +1151,15 @@
     max-height: 42vh;
   }
 
-  .rguide {
-    padding: 14px;
+  .rguide__top {
+    padding: 14px 14px 12px;
+  }
+
+  .rguide__body {
+    padding: 12px 14px 14px;
+  }
+
+  .rguide__foot {
+    padding: 12px 14px;
   }
 }

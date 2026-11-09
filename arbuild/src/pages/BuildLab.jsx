@@ -17,6 +17,8 @@ import { ARContext } from "../Three/xrSetup";
 import { GLBridge, ARHitTest, ARRoot, CamAR, useARSupport, startARSession, requestMotion } from "../Three/ar/ARTools";
 import { useARGestures, GestureGroup, MIN_SCALE, MAX_SCALE } from "../Three/ar/ARGestures";
 import Icon from "../components/Icon";
+import Logo from "../components/Logo";
+import StepList from "../components/lab/StepList";
 import {
   CaseWithMeasure, CaseRig, CaseFans, Workbench, TrayLabel, BenchLoadingFallback, CameraFocus, ViewControls, FitFov,
   TrayModel, TargetMarker, RamSlotMarker, Blast, Flyer,
@@ -114,23 +116,30 @@ function powerAndMonitor(s) {
   return { power: { ...POWER_ON, shutdown: true }, monitor: { status: "off" } };
 }
 
+/** The bench's buttons: what's always there, then the work of this mode. */
 function ControlPanel({ buttons }) {
   const panelRef = useSizeVar("--lab-ctrl-h"); // what sits above the panel clears its rows
+  const work = buttons.filter((b) => b.work);
+  const one = (b) => (
+    <button
+      key={b.key}
+      type="button"
+      title={b.title}
+      className={["lab-tools__btn", b.lit ? "is-on" : "", b.accent ? "is-accent" : "", b.danger ? "is-danger" : "", b.dim ? "is-dim" : ""].join(" ").trim()}
+      aria-pressed={b.lit === undefined ? undefined : !!b.lit}
+      disabled={b.disabled || false}
+      onClick={b.onPress}
+    >
+      <Icon name={b.done ? "check" : b.icon} size={17} className={b.turned ? "is-turned" : ""} />
+      <span>{b.label}</span>
+    </button>
+  );
   return (
     <div className="assemble__control-panel" ref={panelRef}>
-      {buttons.map((b) => (
-        <button
-          key={b.key}
-          title={b.title}
-          className={["assemble__ctrl-btn", b.lit ? "assemble__ctrl-btn--lit" : "", b.dim ? "assemble__ctrl-btn--dim" : ""].join(" ").trim()}
-          style={{ "--btn-color": b.color }}
-          disabled={b.disabled || false}
-          onClick={b.onPress}
-        >
-          {b.lit && <span className="assemble__ctrl-dot" />}
-          {b.label}
-        </button>
-      ))}
+      <div className={`lab-tools ${work.length > 1 ? "is-many" : ""}`} role="toolbar" aria-label="Bench">
+        <div className="lab-tools__group">{buttons.filter((b) => !b.work).map(one)}</div>
+        <div className="lab-tools__group is-work">{work.map(one)}</div>
+      </div>
     </div>
   );
 }
@@ -207,7 +216,7 @@ export default function BuildLab() {
   const [popups, setPopups] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [buildId, setBuildId] = useState(0);
-  // the case starts standing upright; LAY DOWN puts it on its side
+  // the case starts standing upright; Lay down puts it on its side
   const [isLaidDown, setIsLaidDown] = useState(false);
   const [casePose, setCasePose] = useState(null);
   const [caseBox, setCaseBox] = useState(null);
@@ -742,7 +751,7 @@ export default function BuildLab() {
   // the PSU end: which labelled socket (a socket with the same label as its own does too, if it's free)
   const sockOf = (c) => psuSockOf[c] ?? CABLES[c].psuSocket;
   function chooseSocket(sock) {
-    if (cableTask?.end !== "psu") return showHint("Pick a cable in CABLES first, then click the socket it goes into.");
+    if (cableTask?.end !== "psu") return showHint("Open Cables and pick a cable first, then click the socket it goes into.");
     const c = cableTask.cable;
     const want = CABLES[c].psuSocket;
     const taken = CABLE_IDS.find((o) => o !== c && psuCables[o] && !isFixed(o) && sockOf(o) === sock);
@@ -766,7 +775,7 @@ export default function BuildLab() {
     const label = CABLES[c].label;
     if (mode !== "assemble") return showHint(`The ${label} is fixed to this PSU, so it stays on it.`, "success");
     if (psuCables[c]) return showHint(`The ${label} is already routed out.`, "success");
-    if (cableTask?.end !== "psu") return showHint("Pick a cable in CABLES first, then click it in the PSU's bundle.");
+    if (cableTask?.end !== "psu") return showHint("Open Cables and pick a cable first, then click it in the PSU's bundle.");
     const want = cableTask.cable;
     const key = `psu_${want}`;
     if (!isFixed(want)) {
@@ -798,7 +807,7 @@ export default function BuildLab() {
 
   // the part end: which header
   function choosePort(p) {
-    if (cableTask?.end !== "part") return showHint("Pick a cable in CABLES first, then click where it goes.");
+    if (cableTask?.end !== "part") return showHint("Open Cables and pick a cable first, then click where it goes.");
     const c = cableTask.cable;
     if (p !== c) {
       return miss(
@@ -862,7 +871,7 @@ export default function BuildLab() {
   }
 
   /* ---------- the case's and fans' wires on the board's small headers (lab/Wires.js) ---------- */
-  // Like a cable's part end: pick the wire in CABLES, click the header, turn an LED plug + to +, push
+  // Like a cable's part end: pick the wire in Cables, click the header, turn an LED plug + to +, push
   // it on. A plug that fits goes on even on the wrong header: power on shows the mistake.
   const headers = L.headers;
   const sockCase = useMemo(() => moboLocalToWorld(MOTHERBOARD_TARGET.position, L.cpuLocal, MOBO_MOUNTED_ROTATION, L.scale), [L]);
@@ -933,7 +942,7 @@ export default function BuildLab() {
     if (monitor.status !== "off") return showHint("Press POWER to turn the PC off before you pull a wire off.");
     setWires((p) => ({ ...p, [id]: null }));
     setBooted(false);
-    showHint(`${label} pulled off ${headerName(w.at, headers)}. Pick it in CABLES to plug it in again.`, "success");
+    showHint(`${label} pulled off ${headerName(w.at, headers)}. Pick it in Cables to plug it in again.`, "success");
   }
 
   // A wire's plug: on its header, or hovering over the one picked; its guide wire runs back to where it comes from.
@@ -2120,8 +2129,8 @@ export default function BuildLab() {
   /* ---------- control buttons ---------- */
   const modeButton = {
     key: "mode",
-    label: cfg.modeControl === "instructor" ? `MODE: ${mode.toUpperCase()}` : mode === "assemble" ? "SWITCH TO DISASSEMBLE" : "SWITCH TO ASSEMBLE",
-    color: "#a78bfa",
+    icon: "swap",
+    label: cfg.modeControl === "instructor" ? `Mode: ${mode === "assemble" ? "Assemble" : "Disassemble"}` : mode === "assemble" ? "Switch to disassemble" : "Switch to assemble",
     disabled: !canToggle,
     dim: !canToggle,
     title:
@@ -2135,59 +2144,51 @@ export default function BuildLab() {
     onPress: toggleMode,
   };
 
+  // the thermal paste and the cables are in the parts rail (components/lab/PartPicker.jsx). work: this
+  // mode's job, after the ones that are always there; a teardown's safety steps show which comes next
+  const shuttingDown = monitor.status === "shuttingDown";
   const buttons = [
-    modeButton,
-    { key: "tilt", label: isLaidDown ? "STAND UP" : "LAY DOWN", color: "#4f7cff", onPress: () => setIsLaidDown((v) => !v) },
-    ...(mode === "assemble"
-      ? [
-          {
-            key: "paste", label: pasteApplied ? "PASTE ✓" : "PASTE", color: "#34d399", lit: pasteApplied,
-            dim: !installed.cpu || !!installed.cpu_cooler, onPress: applyPaste,
-          },
-          {
-            key: "cables",
-            label: cablesDone && wiresDone ? "CABLES ✓" : "CABLES",
-            color: "#f0c419", lit: cableDrawer || !!cableTask || !!wireTask, dim: !picks.psu && !installed.motherboard, disabled: exploding,
-            title: "Connect the PSU cables, and the case's and fans' wires",
-            onPress: () => {
-              setCableTask(null);
-              setWireTask(null);
-              setCableDrawer((o) => !o);
-            },
-          },
-          {
-            key: "power", label: monitor.status !== "off" ? "POWER OFF" : "POWER ON", color: "#3ddc84",
-            lit: monitor.status !== "off", disabled: exploding, onPress: pressPower,
-          },
-        ]
-      : [
-          {
-            key: "shutdown",
-            label: power.shutdown ? "SHUT DOWN" : monitor.status === "shuttingDown" ? "SHUTTING DOWN…" : "SHUTDOWN",
-            color: "#ff9f43", lit: power.shutdown, dim: power.shutdown || monitor.status === "shuttingDown", onPress: doShutdown,
-          },
-          {
-            key: "unplug", label: power.unplugged ? "UNPLUGGED" : "UNPLUG", color: "#f5a524",
-            lit: power.unplugged, dim: !power.shutdown && !power.unplugged, onPress: unplug,
-          },
-          {
-            key: "discharge", label: power.discharged ? "DRAINED" : "DRAIN POWER", color: "#f0c419",
-            title: "Hold the power button for a few seconds with the cable out",
-            lit: power.discharged, dim: !power.unplugged && !power.discharged, onPress: discharge,
-          },
-          {
-            key: "wipe", label: !pasteApplied ? "PASTE WIPED" : "WIPE PASTE", color: "#34d399", lit: !pasteApplied,
-            dim: !!installed.cpu_cooler || !installed.cpu, onPress: wipePaste,
-          },
-        ]),
     {
-      key: "reset", label: "RESET", color: "#ff6b6b", disabled: exploding,
+      key: "reset", icon: "undo", label: "Reset", danger: true, disabled: exploding,
       title: inClass ? "Starts the bench over. Your score and time are kept." : "Start over",
       onPress: () => {
         if (inClass) reportEvent("reset", "bench", "Reset the bench");
         resetBuild();
       },
     },
+    modeButton,
+    { key: "tilt", icon: "pcCase", turned: !isLaidDown, label: isLaidDown ? "Stand up" : "Lay down", onPress: () => setIsLaidDown((v) => !v) },
+    ...(mode === "assemble"
+      ? [
+          {
+            key: "power", work: true, icon: "power", label: monitor.status !== "off" ? "Power off" : "Power on",
+            lit: monitor.status !== "off", accent: monitor.status === "off", disabled: exploding, onPress: pressPower,
+          },
+        ]
+      : [
+          {
+            key: "shutdown", work: true, icon: "power",
+            label: shuttingDown ? "Shutting down…" : "Shut down",
+            lit: power.shutdown, done: power.shutdown, dim: shuttingDown,
+            accent: hintsOn && !power.shutdown && !shuttingDown, onPress: doShutdown,
+          },
+          {
+            key: "unplug", work: true, icon: "cable", label: power.unplugged ? "Unplugged" : "Unplug",
+            lit: power.unplugged, done: power.unplugged, dim: !power.shutdown && !power.unplugged,
+            accent: hintsOn && power.shutdown && !power.unplugged, onPress: unplug,
+          },
+          {
+            key: "discharge", work: true, icon: "bolt", label: power.discharged ? "Drained" : "Drain power",
+            title: "Hold the power button for a few seconds with the cable out",
+            lit: power.discharged, done: power.discharged, dim: !power.unplugged && !power.discharged,
+            accent: hintsOn && power.unplugged && !power.discharged, onPress: discharge,
+          },
+          {
+            key: "wipe", work: true, icon: "paste", label: !pasteApplied ? "Paste wiped" : "Wipe paste",
+            lit: !pasteApplied, done: !pasteApplied, dim: pasteApplied && (!!installed.cpu_cooler || !installed.cpu),
+            accent: hintsOn && power.discharged && pasteApplied && !installed.cpu_cooler && !!installed.cpu, onPress: wipePaste,
+          },
+        ]),
   ];
 
   /* ---------- render ---------- */
@@ -2195,7 +2196,8 @@ export default function BuildLab() {
     return (
       <StartScreen
         onPractice={startPractice}
-        status={autoJoin === "joining" ? "Opening your lab…" : autoJoin}
+        opening={autoJoin === "joining"}
+        status={autoJoin === "joining" ? null : autoJoin}
         backTo={fromClass ? `/classes/${fromClass}` : null}
       />
     );
@@ -2211,7 +2213,8 @@ export default function BuildLab() {
     nextStep >= 0 ? steps[nextStep].label : stepsDone < steps.length ? "Take the parts out in any order" : "Every step done";
   const orderedSteps = steps.filter((s) => !s.anyOrder);
   const anyOrderSteps = steps.filter((s) => s.anyOrder);
-  // the parts rail, with the thermal paste docked at its end (when the parts come laid out, the paste alone)
+  const showStepCount = !task || (help.steps && !trouble); // the guide card's count and bar
+  // the parts rail, with the thermal paste and the cables docked at its end (when the parts come laid out, those alone)
   const showPicker = mode === "assemble" && !classLocked && !pasteTask;
 
   const showMarkers = arLike && mode === "assemble" && selectedPart;
@@ -2220,36 +2223,21 @@ export default function BuildLab() {
     <div className="assemble">
       <header className="assemble__bar">
         <Link to={fromClass ? `/classes/${fromClass}?tab=labs` : "/main"} className="assemble__back focus-ring">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
+          <Icon name="back" size={16} />
           <span className="assemble__back-label">Exit Lab</span>
         </Link>
 
+        <span className="assemble__logo">
+          <Logo size={32} />
+        </span>
         <div className="assemble__title-group">
+          <h1>Build Lab</h1>
           <span className="assemble__badge-sub">
             {`${inClass ? "" : preview ? "Preview · " : "Free build · "}${trouble ? "Troubleshoot · " : ""}${mode === "assemble" ? "Assemble" : "Disassemble"}${inClass ? ` · class ${labSession.code}` : ""}`}
           </span>
-          <h1>Build Lab</h1>
         </div>
 
-        <div className="assemble__actions">
-          {scored && (
-          <div
-            className={`assemble__clock ${factorNow < 1 ? "is-slow" : ""}`}
-            title={
-              trouble
-                ? `Target ${cfg.parMin} min for the whole job. After that the points slowly drop, down to half at ${cfg.parMin * 3} min.`
-                : `Target ${cfg.parMin} min per phase. After that the phase's points slowly drop, down to half at ${cfg.parMin * 3} min.`
-            }
-          >
-            <span className="assemble__score-label">TIME</span>
-            <span className="assemble__clock-value">{formatClock(elapsed)}</span>
-            <span className="assemble__clock-factor">{Math.round(factorNow * 100)}%</span>
-          </div>
-          )}
-
+        <div className={`assemble__actions ${scored ? "is-scored" : ""}`}>
           <div className="assemble__selection-indicator">
             {mode === "assemble" && arLike && selectedPart ? (
               <>Selected: <strong>{selectedPart.toUpperCase()}</strong> (tap the green marker)</>
@@ -2262,9 +2250,20 @@ export default function BuildLab() {
             )}
           </div>
 
-          <button className="assemble__rotate-btn focus-ring" onClick={toggleAR}>
-            {inAR || camMode ? "EXIT AR" : "AR"}
-          </button>
+          {scored && (
+          <div
+            className={`assemble__clock ${factorNow < 1 ? "is-slow" : ""}`}
+            title={
+              trouble
+                ? `Target ${cfg.parMin} min for the whole job. After that the points slowly drop, down to half at ${cfg.parMin * 3} min.`
+                : `Target ${cfg.parMin} min per phase. After that the phase's points slowly drop, down to half at ${cfg.parMin * 3} min.`
+            }
+          >
+            <span className="assemble__score-label">Time</span>
+            <span className="assemble__clock-value">{formatClock(elapsed)}</span>
+            <span className="assemble__clock-factor">{Math.round(factorNow * 100)}%</span>
+          </div>
+          )}
 
           {scored && (
           <div className="assemble__score-card-wrapper">
@@ -2278,7 +2277,7 @@ export default function BuildLab() {
                   : `Official score ${official} out of ${outOf}. Points for the task: ${officialCard[taskMode]} of ${maxPts} (${Math.round(officialCard.factor[taskMode] * 100)}% for time) · Penalties -${scoreInfo.penalty} · Mistakes ${mistakes}`
               }
             >
-              <span className="assemble__score-label">SCORE</span>
+              <span className="assemble__score-label">Score</span>
               <span className="assemble__score-value">{scoreShown ? official : "?"}<small className="assemble__score-max">/{outOf}</small></span>
             </div>
             <div className="assemble__popup-container">
@@ -2288,6 +2287,11 @@ export default function BuildLab() {
             </div>
           </div>
           )}
+          <button type="button" className={`assemble__rotate-btn focus-ring ${inAR || camMode ? "assemble__rotate-btn--active" : ""}`} onClick={toggleAR}>
+            <Icon name={inAR || camMode ? "x" : "cube"} size={16} />
+            <span>{inAR || camMode ? "Exit AR" : "AR"}</span>
+          </button>
+
         </div>
       </header>
 
@@ -2592,15 +2596,16 @@ export default function BuildLab() {
                   </span>
                 </div>
               )}
-              {(inAR || camMode) && (
+              {(inAR || arLite) && (
                 <div className="lab-ar-top__actions">
                   {inAR && placement && (
-                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlacement(null); resetGestures(); }}>Move</button>
+                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlacement(null); resetGestures(); }}><Icon name="pin" size={15} />Move</button>
                   )}
                   {arLite && (
-                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlaceToken((t) => t + 1); resetGestures(); }}>Move</button>
+                    <button type="button" className="flow-btn flow-btn--tool" onClick={() => { setPlaceToken((t) => t + 1); resetGestures(); }}><Icon name="pin" size={15} />Move</button>
                   )}
-                  <button type="button" className="flow-btn flow-btn--tool" onClick={exitAR}>Exit AR</button>
+                  {/* WebXR shows only this overlay; with the camera, the header's Exit AR is on screen */}
+                  {inAR && <button type="button" className="flow-btn flow-btn--tool" onClick={exitAR}><Icon name="x" size={15} />Exit AR</button>}
                 </div>
               )}
               {arError && <p className="lab-ar-top__error" role="alert">{arError}</p>}
@@ -2660,6 +2665,18 @@ export default function BuildLab() {
                   disabled: exploding,
                 }}
                 onPaste={applyPaste}
+                cables={{
+                  open: cableDrawer || !!cableTask || !!wireTask,
+                  done: cablesDone && wiresDone,
+                  dim: !picks.psu && !installed.motherboard,
+                  disabled: exploding,
+                }}
+                onCables={() => {
+                  setCableTask(null);
+                  setWireTask(null);
+                  setCableDrawer((o) => !o);
+                }}
+                onOpenPart={() => setCableDrawer(false)}
               />
             </div>
           )}
@@ -2784,40 +2801,30 @@ export default function BuildLab() {
             >
               <button type="button" className="lab-task__head" aria-expanded={taskOpen} onClick={() => setTaskOpen((o) => !o)}>
                 <span className="lab-task__tag">
-                  {task
-                    ? taskDone ? "Task done ✓" : "Your task"
-                    : `${mode === "assemble" ? "How experts build it" : "Safety first, then any order"} · ${stepsDone} of ${steps.length}`}
+                  <span>{task ? (taskDone ? "Task done" : "Your task") : mode === "assemble" ? "How experts build it" : "Safety first, then any order"}</span>
+                  {showStepCount && <span className="lab-task__count">{stepsDone} of {steps.length}</span>}
                 </span>
                 <strong>{task ? task.title : nowStep}</strong>
-                <span className="lab-task__chev" aria-hidden="true">{taskOpen ? "–" : "+"}</span>
+                <span className="lab-task__chev" aria-hidden="true">
+                  <Icon name={taskOpen ? "up" : "down"} size={16} />
+                </span>
               </button>
+              {showStepCount && (
+                <div className="lab-task__bar" role="progressbar" aria-label="Steps done" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={stepsDone}>
+                  <i style={{ width: `${(stepsDone / steps.length) * 100}%` }} />
+                </div>
+              )}
               {taskOpen && (
                 <div className="lab-task__body">
                   {task?.instructions && <p className="lab-task__text">{task.instructions}</p>}
-                  {help.steps && trouble && (
-                    <ol className="lab-steps">
-                      {troubleSteps({ ...troubleLog, fixed: !!taskDone }).map((s) => (
-                        <li key={s.label} className={s.done ? "is-done" : ""}>{s.label}</li>
-                      ))}
-                    </ol>
-                  )}
+                  {help.steps && trouble && <StepList steps={troubleSteps({ ...troubleLog, fixed: !!taskDone })} />}
                   {help.steps && !trouble && (
                     <>
-                      <ol className="lab-steps">
-                        {orderedSteps.map((s) => (
-                          <li key={s.label} className={s.done ? "is-done" : steps.indexOf(s) === nextStep ? "is-next" : ""}>
-                            {s.label}
-                          </li>
-                        ))}
-                      </ol>
+                      <StepList steps={orderedSteps} now={nextStep >= 0 ? steps[nextStep].label : null} />
                       {anyOrderSteps.length > 0 && (
                         <>
                           <p className="lab-steps__note">Then take parts out in any order, as long as nothing is in the way:</p>
-                          <ul className="lab-steps lab-steps--any">
-                            {anyOrderSteps.map((s) => (
-                              <li key={s.label} className={s.done ? "is-done" : ""}>{s.label}</li>
-                            ))}
-                          </ul>
+                          <StepList steps={anyOrderSteps} anyOrder />
                         </>
                       )}
                     </>
@@ -2923,12 +2930,15 @@ export default function BuildLab() {
             <div
               role="dialog"
               aria-label="Phase complete"
-              style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", padding: "24px 32px", borderRadius: 16, background: "rgba(15, 23, 42, 0.92)", color: "#fff", textAlign: "center", pointerEvents: "auto", maxWidth: 340 }}
+              className="lab-done"
             >
-              <h2 style={{ margin: 0 }}>
+              <span className="lab-done__icon" aria-hidden="true">
+                <Icon name="check" size={24} strokeWidth={2.5} />
+              </span>
+              <h2>
                 {trouble ? "PC fixed!" : task && taskDone && mode === task.mode ? "Task complete!" : mode === "disassemble" ? "Teardown complete!" : "Build complete!"}
               </h2>
-              <p style={{ margin: "8px 0 16px" }}>
+              <p>
                 {trouble
                   ? `It starts and everything works${faultIds.length ? `: all ${faultIds.length} faults fixed` : ""}.`
                   : mode === "disassemble"
@@ -2936,9 +2946,9 @@ export default function BuildLab() {
                   : "The PC booted."}
                 {scored ? <> {trouble ? "Score" : "Score so far"}: <strong>{official}/{outOf}</strong></> : " Nice work."}
               </p>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <div className="lab-done__actions">
                 {cfg.modeControl === "student" && !trouble && (
-                  <button type="button" className="flow-btn flow-btn--tool focus-ring" onClick={() => forceMode(mode === "disassemble" ? "assemble" : "disassemble")}>
+                  <button type="button" className="flow-btn flow-btn--primary focus-ring" onClick={() => forceMode(mode === "disassemble" ? "assemble" : "disassemble")}>
                     {mode === "disassemble" ? "Start rebuilding" : "Take it apart"}
                   </button>
                 )}

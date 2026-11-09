@@ -195,6 +195,88 @@ const PATHS = {
   ),
   eyeOff: <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" />,
   wifiOff: <path d="m1 1 22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" />,
+  chevron: <path d="m9 6 6 6-6 6" />,
+  // the Build Lab's two ways in, a pair: the logo's chip with arrows flying out of it, and coming in to it
+  takeApart: (
+    <>
+      <rect x="8.5" y="8.5" width="7" height="7" rx="1.25" />
+      <path d="M6.5 6.5 3 3M3 7V3h4M17.5 6.5 21 3M17 3h4v4M6.5 17.5 3 21M3 17v4h4M17.5 17.5 21 21M21 17v4h-4" />
+    </>
+  ),
+  buildUp: (
+    <>
+      <rect x="8.5" y="8.5" width="7" height="7" rx="1.25" />
+      <path d="M3 3l3.5 3.5M6.5 3v3.5H3M21 3l-3.5 3.5M17.5 3v3.5H21M3 21l3.5-3.5M3 17.5h3.5V21M21 21l-3.5-3.5M21 17.5h-3.5V21" />
+    </>
+  ),
+  // the Build Lab's bench buttons
+  swap: <path d="M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7" />,
+  undo: <path d="M3 4v6h6M4.2 15a8.5 8.5 0 1 0 2-8.8L3 10" />,
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />,
+  paste: (
+    <>
+      <path d="M4.2 16.2l9-9 3.6 3.6-9 9z" />
+      <path d="M12 6l6 6M15 9l4-4M17.5 3.5l3 3M6 18l-3 3" />
+    </>
+  ),
+  // the parts of a PC (the Rig Studio's guide)
+  board: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <rect x="6.5" y="6.5" width="5" height="5" rx="1" />
+      <path d="M15 6.5v5M18 6.5v5M6.5 16.5h11" />
+    </>
+  ),
+  fan: (
+    <>
+      <circle cx="12" cy="12" r="9.5" />
+      <circle cx="12" cy="12" r="1.6" />
+      <path d="M12 10.4c-.5-2.4.4-4.6 2.6-5.6M13.4 12.8c2.33.77 3.78 2.65 3.55 5.05M10.6 12.8c-1.83 1.63-4.18 1.95-6.15.55" />
+    </>
+  ),
+  ram: (
+    <>
+      <rect x="2" y="6" width="20" height="10" rx="1.5" />
+      <path d="M6.5 9.5v3M12 9.5v3M17.5 9.5v3" />
+      <path d="M5 16v3M9 16v3M15 16v3M19 16v3" />
+    </>
+  ),
+  ssd: (
+    <>
+      <rect x="2" y="8" width="20" height="8" rx="1.5" />
+      <rect x="6" y="11" width="6" height="2" rx=".5" />
+      <path d="M18 12h.01" />
+    </>
+  ),
+  gpu: (
+    <>
+      <rect x="2" y="5" width="20" height="12" rx="2" />
+      <circle cx="8" cy="11" r="3" />
+      <circle cx="16" cy="11" r="3" />
+      <path d="M6 17v3h7v-3" />
+    </>
+  ),
+  psu: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="10" cy="12" r="4" />
+      <path d="M10 8v8M6 12h8M17.5 9h.01M17.5 12.5V15" />
+    </>
+  ),
+  pcCase: (
+    <>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M10 6h4" />
+      <circle cx="12" cy="15" r="3" />
+    </>
+  ),
+  cable: (
+    <>
+      <path d="M6 3v4M10 3v4" />
+      <path d="M4 7h8v3a4 4 0 0 1-8 0V7z" />
+      <path d="M8 14v3a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V4" />
+    </>
+  ),
 };
 
 export default function Icon({ name, size = 18, className = "", strokeWidth = 2 }) {

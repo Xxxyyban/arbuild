@@ -3,6 +3,7 @@
 // Styles: styles/BuildLab.css (.partinfo*).
 import { CATALOG } from "../../lab/Catalog";
 import { PARTS } from "../../Three/ar/partInfo";
+import Icon from "../Icon";
 import { CategoryIcon } from "./PartPicker";
 
 export default function PartInfoPanel({ itemId, mode, onClose }) {
@@ -19,7 +20,7 @@ export default function PartInfoPanel({ itemId, mode, onClose }) {
           <span className="partinfo__tag">{guide.tag || item.category}</span>
           <h2>{item.name}</h2>
         </div>
-        <button type="button" className="picker__close" aria-label="Close" onClick={onClose}>×</button>
+        <button type="button" className="picker__close" aria-label="Close" onClick={onClose}><Icon name="x" size={16} /></button>
       </header>
 
       <div className="partinfo__body">

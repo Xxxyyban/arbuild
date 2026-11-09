@@ -9,6 +9,12 @@ import { CATALOG, correctPicks, requiredWatts, PLATFORM_LABEL } from "./Catalog"
 /** A text for this platform. */
 export const forPlatform = (text, platform) => (text && typeof text === "object" ? text[platform] : text) || "";
 
+/** A text's sentences: the first says what it is, the rest are its details. */
+export const sentences = (text) => text.replace(/([.!?])\s+(?=[A-Z0-9"“])/g, "$1\n").split("\n");
+
+/** A title without what's in its brackets: "USB 3.0 header (19-pin)" -> "USB 3.0 header". */
+export const shortTitle = (title) => title.replace(/\s*\(.*\)$/, "");
+
 // what each kind of pin carries: the colours match the wires (yellow 12 V, red 5 V, orange 3.3 V...)
 export const PIN_KINDS = {
   "12v": { label: "+12 V", color: "#facc15" },
@@ -267,20 +273,30 @@ export const CABLE_PARTS = {
 };
 
 /**
- * The guide's parts, in the order the list shows them. model: the scene part to highlight;
- * catalog: the slot the build's part comes from (its name and specs); parts: the sub-items.
+ * The guide's parts, in the order the list shows them. icon: its picture (components/Icon.jsx);
+ * model: the scene part to highlight; catalog: the slot the build's part comes from (its name and
+ * specs); note: what the list says under its name when no catalog part does; parts: the sub-items;
+ * groups: a long list of them, in order, under headings.
  */
 export const GUIDE = [
   {
     id: "motherboard",
+    icon: "board",
     title: "Motherboard",
     model: "board",
     catalog: "motherboard",
     text: "The main circuit board. Every part plugs into it or connects to it with a cable, and it carries power and data between them.",
     parts: BOARD_PARTS,
+    groups: [
+      ["Slots", ["socket", "dimm", "m2", "pcie"]],
+      ["Power", ["atx24", "eps8"]],
+      ["Headers", ["panel", "usb3", "usb2", "audio", "cpufan", "chafan", "argb", "rgb"]],
+      ["Ports and chips", ["rearIo", "vrm", "chipset", "sata", "battery"]],
+    ],
   },
   {
     id: "cpu",
+    icon: "cpu",
     title: "CPU",
     model: "cpu",
     catalog: "cpu",
@@ -291,6 +307,7 @@ export const GUIDE = [
   },
   {
     id: "cpu_cooler",
+    icon: "fan",
     title: "CPU cooler",
     model: "cooler",
     catalog: "cpu_cooler",
@@ -301,6 +318,7 @@ export const GUIDE = [
   },
   {
     id: "ram",
+    icon: "ram",
     title: "RAM",
     model: "ram",
     catalog: "ram1",
@@ -308,6 +326,7 @@ export const GUIDE = [
   },
   {
     id: "storage",
+    icon: "ssd",
     title: "SSD",
     model: "ssd",
     catalog: "storage",
@@ -315,6 +334,7 @@ export const GUIDE = [
   },
   {
     id: "gpu",
+    icon: "gpu",
     title: "Graphics card",
     model: "gpu",
     catalog: "gpu",
@@ -323,6 +343,7 @@ export const GUIDE = [
   },
   {
     id: "psu",
+    icon: "psu",
     title: "Power supply",
     model: "psu",
     catalog: "psu",
@@ -331,6 +352,8 @@ export const GUIDE = [
   },
   {
     id: "case",
+    icon: "pcCase",
+    note: "Mesh front panel and six fans",
     title: "Case and airflow",
     model: "case",
     text: "Holds everything and steers the air through it: cool air in at the front, warm air out at the back and the top. Watch the airflow with the power on.",
@@ -338,10 +361,16 @@ export const GUIDE = [
   },
   {
     id: "cables",
+    icon: "cable",
+    note: "Power cables and the case's wires",
     title: "Cables and wires",
     model: "cables",
     text: "Power cables from the PSU to the board and the graphics card, and the case's thinner wires to the board's headers. Each plug fits only its own socket, one way round: look at its shape and count its pins.",
     parts: CABLE_PARTS,
+    groups: [
+      ["Power cables", ["atx24", "eps8", "pcie"]],
+      ["Case wires", ["panel", "usb3", "audio", "fans", "argb"]],
+    ],
   },
 ];
 
@@ -351,22 +380,22 @@ export const guidePart = (id) => GUIDE.find((g) => g.id === id) || null;
 export const partsFor = (part, platform) =>
   Object.entries(part?.parts || {}).filter(([, p]) => !p.platforms || p.platforms.includes(platform));
 
-/** The build on this platform, for the overview: each part's name, and the power it needs. */
+/** The build on this platform, for the overview: its part for each guide part, and the power it needs. */
 export function buildSummary(platform) {
   const picks = correctPicks(platform);
   const name = (slot) => CATALOG[picks[slot]]?.name;
   const psu = CATALOG[picks.psu];
   return {
     platform: PLATFORM_LABEL[platform],
-    rows: [
-      ["Motherboard", name("motherboard")],
-      ["CPU", name("cpu")],
-      ["CPU cooler", name("cpu_cooler")],
-      ["RAM", `2 × ${name("ram1")}`],
-      ["SSD", name("storage")],
-      ["Graphics card", name("gpu")],
-      ["Power supply", name("psu")],
-    ],
+    names: {
+      motherboard: name("motherboard"),
+      cpu: name("cpu"),
+      cpu_cooler: name("cpu_cooler"),
+      ram: `2 × ${name("ram1")}`,
+      storage: name("storage"),
+      gpu: name("gpu"),
+      psu: name("psu"),
+    },
     watts: requiredWatts(picks),
     psuWatts: psu?.watts ?? 0,
   };

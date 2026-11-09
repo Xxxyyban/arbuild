@@ -101,15 +101,16 @@ function Bell({ feed }) {
     });
   }, [feed.items, feed.ready, perm, navigate, opened]);
 
-  // close the panel on an outside click or Escape
+  // close the panel on a press outside or Escape. A pointer event, because a phone sends no mouse
+  // events for a swipe, and iPhones none for a tap on anything that isn't a button or a link.
   useEffect(() => {
     if (!open) return undefined;
-    const click = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
+    const press = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
     const key = (e) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", click);
+    document.addEventListener("pointerdown", press, true);
     document.addEventListener("keydown", key);
     return () => {
-      document.removeEventListener("mousedown", click);
+      document.removeEventListener("pointerdown", press, true);
       document.removeEventListener("keydown", key);
     };
   }, [open]);

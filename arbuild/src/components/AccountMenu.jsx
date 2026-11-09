@@ -30,19 +30,20 @@ export default function AccountMenu() {
   const name = listName(profile) || email.split("@")[0] || "Your account";
   const photo = profile?.photoThumb || profile?.photoURL || user?.photoURL || "";
 
-  // close on a click outside, or on Escape (back to the button)
+  // close on a press outside (a pointer event: iPhones send no mouse events for a tap on anything
+  // that isn't a button or a link), or on Escape (back to the button)
   useEffect(() => {
     if (!open) return undefined;
-    const click = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
+    const press = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
     const key = (e) => {
       if (e.key !== "Escape") return;
       setOpen(false);
       button.current?.focus();
     };
-    document.addEventListener("mousedown", click);
+    document.addEventListener("pointerdown", press, true);
     document.addEventListener("keydown", key);
     return () => {
-      document.removeEventListener("mousedown", click);
+      document.removeEventListener("pointerdown", press, true);
       document.removeEventListener("keydown", key);
     };
   }, [open]);

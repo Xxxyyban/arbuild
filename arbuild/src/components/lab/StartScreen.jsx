@@ -1,11 +1,14 @@
-// Shown before the Build Lab loads, for free build: learning on your own, with no task, clock or
-// points. Class work doesn't start here: students open their lab activities from their class
-// (Profile → Classes), which skips this screen.
+// Where the Build Lab starts, for free build: learning on your own, with no task, clock or points. Class
+// work doesn't start here: students open their lab activities from their class, which skips these choices
+// (a lab on its way shows "Opening your lab…", and if it can't open, why, with the choices under it).
 // The student doesn't choose the platform either: a teardown gets a random PC (working out what's
 // inside is part of the lesson), and building means choosing every part, AM4 or AM5.
-// Styles live in styles/BuildLab.css (.lab-start*).
+// Styles: styles/BuildLab.css (.lab-choice*, .lab-start*).
 import { Link } from "react-router-dom";
 import { PLATFORMS } from "../../lab/Catalog";
+import { useAuth } from "../../context/AuthContext";
+import AppShell from "../AppShell";
+import Icon from "../Icon";
 import Logo from "../Logo";
 import "../../styles/BuildLab.css";
 import "../../styles/BuildLabParts.css";
@@ -13,48 +16,93 @@ import "../../styles/BuildLabTask.css";
 
 const randomPlatform = () => PLATFORMS[Math.floor(Math.random() * PLATFORMS.length)];
 
-// status: a message while a lab opened from a class loads (or why it couldn't); backTo: that class
-export default function StartScreen({ onPractice, status = null, backTo = null }) {
+const CHOICES = [
+  {
+    icon: "takeApart",
+    title: "Take it apart",
+    text: "Start with a running PC. See what's inside, then rebuild it.",
+    start: { startMode: "disassemble", startState: "full" },
+  },
+  {
+    icon: "buildUp",
+    title: "Build it",
+    text: "Start with an empty case. Choose every part and see what fits.",
+    start: { startMode: "assemble", startState: "empty" },
+  },
+];
+
+// the corner of each card: a bit of circuit board running out of a chip, as on the sign-in page
+const TRACES = ["M150 172 H112 V132 H72", "M150 192 H58", "M172 150 V112 H132 V72", "M192 150 V58"];
+const PADS = [[72, 132], [58, 192], [132, 72], [192, 58]];
+
+function Traces() {
   return (
-    <div className="lab-start">
-      <div className="lab-start__panel">
-        <Link to="/main" className="lab-start__brand" aria-label="ARBuild home">
-          <Logo size={30} name />
-        </Link>
-        <h1 className="lab-start__title">Build Lab</h1>
-        <p className="lab-start__lead">
-          Free build: no task, no timer, no score. Take a PC apart or build one, and see what works. Practise the steps
-          here, then do them for real on actual hardware.
-        </p>
-        {status && <div className="lab-start__status" role="status">{status}</div>}
-        {backTo && <Link to={backTo} className="flow-btn flow-btn--tool lab-start__back">← Back to your class</Link>}
+    <svg className="lab-choice__traces" viewBox="0 0 200 200" aria-hidden="true">
+      {TRACES.map((d, i) => (
+        <path key={d} d={d} pathLength="1" style={{ animationDelay: `${0.1 + i * 0.08}s` }} />
+      ))}
+      {PADS.map(([cx, cy], i) => (
+        <circle key={cx} cx={cx} cy={cy} r="4" style={{ animationDelay: `${0.7 + i * 0.06}s` }} />
+      ))}
+      <rect x="150" y="150" width="80" height="80" rx="8" />
+    </svg>
+  );
+}
 
-        <div className="lab-start__cards">
-          <button
-            type="button"
-            className="lab-start__card"
-            onClick={() => onPractice({ startMode: "disassemble", startState: "full", platform: randomPlatform() })}
-          >
-            <span className="lab-start__card-tag">Teardown</span>
-            <strong>Take it apart</strong>
-            <span className="lab-start__card-desc">A running PC is on the bench. Find out what's inside as you take it apart, then rebuild it.</span>
-          </button>
+// opening: a class's lab is on its way; status: why it couldn't open; backTo: that class
+export default function StartScreen({ onPractice, opening = false, status = null, backTo = null }) {
+  const { profile } = useAuth();
 
-          <button
-            type="button"
-            className="lab-start__card"
-            onClick={() => onPractice({ startMode: "assemble", startState: "empty", platform: randomPlatform() })}
-          >
-            <span className="lab-start__card-tag">Assemble</span>
-            <strong>Build it</strong>
-            <span className="lab-start__card-desc">Start with an empty case. Choose every part yourself and find out what fits.</span>
-          </button>
-        </div>
-
-        <p className="lab-start__note">
-          Class lab activities open from your class: <Link to="/profile?tab=classes">Profile → Classes</Link>.
-        </p>
+  if (opening) {
+    return (
+      <div className="lab-start" role="status">
+        <Logo size={44} />
+        <span className="lab-start__spin" aria-hidden="true" />
+        <p>Opening your lab…</p>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <AppShell
+      eyebrow="Free build"
+      title="Build Lab"
+      subtitle="No task, no timer, no score. Practise here, then do it on real hardware."
+      back={backTo ? { to: backTo, label: "Back to your class" } : undefined}
+    >
+      {status && (
+        <p className="lab-choose-status" role="alert">
+          <Icon name="alert" size={17} />
+          {status}
+        </p>
+      )}
+
+      <div className="lab-choices">
+        {CHOICES.map((c) => (
+          <button key={c.title} type="button" className="lab-choice" onClick={() => onPractice({ ...c.start, platform: randomPlatform() })}>
+            <Traces />
+            <span className="lab-choice__top" aria-hidden="true">
+              <span className="lab-choice__icon">
+                <Icon name={c.icon} size={28} strokeWidth={1.7} />
+              </span>
+              <span className="lab-choice__arrow">
+                <Icon name="forward" size={18} />
+              </span>
+            </span>
+            <strong>{c.title}</strong>
+            <span className="lab-choice__about">{c.text}</span>
+          </button>
+        ))}
+      </div>
+
+      {profile?.role === "student" && (
+        <p className="lab-choose-note">
+          <Icon name="info" size={16} />
+          <span>
+            Got a lab activity from your instructor? Open it in <Link to="/classes" className="text-link">your classes</Link>.
+          </span>
+        </p>
+      )}
+    </AppShell>
   );
 }

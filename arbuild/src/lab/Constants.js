@@ -201,7 +201,7 @@ export const LAY_CENTER = [0, -0.38];
 /* ---------- AR / camera ---------- */
 export const AR_SCALE = 0.07;
 export const HOME_CAM = [0, 6, 9.5];
-export const HOME_TARGET = [0, 0.6, 0];
+export const HOME_TARGET = [0, 1.75, 0]; // low enough for the bench, high enough for the whole monitor
 
 /* ---------- case fans ---------- */
 export const FAN_CONFIG = {
@@ -222,7 +222,7 @@ export const FAN_GROUPS = {
 export const SCREEN_W = 1.64;
 export const SCREEN_H = 0.99;
 export const MONITOR_SCALE = 5;
-export const STATION = { position: [0, 4.0, -4.5], rotationY: 0 };
+export const STATION = { position: [0, 3.05, -4.5], rotationY: 0 }; // upright; its whole screen in the first view, above the case
 export const SCREEN_RES = { high: 1280, low: 240 };
 
 /* ---------- geometry helpers ---------- */

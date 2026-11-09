@@ -5,6 +5,7 @@
 // reuse .picker__*.
 import { CABLES, plugBlock, psuModular, psuEndDone, psuPlugBlock, psuCableFixed, cableNeeded } from "../../lab/Rules";
 import { WIRES, WIRE_GROUPS, WIRE_IDS, wireBlock, headerName } from "../../lab/Wires";
+import Icon from "../Icon";
 
 // wire colours shown on each card, so students learn to recognise the cables
 const SWATCH = {
@@ -30,7 +31,7 @@ export default function CableDrawer({ cables, psuCables, installed, picks, activ
       <div className="picker__drawer">
         <div className="picker__head">
           <strong>Cables</strong>
-          <button type="button" className="picker__close" aria-label="Close" onClick={onClose}>×</button>
+          <button type="button" className="picker__close" aria-label="Close" onClick={onClose}><Icon name="x" size={16} /></button>
         </div>
         <p className="picker__locked">
           {!picks?.psu

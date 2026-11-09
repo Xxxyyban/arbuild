@@ -30,6 +30,10 @@
     margin: -8px 0 -8px -8px;
   }
 
+  .assemble__logo {
+    display: none;
+  }
+
   /* the arrow alone; the words stay for screen readers */
   .assemble__back-label {
     position: absolute;
@@ -40,30 +44,36 @@
     white-space: nowrap;
   }
 
+  /* it keeps room for its name: with a class's clock and score, those go to a second row on a small phone */
   .assemble__title-group {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 1 66px;
+    min-width: 66px;
+  }
+
+  .assemble__title-group h1 {
+    white-space: nowrap;
   }
 
   .assemble__badge-sub {
     overflow: hidden;
-    font-size: 0.58rem;
+    font-size: 0.66rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .assemble__title-group h1 {
-    font-size: 0.88rem;
+    font-size: 0.92rem;
   }
 
   .assemble__actions {
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 6px;
   }
 
   .assemble__selection-indicator {
     max-width: 40vw;
+    padding: 5px 10px;
     overflow: hidden;
     font-size: 0.74rem;
     text-overflow: ellipsis;
@@ -71,18 +81,33 @@
 
   .assemble__rotate-btn {
     min-height: 36px;
-    padding: 6px 12px;
-    font-size: 0.75rem;
+    padding: 0 10px;
+    font-size: 0.78rem;
   }
 
   .assemble__clock,
   .assemble__score-card {
+    height: 38px;
     min-width: 0;
-    padding: 4px 10px;
+    padding: 0 8px;
   }
 
-  /* ---------- parts strip along the top: the seven parts and the paste fit on most phones (they narrow a
-     little to), it scrolls on narrower ---------- */
+  .assemble__clock-factor {
+    display: none;
+  }
+
+  /* a class's clock and score take the room: AR is its icon, the word stays for screen readers */
+  .assemble__actions.is-scored .assemble__rotate-btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* ---------- parts strip along the top: the seven parts, the paste and the cables fit on phones (they
+     narrow to), it scrolls on narrower ---------- */
   .picker {
     top: 8px;
     left: 8px;
@@ -95,31 +120,33 @@
 
   .picker__rail {
     flex-direction: row;
-    gap: 2px;
+    gap: 1px;
     max-width: 100%;
+    max-height: none;
     box-sizing: border-box;
     padding: 4px;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: thin;
   }
 
   .picker__cat {
-    flex: 1 1 46px;
-    min-width: 38px;
+    flex: 1 1 40px;
+    min-width: 30px;
     width: auto;
-    padding: 6px 2px 5px;
+    padding: 6px 1px 5px;
     font-size: 0.58rem;
   }
 
-  /* the paste's line stands up between the parts and the paste */
+  /* the tools' line stands up between the parts and the tools */
   .picker__rule {
     width: 1px;
     height: auto;
     margin: 6px 1px;
   }
 
-  /* the parts came laid out: the paste alone, not stretched across */
-  .picker.is-paste-only {
+  /* the parts came laid out: the tools alone, not stretched across */
+  .picker.is-tools-only {
     width: auto;
     align-items: flex-start;
   }
@@ -161,25 +188,21 @@
     display: none;
   }
 
-  /* ---------- control panel: along the bottom, three buttons a row upright, one row on its side ---------- */
+  /* ---------- bench buttons: along the bottom ---------- */
   .assemble__control-panel {
     left: 8px;
     right: 8px;
     bottom: 8px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-    gap: 6px;
   }
 
-  .assemble__ctrl-btn {
-    justify-content: center;
-    min-height: 40px;
-    padding: 6px 4px;
-    font-size: 0.62rem;
-    letter-spacing: 0.03em;
-    line-height: 1.15;
-    text-align: center;
-    white-space: normal;
+  .lab-tools {
+    padding: 4px;
+  }
+
+  .lab-tools__btn {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 0.78rem;
   }
 
   /* ---------- guide card: just above the controls; closed it is one line, open it scrolls ---------- */
@@ -196,8 +219,7 @@
   }
 
   .lab-task__body {
-    max-height: calc(100dvh - var(--lab-ctrl-h, 96px) - var(--lab-pick-h, 0px) - 260px);
-    min-height: 80px;
+    max-height: max(80px, calc(100dvh - var(--lab-ctrl-h, 96px) - var(--lab-pick-h, 0px) - 260px));
   }
 
   /* ---------- part info: a sheet above the controls ---------- */
@@ -215,7 +237,10 @@
     left: 12px;
     right: 12px;
     bottom: calc(var(--lab-ctrl-h, 96px) + var(--lab-task-h, 0px) + 24px);
+    width: auto;
     max-width: none;
+    transform: none;
+    animation-name: labToast;
     text-align: center;
   }
 
@@ -230,6 +255,47 @@
   .lab-pill {
     padding: 5px 12px;
     font-size: 0.78rem;
+  }
+}
+
+/* An upright phone: as in the Rig Studio, one row of buttons with each word under its icon, so they cover
+   little of the bench. A teardown has more: its safety steps on one row, the rest under them. */
+@media (max-width: 720px) {
+  .lab-tools {
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .lab-tools__group {
+    flex: 3 1 0;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .lab-tools__group.is-work {
+    flex: 1 1 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .lab-tools.is-many .lab-tools__group {
+    flex: none;
+  }
+
+  .lab-tools__btn {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 3px;
+    min-height: 52px;
+    padding: 7px 2px 5px;
+    font-size: 0.68rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
   }
 }
 

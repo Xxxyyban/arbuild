@@ -22,7 +22,7 @@ import { useARGestures, GestureGroup } from "../Three/ar/ARGestures";
 import { ARContext } from "../Three/xrSetup";
 import WarmUp from "../Three/WarmUp";
 import { renderSettings, setGraphicsChoice } from "../Three/graphics";
-import { guidePart, partsFor, forPlatform } from "../lab/PartGuide";
+import { guidePart, partsFor, forPlatform, shortTitle } from "../lab/PartGuide";
 import { PLATFORMS, PLATFORM_LABEL } from "../lab/Catalog";
 
 const MarkerAR = lazy(() => import("../Three/MarkerAR"));
@@ -39,7 +39,6 @@ const PLATFORM_KEY = "rigPlatform"; // the build last looked at (this browser)
 
 // a wire's plug picked in 3D: which of the guide's cables it is
 const WIRE_ITEM = { pwr_sw: "panel", rst_sw: "panel", pled: "panel", hdd_led: "panel", usb3: "usb3", hd_audio: "audio", cpu_fan: "fans", case_fans: "fans", argb: "argb" };
-const short = (title) => title.replace(/\s*\(.*\)$/, ""); // "USB 3.0 header (19-pin)" -> "USB 3.0 header"
 
 function readPlatform() {
   try {
@@ -111,11 +110,21 @@ export default function MainPage() {
   const part = guidePart(sel.part);
   const items = part ? partsFor(part, platform) : [];
   const item = items.find(([k]) => k === sel.item)?.[1] ?? null;
-  const markers = items.filter(([, s]) => s.marker).map(([, s]) => ({ id: s.marker, label: short(forPlatform(s.title, platform)) }));
+  const markers = items.filter(([, s]) => s.marker).map(([, s]) => ({ id: s.marker, label: shortTitle(forPlatform(s.title, platform)) }));
 
   const select = (p, i = null) => {
     setSel({ part: p, item: i });
     setFolded(false);
+  };
+  // a pick in the guide. When the guide is under the view, show what was picked: the view, with the
+  // details starting right below it (just the details if the view would fill the screen)
+  const pickInGuide = (p, i = null) => {
+    select(p, i);
+    const stage = stageRef.current;
+    if (!p || !stage || !window.matchMedia("(max-width: 1080px)").matches) return;
+    const box = stage.getBoundingClientRect();
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollBy({ top: (box.height < window.innerHeight * 0.75 ? box.top : box.bottom) - 12, behavior: calm ? "auto" : "smooth" });
   };
   // a click in 3D: a part, or one of its markers (a slot, a header, a cable's plug)
   const onPick = (p, marker = null) => {
@@ -407,9 +416,9 @@ export default function MainPage() {
 
   return (
     <AppShell
-      eyebrow="Rig Studio · 3D and AR"
+      eyebrow="Rig Studio"
       title="Workstation Explorer"
-      subtitle="Explore a complete AM4 or AM5 PC: take it apart, power it on, and see what every part, port and pin is for."
+      subtitle="Take a complete PC apart, power it on, and see what every part, port and pin is for."
     >
       <section className={`rig ${full ? "is-full" : ""}`}>
         <div className={`rig__stage ${camMode ? "is-cam" : ""}`} ref={stageRef}>
@@ -585,7 +594,7 @@ export default function MainPage() {
         </div>
 
         <aside className="rig__guide" aria-label="Parts guide">
-          <GuidePanel platform={platform} part={sel.part} item={sel.item} onSelect={select} />
+          <GuidePanel platform={platform} part={sel.part} item={sel.item} onSelect={pickInGuide} />
         </aside>
       </section>
 

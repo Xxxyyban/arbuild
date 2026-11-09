@@ -1,8 +1,10 @@
 // Packet Tracer style parts drawer: a rail of category icons, and the options for the open category.
-// Picking an option lays that part on the bench. The thermal paste is docked at the end of the rail, not
-// on the bench: pressing it picks the tube up. Styles: styles/BuildLabParts.css (.picker*).
+// Picking an option lays that part on the bench. The tools are docked at the end of the rail, not on the
+// bench: the thermal paste (pressing it picks the tube up) and the cables (pressing it opens the Cables
+// drawer, components/lab/CableDrawer.jsx). Styles: styles/BuildLabParts.css (.picker*).
 import { useState } from "react";
 import { CATEGORIES, OPTIONAL_SLOTS, optionsFor, badgesFor } from "../../lab/Catalog";
+import Icon from "../Icon";
 import { useSizeVar } from "./useSizeVar";
 
 // Headings when a category fills more than one slot (RAM), and the "leave it out" choice
@@ -69,6 +71,14 @@ const ICON_PATHS = {
       <path d="M12 6l6 6M15 9l4-4M17.5 3.5l3 3M6 18l-3 3M7.2 13.2l3.6 3.6" />
     </>
   ),
+  // a plug and its cable
+  cables: (
+    <>
+      <path d="M6 3v4M10 3v4" />
+      <path d="M4 7h8v3a4 4 0 0 1-8 0V7z" />
+      <path d="M8 14v3a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V4" />
+    </>
+  ),
 };
 
 export function CategoryIcon({ id, size = 22 }) {
@@ -84,18 +94,21 @@ export function CategoryIcon({ id, size = 22 }) {
  * locked     slot -> reason string, for slots that can't be swapped right now
  * showSpecs  false hides the socket / memory / watt badges (instructor turned part info off)
  * onPick(slot, id | null), onInspect(id)
- * parts      false: the parts are laid out already (an auto-picked task), the rail has only the paste
+ * parts      false: the parts are laid out already (an auto-picked task), the rail has only the tools
  * paste      the thermal paste at the end of the rail: { applied, ready (the CPU is in and the cooler
  *            isn't), waiting (hints: it's next), disabled }; onPaste() picks the tube up
+ * cables     beside it: { open (the drawer, or a cable on its way), done, dim (nothing to connect yet, it
+ *            still opens and says why), disabled }; onCables() opens or closes the drawer
+ * onOpenPart a part's options are opening (they take the place of the Cables drawer)
  */
-export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect, parts = true, paste = null, onPaste }) {
+export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onInspect, parts = true, paste = null, onPaste, cables = null, onCables, onOpenPart }) {
   const [open, setOpen] = useState(null);
   const railRef = useSizeVar("--lab-pick-h"); // the overlays under the strip on a phone clear it
   const cat = CATEGORIES.find((c) => c.id === open);
   const options = open ? optionsFor(open) : [];
 
   return (
-    <div className={parts ? "picker" : "picker is-paste-only"} onPointerDown={(e) => e.stopPropagation()}>
+    <div className={parts ? "picker" : "picker is-tools-only"} onPointerDown={(e) => e.stopPropagation()}>
       <div className="picker__rail" role="toolbar" aria-label="Parts" ref={railRef}>
         {parts && CATEGORIES.map((c) => {
           const has = c.slots.some((s) => picks[s]);
@@ -106,7 +119,10 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
               className={["picker__cat", open === c.id ? "is-open" : "", has ? "is-picked" : ""].join(" ").trim()}
               aria-pressed={open === c.id}
               title={has ? `${c.label}: picked` : `${c.label}: not picked yet`}
-              onClick={() => setOpen(open === c.id ? null : c.id)}
+              onClick={() => {
+                onOpenPart?.();
+                setOpen(open === c.id ? null : c.id);
+              }}
             >
               <CategoryIcon id={c.id} />
               <span className={c.short ? "picker__label has-short" : "picker__label"}>{c.label}</span>
@@ -142,13 +158,30 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
             </button>
           </>
         )}
+        {cables && (
+          <button
+            type="button"
+            className={["picker__cat", cables.open ? "is-open" : "", cables.done ? "is-picked" : "", cables.dim && !cables.open ? "is-dim" : ""].join(" ").trim()}
+            aria-pressed={cables.open}
+            disabled={!!cables.disabled}
+            title={cables.done ? "Cables: all connected" : "Cables: connect the PSU cables, and the case's and fans' wires"}
+            onClick={() => {
+              setOpen(null);
+              onCables();
+            }}
+          >
+            <CategoryIcon id="cables" />
+            <span className="picker__label">Cables</span>
+            {cables.done && <i className="picker__dot" aria-hidden="true" />}
+          </button>
+        )}
       </div>
 
       {open && (
         <div className="picker__drawer">
           <div className="picker__head">
             <strong>{cat.label}</strong>
-            <button type="button" className="picker__close" aria-label="Close" onClick={() => setOpen(null)}>×</button>
+            <button type="button" className="picker__close" aria-label="Close" onClick={() => setOpen(null)}><Icon name="x" size={16} /></button>
           </div>
           {cat.slots.map((slot) => (
             <div key={slot} className="picker__slot">
@@ -177,7 +210,7 @@ export default function PartPicker({ picks, locked = {}, showSpecs, onPick, onIn
                         <span className="picker__state">{chosen ? "On the bench" : "Place on bench"}</span>
                       </button>
                       {showSpecs && (
-                        <button type="button" className="picker__info" aria-label={`About ${o.name}`} onClick={() => onInspect(o.id)}>i</button>
+                        <button type="button" className="picker__info" aria-label={`About ${o.name}`} onClick={() => onInspect(o.id)}><Icon name="info" size={15} /></button>
                       )}
                     </li>
                   );

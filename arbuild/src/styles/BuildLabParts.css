@@ -1,6 +1,5 @@
 /* ==========================================================================
-   Build Lab: phase clock, part picker, part info panel, class gate,
-   and the start screen's AM4 / AM5 choice.
+   Build Lab: phase clock, part picker, part info panel, class gate.
    Uses the --lab-* variables from BuildLab.css (light + dark).
    ========================================================================== */
 
@@ -8,28 +7,38 @@
    Phase clock (header)
    -------------------------------------------------------------------------- */
 .assemble__clock {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 72px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-content: center;
+  justify-content: space-between;
+  column-gap: 8px;
+  height: 44px;
+  min-width: 80px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: 10px;
   background: var(--lab-surface);
   border: 1px solid var(--lab-line);
 }
 
 /* colored like the score value */
 .assemble__clock-value {
-  font-weight: 700;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
+  grid-column: 1 / -1;
+  grid-row: 2;
   color: var(--lab-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .assemble__clock-factor {
-  font-size: 0.62rem;
-  font-weight: 600;
+  grid-column: 2;
+  grid-row: 1;
   color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .assemble__clock.is-slow .assemble__clock-value,
@@ -54,9 +63,12 @@
 .picker__rail {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  max-height: calc(100dvh - 174px);
   padding: 6px;
-  border-radius: 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-radius: 14px;
   background: var(--lab-panel);
   border: 1px solid var(--lab-line-strong);
   box-shadow: 0 10px 28px var(--lab-shadow);
@@ -69,10 +81,11 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
+  flex: none;
   width: 64px;
   padding: 8px 4px 6px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--lab-text-soft);
   font: inherit;
@@ -97,8 +110,7 @@
 .picker__cat:focus-visible,
 .picker__option:focus-visible,
 .picker__info:focus-visible,
-.picker__close:focus-visible,
-.lab-start__platform button:focus-visible {
+.picker__close:focus-visible {
   outline: 2px solid var(--lab-accent);
   outline-offset: 2px;
 }
@@ -114,7 +126,7 @@
   box-shadow: 0 0 6px var(--lab-accent-glow);
 }
 
-/* the thermal paste, docked at the end of the rail after a thin line */
+/* the tools (the thermal paste, the cables), docked at the end of the rail after a thin line */
 .picker__rule {
   align-self: stretch;
   flex: none;
@@ -123,7 +135,7 @@
   background: var(--lab-line-strong);
 }
 
-/* no CPU yet, or the cooler is on: muted, still pressable (it says why) */
+/* nothing to use it on yet: muted, still pressable (it says why) */
 .picker__cat.is-dim {
   opacity: 0.5;
 }
@@ -151,12 +163,26 @@
   }
 }
 
+/* a short window: the rail's buttons close up */
+@media (max-height: 760px) and (min-width: 721px) {
+  .picker__cat {
+    padding: 5px 4px 4px;
+  }
+
+  .picker__rail {
+    gap: 2px;
+  }
+}
+
 .picker__drawer {
   width: 290px;
   max-height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lab-line-strong) transparent;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--lab-panel);
   border: 1px solid var(--lab-line-strong);
   box-shadow: 0 10px 28px var(--lab-shadow);
@@ -174,14 +200,14 @@
 }
 
 .picker__close {
+  display: grid;
+  place-items: center;
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 8px;
+  background: var(--lab-surface);
   color: var(--lab-muted);
-  font-size: 1.2rem;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -279,20 +305,21 @@
 
 .picker__info {
   position: absolute;
-  top: 9px;
-  right: 9px;
-  width: 24px;
-  height: 24px;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
   border-radius: 50%;
-  border: 1px solid var(--lab-line-strong);
-  background: var(--lab-bg-soft);
-  color: var(--lab-text-soft);
-  font: italic 700 0.75rem/1 Georgia, serif;
+  background: transparent;
+  color: var(--lab-muted);
   cursor: pointer;
 }
 
 .picker__info:hover {
-  border-color: var(--lab-accent);
+  background: var(--lab-accent-soft);
   color: var(--lab-accent);
 }
 
@@ -499,35 +526,6 @@
   color: var(--lab-muted);
 }
 
-/* --------------------------------------------------------------------------
-   Start screen: AM4 / AM5 work order for practice
-   -------------------------------------------------------------------------- */
-.lab-start__platform {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: var(--lab-muted);
-  font-size: 0.8rem;
-}
-
-.lab-start__platform button {
-  padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--lab-line-strong);
-  background: var(--lab-surface);
-  color: var(--lab-text-soft);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.lab-start__platform button.is-on {
-  background: var(--lab-accent-soft);
-  border-color: var(--lab-accent);
-  color: var(--lab-accent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .picker__drawer,
   .partinfo {
@@ -536,7 +534,8 @@
 }
 
 /* Picker: one section per slot (RAM stick 1 / stick 2) */
-.picker__slot + .picker__slot {
+.picker__slot + .picker__slot,
+.picker__list + .picker__slot {
   margin-top: 14px;
 }
 
@@ -584,8 +583,8 @@
   left: 16px;
   z-index: 32;
   width: min(300px, calc(100% - 32px));
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
   background: var(--lab-panel);
   border: 1px solid var(--lab-accent);
   box-shadow: 0 10px 28px var(--lab-shadow);
@@ -597,12 +596,10 @@
 
 .cable-task__step {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   color: var(--lab-accent);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .cable-task p {
@@ -632,7 +629,7 @@
 .cable-task__actions button.is-primary {
   background: var(--lab-accent);
   border-color: var(--lab-accent);
-  color: #0b1220;
+  color: var(--lab-on-accent);
 }
 
 .cable-task__actions button:disabled {

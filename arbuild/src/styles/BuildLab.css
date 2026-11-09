@@ -33,12 +33,10 @@
   --lab-accent: #059669;
   --lab-accent-soft: rgba(5, 150, 105, 0.12);
   --lab-accent-glow: rgba(5, 150, 105, 0.3);
+  --lab-on-accent: #ffffff;
   --lab-danger: #dc2626;
   --lab-shadow: rgba(15, 23, 42, 0.16);
   --lab-popup-bg: rgba(255, 255, 255, 0.92);
-  --lab-ctrl-base: #e2e8f0;
-  --lab-ctrl-text: #1e293b;
-  --lab-ctrl-text-lit: #0f172a;
 }
 
 /* --------------------------------------------------------------------------
@@ -67,12 +65,10 @@
   --lab-accent: #34d399;
   --lab-accent-soft: rgba(52, 211, 153, 0.12);
   --lab-accent-glow: rgba(52, 211, 153, 0.28);
+  --lab-on-accent: #06281d;
   --lab-danger: #f87171;
   --lab-shadow: rgba(0, 0, 0, 0.45);
   --lab-popup-bg: rgba(18, 20, 26, 0.88);
-  --lab-ctrl-base: #101520;
-  --lab-ctrl-text: #e2e8f0;
-  --lab-ctrl-text-lit: #ffffff;
 }
 
 /* No theme set on the page: follow the OS */
@@ -97,12 +93,11 @@
     --lab-accent: #34d399;
     --lab-accent-soft: rgba(52, 211, 153, 0.12);
     --lab-accent-glow: rgba(52, 211, 153, 0.28);
+    --lab-on-accent: #06281d;
+  --lab-on-accent: #06281d;
     --lab-danger: #f87171;
     --lab-shadow: rgba(0, 0, 0, 0.45);
     --lab-popup-bg: rgba(18, 20, 26, 0.88);
-    --lab-ctrl-base: #101520;
-    --lab-ctrl-text: #e2e8f0;
-    --lab-ctrl-text-lit: #ffffff;
   }
 }
 
@@ -128,9 +123,8 @@
 .assemble__bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 24px;
+  gap: 12px;
+  padding: 0 20px;
   height: 64px;
   background: var(--lab-panel);
   border-bottom: 1px solid var(--lab-line);
@@ -140,47 +134,65 @@
 .assemble__back {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-left: -6px;
+  padding: 8px 10px 8px 6px;
+  border-radius: 8px;
   color: var(--lab-muted);
   text-decoration: none;
   font-size: 0.85rem;
-  font-weight: 500;
-  transition: color 0.2s;
+  font-weight: 600;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .assemble__back:hover {
+  background: var(--lab-surface-hover);
   color: var(--lab-text);
+}
+
+/* the mark, after a thin line */
+.assemble__logo {
+  display: grid;
+  place-items: center;
+  padding-left: 12px;
+  border-left: 1px solid var(--lab-line-strong);
 }
 
 .assemble__title-group {
   display: flex;
   flex-direction: column;
-}
-
-.assemble__badge-sub {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--lab-accent);
-  font-weight: 600;
+  gap: 1px;
+  min-width: 0;
 }
 
 .assemble__title-group h1 {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
   color: var(--lab-text);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.assemble__badge-sub {
+  color: var(--lab-accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .assemble__actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  margin-left: auto;
 }
 
 .assemble__selection-indicator {
-  font-size: 0.8rem;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--lab-surface);
   color: var(--lab-text-soft);
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 
@@ -188,25 +200,27 @@
   color: var(--lab-accent);
 }
 
-/* AR / header button */
+/* AR */
 .assemble__rotate-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  border-radius: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
   background: var(--lab-surface);
   border: 1px solid var(--lab-line-strong);
-  color: var(--lab-text-soft);
-  font-size: 0.8rem;
-  font-weight: 500;
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .assemble__rotate-btn:hover {
-  background: var(--lab-surface-hover);
-  color: var(--lab-text);
+  border-color: var(--lab-accent);
+  color: var(--lab-accent);
 }
 
 .assemble__rotate-btn--active {
@@ -226,27 +240,30 @@
 }
 
 .assemble__score-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 80px;
-  padding: 6px 16px;
-  border-radius: 8px;
+  display: grid;
+  align-content: center;
+  height: 44px;
+  min-width: 72px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: 10px;
   background: var(--lab-surface);
   border: 1px solid var(--lab-line);
 }
 
 .assemble__score-label {
-  font-size: 0.6rem;
-  letter-spacing: 0.05em;
   color: var(--lab-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .assemble__score-value {
   color: var(--lab-accent);
+  font-size: 1rem;
   font-weight: 700;
-  font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .assemble__popup-container {
@@ -312,11 +329,12 @@
    -------------------------------------------------------------------------- */
 .assemble__toast {
   position: absolute;
-  bottom: calc(var(--lab-ctrl-h, 44px) + 36px); /* clears the control panel, however many rows */
-  right: 28px;
-  max-width: calc(100vw - 56px);
+  bottom: calc(var(--lab-ctrl-h, 44px) + 28px); /* clears the bench buttons, however many rows */
+  left: calc(50% + 80px); /* the middle of the bench buttons' row */
+  width: max-content;
+  max-width: min(460px, calc(100vw - 56px));
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--lab-card);
   backdrop-filter: blur(10px);
   border: 1px solid var(--lab-line-strong);
@@ -324,7 +342,8 @@
   font-size: 0.85rem;
   font-weight: 500;
   box-shadow: 0 12px 30px var(--lab-shadow);
-  animation: labToast 0.2s ease-out forwards;
+  transform: translateX(-50%);
+  animation: labToastMiddle 0.2s ease-out forwards;
   z-index: 100;
 }
 
@@ -336,22 +355,26 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes labToastMiddle {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
 /* --------------------------------------------------------------------------
    View buttons on a computer: zoom in, zoom out, the whole bench
    -------------------------------------------------------------------------- */
 .lab-view {
   position: absolute;
-  left: 24px;
-  bottom: 24px;
+  left: 16px;
+  bottom: 16px;
   z-index: 20;
   display: flex;
-  gap: 4px;
-  padding: 5px;
-  border-radius: 12px;
-  background: var(--lab-panel);
-  border: 1px solid var(--lab-line-strong);
-  box-shadow: 0 10px 28px var(--lab-shadow);
-  backdrop-filter: blur(10px);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.84);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(8px);
   pointer-events: auto;
 }
 
@@ -360,17 +383,17 @@
   place-items: center;
   width: 38px;
   height: 38px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 10px;
   background: transparent;
-  color: var(--lab-text-soft);
+  color: #e2e8f0;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .lab-view__btn:hover {
-  background: var(--lab-surface-hover);
-  color: var(--lab-accent);
+  background: rgba(255, 255, 255, 0.08);
+  color: #6ee7b7;
 }
 
 .lab-view__btn:focus-visible,
@@ -516,76 +539,173 @@
 /* --------------------------------------------------------------------------
    Control panel (HTML overlay buttons)
    -------------------------------------------------------------------------- */
-/* The row wraps when there are many controls (teardown has seven). Only the buttons take clicks, so
-   the empty part of the row leaves the 3D view usable. It starts clear of the view buttons. */
+/* Along the bottom, clear of the view buttons. Only the buttons take clicks, so the empty part of the
+   row leaves the 3D view usable. The same dark glass as the Rig Studio's buttons. */
 .assemble__control-panel {
   position: absolute;
-  bottom: 24px;
-  right: 24px;
+  bottom: 16px;
   left: 176px;
+  right: 16px;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
   z-index: 20;
   pointer-events: none;
 }
 
-.assemble__control-panel > * {
+.lab-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  max-width: 100%;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.84);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(8px);
   pointer-events: auto;
 }
 
-.assemble__ctrl-btn {
+.lab-tools__group {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* this mode's job, after a thin line */
+.lab-tools__group.is-work {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.lab-tools__btn {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--btn-color, #4f7cff) 18%, var(--lab-ctrl-base));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--btn-color, #4f7cff) 40%, transparent);
-  color: var(--lab-ctrl-text);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s, transform 0.08s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
-.assemble__ctrl-btn:hover:not(:disabled):not(.assemble__ctrl-btn--dim) {
-  background: color-mix(in srgb, var(--btn-color, #4f7cff) 32%, var(--lab-ctrl-base));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--btn-color, #4f7cff) 50%, transparent);
-  transform: translateY(-1px);
+.lab-tools__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.assemble__ctrl-btn:active:not(:disabled):not(.assemble__ctrl-btn--dim) {
-  transform: translateY(1px);
+.lab-tools__btn.is-on {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
 }
 
-.assemble__ctrl-btn--lit {
-  background: color-mix(in srgb, var(--btn-color, #3ddc84) 30%, var(--lab-ctrl-base));
-  box-shadow:
-    0 0 0 1px var(--btn-color, #3ddc84),
-    0 0 16px color-mix(in srgb, var(--btn-color, #3ddc84) 55%, transparent);
-  color: var(--lab-ctrl-text-lit);
+.lab-tools__btn.is-accent {
+  background: #059669;
+  color: #ffffff;
 }
 
-.assemble__ctrl-btn--dim,
-.assemble__ctrl-btn:disabled {
-  opacity: 0.42;
+.lab-tools__btn.is-accent:hover {
+  background: #047857;
+}
+
+.lab-tools__btn.is-danger .icon {
+  color: #fca5a5;
+}
+
+.lab-tools__btn.is-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fecaca;
+}
+
+.lab-tools__btn.is-dim,
+.lab-tools__btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.assemble__ctrl-dot {
-  flex-shrink: 0;
-  width: 7px;
-  height: 7px;
+.lab-tools__btn:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+}
+
+/* Lay down: the case on its side */
+.lab-tools__btn .is-turned {
+  transform: rotate(90deg);
+}
+
+/* a teardown's many buttons don't fit one row on a tablet: its job above, the rest under it */
+@media (max-width: 1100px) {
+  .lab-tools.is-many {
+    flex-direction: column-reverse;
+  }
+
+  .lab-tools.is-many .is-work {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   The finished card: the build booted, the teardown's done
+   -------------------------------------------------------------------------- */
+.lab-done {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(360px, calc(100% - 32px));
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--lab-card);
+  border: 1px solid var(--lab-line-strong);
+  box-shadow: 0 20px 50px var(--lab-shadow);
+  backdrop-filter: blur(10px);
+  color: var(--lab-text);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.lab-done__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: var(--btn-color, #3ddc84);
-  box-shadow: 0 0 6px var(--btn-color, #3ddc84);
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+}
+
+.lab-done h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.lab-done p {
+  margin: 0;
+  color: var(--lab-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.lab-done__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 /* --------------------------------------------------------------------------
@@ -638,6 +758,17 @@
   color: var(--lab-bg, #0d0f12);
 }
 
+.flow-btn--primary {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.flow-btn--primary:hover:not(:disabled) {
+  background: #047857;
+  color: #ffffff;
+}
+
 .flow-btn--danger {
   background: transparent;
   border-color: var(--lab-danger);
@@ -662,212 +793,360 @@
     transition: none;
   }
 
-  .assemble__ctrl-btn,
+  .lab-tools__btn,
+  .lab-view__btn,
   .flow-btn,
-  .lab-start__card {
+  .lab-choice,
+  .lab-choice__icon,
+  .lab-choice__arrow,
+  .lab-choice__traces {
     transition: none;
+  }
+
+  .lab-choice:hover,
+  .lab-choice:hover .lab-choice__icon,
+  .lab-choice:hover .lab-choice__arrow {
+    transform: none;
+  }
+
+  .lab-choice__traces path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .lab-choice__traces circle {
+    animation: none;
+    opacity: 1;
+  }
+
+  .lab-start__spin {
+    animation-duration: 3s;
   }
 }
 
 /* ==========================================================================
    START SCREEN (components/lab/StartScreen.jsx)
    ========================================================================== */
+/* a class's lab on its way */
 .lab-start {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 14px;
   padding: 24px;
-  background: radial-gradient(circle at center, var(--lab-bg-soft) 0%, var(--lab-bg-deep) 100%);
-  color: var(--lab-text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  transition: background 0.2s, color 0.2s;
-}
-
-.lab-start__panel {
-  width: 100%;
-  max-width: 640px;
-  padding: 36px 32px 32px;
-  border-radius: 16px;
-  background: var(--lab-card);
-  border: 1px solid var(--lab-line);
-  box-shadow: 0 24px 60px var(--lab-shadow);
-  text-align: center;
-}
-
-.lab-start__brand {
-  display: inline-flex;
-  width: fit-content;
-  color: var(--lab-text);
-  font-size: 1.05rem;
-  text-decoration: none;
-}
-
-.lab-start__title {
-  margin: 14px 0 6px;
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--lab-text);
-}
-
-.lab-start__lead {
-  margin: 0 auto 28px;
-  max-width: 440px;
+  background: var(--lab-bg);
   color: var(--lab-muted);
   font-size: 0.95rem;
-  line-height: 1.5;
 }
 
-.lab-start__join {
-  display: flex;
-  gap: 8px;
+.lab-start p {
+  margin: 0;
 }
 
-.lab-start__code {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--lab-surface);
-  border: 1px solid var(--lab-line-strong);
-  color: var(--lab-text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1.1rem;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  text-align: center;
-  transition: border-color 0.15s, box-shadow 0.15s;
+.lab-start__spin {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--lab-accent-soft);
+  border-top-color: var(--lab-accent);
+  animation: labSpin 0.9s linear infinite;
 }
 
-.lab-start__code::placeholder {
-  color: var(--lab-placeholder);
-  letter-spacing: 0.2em;
-  font-size: 0.85rem;
+@keyframes labSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.lab-start__code:focus {
-  outline: none;
-  border-color: var(--lab-accent);
-  box-shadow: 0 0 0 3px var(--lab-accent-soft);
+/* the two ways in: plain cards, with the depth in one place: the icon's tile and a soft glow behind it,
+   and a faint bit of circuit board in the far corner */
+.lab-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.lab-start__join-btn {
-  padding: 0 22px;
-  white-space: nowrap;
-}
-
-.lab-start__error {
-  min-height: 20px;
-  margin: 8px 0 18px;
-  color: var(--lab-danger);
-  font-size: 0.85rem;
-}
-
-.lab-start__divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  color: var(--lab-muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.lab-start__divider::before,
-.lab-start__divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--lab-line);
-}
-
-.lab-start__cards {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.lab-start__card {
-  flex: 1;
-  min-width: 200px;
+.lab-choice {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 18px 20px;
-  border-radius: 12px;
-  background: var(--lab-surface);
-  border: 1px solid var(--lab-line-strong);
-  color: var(--lab-text);
-  text-align: left;
+  gap: 6px;
+  min-height: 268px;
+  padding: 24px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  background:
+    radial-gradient(70% 90% at 0% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    var(--card-bg);
+  box-shadow: var(--shadow-subtle);
+  color: var(--text-main);
   font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
-.lab-start__card:hover {
-  background: var(--lab-accent-soft);
-  border-color: var(--lab-accent);
-  box-shadow: 0 0 18px var(--lab-accent-glow);
+.lab-choice:hover {
+  border-color: var(--primary);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--primary) 16%, transparent);
   transform: translateY(-2px);
 }
 
-.lab-start__card:active {
-  transform: translateY(0);
+.lab-choice:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
 }
 
-.lab-start__card:focus-visible,
-.lab-start__join-btn:focus-visible {
-  outline: 2px solid var(--lab-accent);
-  outline-offset: 2px;
+.lab-choice > * {
+  position: relative;
 }
 
-.lab-start__card-tag {
-  color: var(--lab-accent);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.lab-choice__traces {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 200px;
+  height: 200px;
+  opacity: 0.32;
+  pointer-events: none;
+  transition: opacity 0.25s;
 }
 
-.lab-start__card strong {
-  font-size: 1rem;
+.lab-choice:hover .lab-choice__traces {
+  opacity: 0.7;
 }
 
-.lab-start__card-desc {
-  color: var(--lab-muted);
-  font-size: 0.82rem;
-  line-height: 1.4;
+.lab-choice__traces path {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: labDraw 1s ease-out forwards;
 }
 
-@media (max-width: 720px) {
-  .lab-start {
-    padding: 16px;
-  }
+.lab-choice__traces circle {
+  fill: var(--card-bg);
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  opacity: 0;
+  animation: labFade 0.35s ease-out forwards;
+}
 
-  .lab-start__panel {
-    padding: 28px 18px 22px;
-  }
+.lab-choice__traces rect {
+  fill: none;
+  fill: color-mix(in srgb, var(--primary) 12%, transparent);
+  stroke: var(--primary);
+  stroke-width: 1.5;
+}
 
-  .lab-start__title {
-    font-size: 1.6rem;
-  }
-
-  .lab-start__join {
-    flex-direction: column;
-  }
-
-  .lab-start__join-btn {
-    min-height: 44px;
-  }
-
-  .lab-start__card {
-    flex-basis: 100%;
+@keyframes labDraw {
+  to {
+    stroke-dashoffset: 0;
   }
 }
+
+@keyframes labFade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* the icon's tile on the left, the arrow on the right; the words sit at the bottom of the card */
+.lab-choice__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: auto;
+  padding-bottom: 24px;
+}
+
+.lab-choice__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #10b981, #047857);
+  box-shadow:
+    0 10px 22px rgba(5, 150, 105, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  transition: transform 0.2s;
+}
+
+.lab-choice:hover .lab-choice__icon {
+  transform: scale(1.04);
+}
+
+.lab-choice__arrow {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary-strong);
+  transition: background-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.lab-choice:hover .lab-choice__arrow {
+  background: #059669;
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+.lab-choice strong {
+  font-size: 1.32rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.lab-choice__about {
+  max-width: 34ch;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.lab-choose-status,
+.lab-choose-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.lab-choose-status {
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-main);
+}
+
+.lab-choose-status .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--danger);
+}
+
+.lab-choose-note {
+  color: var(--text-muted);
+}
+
+.lab-choose-note .icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.lab-choose-note .text-link {
+  font-size: inherit;
+}
+
+/* one above the other when two side by side would be narrow */
+@media (max-width: 900px) {
+  .lab-choices {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .lab-choice {
+    min-height: 200px;
+    padding: 20px;
+  }
+
+  .lab-choice__top {
+    padding-bottom: 20px;
+  }
+
+  .lab-choice__icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+  }
+
+  .lab-choice__arrow {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lab-choice strong {
+    font-size: 1.22rem;
+  }
+
+  .lab-choice__about {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* the words stay clear of the circuit in the corner */
+  .lab-choice__traces {
+    width: 116px;
+    height: 116px;
+  }
+
+  .lab-choice__about {
+    max-width: 72%;
+  }
+}
+
+/* a phone on its side: both in view, side by side */
+@media (max-height: 500px) and (min-width: 641px) {
+  .lab-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .lab-choice {
+    min-height: 0;
+    padding: 14px 16px;
+  }
+
+  .lab-choice__top {
+    padding-bottom: 10px;
+  }
+
+  .lab-choice__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+
+  .lab-choice__arrow {
+    width: 32px;
+    height: 32px;
+  }
+
+  .lab-choice strong {
+    font-size: 1.1rem;
+  }
+
+  .lab-choice__about {
+    font-size: 0.84rem;
+    line-height: 1.4;
+  }
+
+  .lab-choice__traces {
+    width: 130px;
+    height: 130px;
+  }
+}
+
 /* official score: "87/100" */
 .assemble__score-max {
   margin-left: 2px;
