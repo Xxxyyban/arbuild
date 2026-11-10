@@ -17,6 +17,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -129,8 +130,10 @@ export function reopenSession(code, session) {
   });
 }
 
+// closedAt is the server's time, not this computer's: for a minute after it, firestore.rules still takes
+// each student's final result (lab/useLabSession.js), and a clock that's off mustn't cut that short
 export const closeSession = (code) =>
-  updateDoc(sessionRef(code), { status: "closed", closedAt: Timestamp.now() });
+  updateDoc(sessionRef(code), { status: "closed", closedAt: serverTimestamp() });
 
 /** Sets (a Date) or clears (null) when a lab activity is due. */
 export const setLabDue = (code, dueAt) => updateDoc(sessionRef(code), { dueAt: dueAt ? Timestamp.fromDate(dueAt) : null });

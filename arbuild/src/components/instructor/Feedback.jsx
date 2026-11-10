@@ -1,8 +1,8 @@
 // What the instructor learns from a class: one student's report, and the class's common mistakes.
-// Both read the events students send while the class runs (sessions/{code}/events).
+// Both read the events students send while the class runs (sessions/{code}/events): their mistakes,
+// the exam's warnings and the task being finished (lab/reportEvent.js SAVED_TYPES).
 // Styles: styles/Instructor.css (.ins-report*, .ins-common*).
-import { useState } from "react";
-import { MISTAKE_TYPES, summarizeEvents } from "../../lab/reportEvent";
+import { MISTAKE_TYPES, SAVED_TYPES, summarizeEvents } from "../../lab/reportEvent";
 import { PART_LABEL } from "../../lab/Constants";
 import { formatMs } from "../../lab/Sessions";
 import { taskSummary } from "../../lab/Tasks";
@@ -16,19 +16,16 @@ export const KIND_LABEL = {
   bootfail: "Didn't boot",
   revert: "Undid work",
   penalty: "Penalty",
-  success: "Done",
-  pick: "Picked",
   task: "Task done",
-  reset: "Reset",
   integrity: "Exam",
 };
 
-const KIND_TONE = { safety: "danger", penalty: "danger", compat: "danger", success: "live", task: "done", pick: "idle", integrity: "danger" };
+const KIND_TONE = { safety: "danger", penalty: "danger", compat: "danger", task: "done", integrity: "danger" };
 
 // Steps that aren't parts (power on, safety steps, the task itself) get a readable name too.
 const STEP_LABEL = {
   post: "Power on", boot: "Power on", paste: "Thermal paste", shutdown: "Shut down", unplug: "Unplug",
-  bench: "Bench", assemble: "Assemble", disassemble: "Disassemble", ram: "RAM", exam: "Exam rules",
+  assemble: "Assemble", disassemble: "Disassemble", ram: "RAM", exam: "Exam rules",
   screws: "Board screws", psu_screws: "PSU screws", gpu_screws: "Card screws", power_cord: "Power cord",
 };
 const partName = (p) => PART_LABEL[p] || STEP_LABEL[p] || (p ? p.replace(/_/g, " ") : "");
@@ -62,11 +59,10 @@ function KindChips({ summary }) {
 /* ---------- one student ---------- */
 
 export function StudentReport({ student, task, events, onClose }) {
-  const [all, setAll] = useState(false);
   const mine = events.filter((e) => e.uid === student.id);
   const summary = summarizeEvents(mine);
   const repeated = groupMistakes(mine).filter((g) => g.count > 1).slice(0, 5);
-  const shown = all ? mine : mine.filter((e) => MISTAKE_TYPES.includes(e.type) || e.type === "task" || e.type === "integrity");
+  const shown = mine.filter((e) => SAVED_TYPES.includes(e.type)); // an older lab's log has every correct step too
   // the exam lockdown's warnings (components/lab/ExamGuard.jsx)
   const examWarnings = mine.filter((e) => e.type === "integrity");
   const timesLeft = examWarnings.filter((e) => /^Left the lab/.test(e.detail || "")).length;
@@ -135,14 +131,10 @@ export function StudentReport({ student, task, events, onClose }) {
       )}
 
       <div className="ins-head">
-        <h3>{all ? "Everything they did" : examWarnings.length ? "Mistakes and exam warnings" : "Mistakes"}</h3>
-        <label className="ins-check ins-check--inline">
-          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-          <span>Show every step</span>
-        </label>
+        <h3>{examWarnings.length ? "Mistakes and exam warnings" : "Mistakes"}</h3>
       </div>
       {shown.length === 0 ? (
-        <p className="ins-muted">{all ? "Nothing recorded yet." : "No mistakes recorded. Clean work so far."}</p>
+        <p className="ins-muted">No mistakes recorded. Clean work so far.</p>
       ) : (
         <ul className="ins-log">
           {shown.map((e) => (

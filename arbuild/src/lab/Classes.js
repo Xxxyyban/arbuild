@@ -210,7 +210,7 @@ export async function endClass(cls, { by }) {
   // then its open labs, one at a time (one write each keeps every rule check small)
   const labs = await getDocs(query(collection(db, "sessions"), where("classId", "==", cls.id), where("instructorUid", "==", cls.instructorUid)));
   await Promise.all(
-    labs.docs.filter((d) => d.data().status !== "closed").map((d) => updateDoc(d.ref, { status: "closed", closedAt: Timestamp.now() }).catch(() => {}))
+    labs.docs.filter((d) => d.data().status !== "closed").map((d) => updateDoc(d.ref, { status: "closed", closedAt: serverTimestamp() }).catch(() => {}))
   );
 }
 

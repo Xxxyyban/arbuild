@@ -49,6 +49,7 @@ function studentState(s, phase, now) {
   if (phase === "waiting") return ["live", "Joined"];
   if (s.taskDone) return ["done", "Task done"];
   const last = Date.parse(s.lastActive || "") || 0;
+  // a lab that's open saves at least every 75 s (lab/rowSaver.js): keep this above that
   return now - last < 90000 ? ["live", "Working"] : ["idle", "Idle"];
 }
 

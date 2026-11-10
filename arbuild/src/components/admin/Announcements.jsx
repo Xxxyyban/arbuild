@@ -3,7 +3,7 @@
 // below, newest first, each with who it went to; removing one takes it out of everyone's bell.
 // Data: lab/Announcements.js. Styles: styles/Admin.css (.admin-panel, .admin-field) and .ann-*.
 import { useState } from "react";
-import { AUDIENCES, deleteAnnouncement, postAnnouncement, useAnnouncements } from "../../lab/Announcements";
+import { AUDIENCES, announcedBy, deleteAnnouncement, postAnnouncement, useAnnouncements } from "../../lab/Announcements";
 
 const LABEL = Object.fromEntries(AUDIENCES.map((a) => [a.id, a.label]));
 const fullWhen = (t) => {
@@ -11,7 +11,7 @@ const fullWhen = (t) => {
   return ms ? new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "just now";
 };
 
-/** by: { uid, name }: the admin, as their profile names them. onError(message) shows a problem. */
+/** by: { uid, name }: the admin, as their profile names them ("" with no name: it goes out as "ARBuild Admin", never their email). onError(message) shows a problem. */
 export default function Announcements({ by, onError }) {
   const posted = useAnnouncements("admin", 50);
   const [audience, setAudience] = useState("all");
@@ -86,7 +86,7 @@ export default function Announcements({ by, onError }) {
                   {a.body && <p>{a.body}</p>}
                   <small>
                     To {LABEL[a.audience].toLowerCase()} · {fullWhen(a.createdAt)}
-                    {a.byName ? ` · ${a.byName}` : ""}
+                    {` · ${announcedBy(a)}`}
                   </small>
                 </div>
                 <button type="button" className="ann-remove" onClick={() => remove(a)}>Remove</button>

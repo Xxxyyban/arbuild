@@ -1,6 +1,7 @@
-// The Build Lab's rules and score for the power cord, and what the PC screen says (lab/Rules.js, Scoring.js,
-// Setup.js, Faults.js, Screen.js). `npm test` runs it from the app folder; ext-register.mjs lets Node load the
-// app's extensionless imports. Exits 1 if anything fails.
+// The Build Lab's rules and score for the power cord, what the PC screen says, and how often a class lab
+// saves to the database (lab/Rules.js, Scoring.js, Setup.js, Faults.js, Screen.js, rowSaver.js, reportEvent.js).
+// `npm test` runs it from the app folder; ext-register.mjs lets Node load the app's extensionless imports.
+// Exits 1 if anything fails.
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 const src = (p) => pathToFileURL(path.resolve("src", p)).href;
@@ -127,6 +128,70 @@ const check = (name, fg, bg, need = 4.5) => {
 const PILL = "#0b1220"; // Three/Hardware.jsx PILL_BG
 Object.entries(K.PART_DOT).forEach(([k, c]) => check(`pill dot: ${k}`, c, PILL, 3));
 Object.entries(Sc.STATUS_COLOR).forEach(([k, c]) => check(`badge dot: ${k}`, c, PILL, 3));
+
+console.log("-- how often a class lab saves (the free plan allows the school 20,000 writes a day)");
+const RS = await import(src("lab/rowSaver.js"));
+const Ev = await import(src("lab/reportEvent.js"));
+// a made-up clock: a timer fires when time is moved past it
+function fakeClock() {
+  let t = 1e12;
+  let id = 0;
+  const timers = new Map();
+  return {
+    now: () => t,
+    later: (fn, ms) => (timers.set(++id, { at: t + ms, fn }), id),
+    cancel: (i) => timers.delete(i),
+    run(ms) {
+      const end = t + ms;
+      for (;;) {
+        const next = [...timers].filter(([, x]) => x.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next) break;
+        timers.delete(next[0]);
+        t = next[1].at;
+        next[1].fn();
+      }
+      t = end;
+    },
+  };
+}
+// one student, second by second: something changes every `every` s until `doneAt`, when the task is finished
+function lab({ seconds = 3600, every = 0, doneAt = Infinity }) {
+  const clock = fakeClock();
+  const start = clock.now();
+  const saves = [];
+  const saver = RS.createRowSaver((d) => saves.push({ at: clock.now() - start, d }), clock); // at: ms into the lab
+  for (let s = 0; s < seconds; s++) {
+    if (s === doneAt) saver.push({ score: s, taskDone: true, phaseDone: true });
+    else if (s < doneAt && (s === 0 || (every && s % every === 0))) saver.push({ score: s, taskDone: false, phaseDone: false });
+    if (s % (RS.BEAT_CHECK / 1000) === 0) saver.beat();
+    clock.run(1000);
+  }
+  return { saves, saver, clock };
+}
+const gaps = (saves) => saves.slice(1).map((x, i) => x.at - saves[i].at);
+const busy = lab({ every: 5 }).saves;
+eq("working nonstop for an hour: one save every 30 s", busy.length, 120);
+eq("never two closer than 30 s", Math.min(...gaps(busy)) >= RS.GAP, true);
+eq("each save carries the newest progress", busy[1].d.score, 30);
+const idle = lab({}).saves;
+eq("nothing changing for an hour: a 'still here' a minute", idle.length, 60);
+eq("never quiet long enough for the monitor to call them idle (90 s)", Math.max(...gaps(idle)) <= 75000, true);
+eq("a 'still here' saves nothing else", idle[1].d, {});
+const done = lab({ every: 5, doneAt: 601 }).saves;
+eq("finishing is saved within a second, not at the next turn", done.find((x) => x.d.taskDone).at, 601000 + RS.BURST);
+eq("and nothing more once the task is done", done.at(-1).d.taskDone, true);
+eq("a 20-minute build, left open for the hour", lab({ every: 5, doneAt: 1200 }).saves.length, 41);
+const leaving = lab({ seconds: 10, every: 5 });
+leaving.saver.flush();
+eq("leaving the page saves what was waiting", leaving.saves.at(-1).d.score, 5);
+leaving.saver.flush();
+eq("but only once", leaving.saves.length, 2);
+const stopped = lab({ seconds: 10, every: 5 });
+stopped.saver.stop();
+stopped.clock.run(60000);
+eq("leaving the class drops what was waiting", stopped.saves.length, 1);
+eq("correct steps aren't saved to the log", ["success", "pick", "reset"].some((t) => Ev.SAVED_TYPES.includes(t)), false);
+eq("mistakes, exam warnings and the finish are", ["miss", "safety", "bootfail", "integrity", "task"].every((t) => Ev.SAVED_TYPES.includes(t)), true);
 
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);

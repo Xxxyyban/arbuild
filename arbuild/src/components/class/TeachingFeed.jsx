@@ -7,8 +7,9 @@
 // their classes; announcementsSeenAt, on their profile). Ended classes are left out: they're records.
 // <TeachingFeed user profile>{(feed) => ...}</TeachingFeed> hands its children the shape ClassFeed does:
 //   feed = { teacher: true, ready, items, todo, missed, fresh, announcements, count, markAllSeen }
-// One invisible listener component per class, and per lab activity worth watching.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// One invisible listener component per class, and per lab activity worth watching. Opened once for the
+// whole visit by <TeachingFeedProvider> above the pages (FeedLayout.jsx), like the students' ClassFeed.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { subscribeMyClasses, subscribeClassLabs, subscribeRecentJoins, subscribeRecentComments, markClassAlertsSeen, toMs } from "../../lab/Classes";
 import { subscribeFinished, sessionPhase, closedMs, dueText } from "../../lab/Sessions";
 import { cappedScore } from "../../lab/Scoring";
@@ -19,7 +20,23 @@ import useClock from "../../lab/useClock";
 
 const WEEK = 7 * 864e5;
 
+const Shared = createContext(null);
+
+/** One feed, from one set of listeners, for every <TeachingFeed> under it. */
+export function TeachingFeedProvider({ user, profile, children }) {
+  return (
+    <LiveFeed user={user} profile={profile}>
+      {(feed) => <Shared.Provider value={feed}>{children}</Shared.Provider>}
+    </LiveFeed>
+  );
+}
+
 export default function TeachingFeed({ user, profile, children }) {
+  const shared = useContext(Shared);
+  return shared ? children(shared) : <LiveFeed user={user} profile={profile}>{children}</LiveFeed>;
+}
+
+function LiveFeed({ user, profile, children }) {
   const uid = user?.uid;
   const [classes, setClasses] = useState(null);
   const [slices, setSlices] = useState({}); // classId -> items

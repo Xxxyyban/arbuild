@@ -3,6 +3,10 @@
 
 // "compat" = tried to fit a part that doesn't match the board or the work order.
 export const MISTAKE_TYPES = ["miss", "blocked", "safety", "revert", "penalty", "bootfail", "compat"];
+// What a class saves and the instructor's report shows: the mistakes, the task being finished ("task")
+// and the exam's warnings ("integrity"). Correct steps ("success"), part choices and resets stay in
+// memory: saving each one was most of a lab's database writes, and the free plan has a daily allowance.
+export const SAVED_TYPES = [...MISTAKE_TYPES, "task", "integrity"];
 
 export function createReporter({ sink = null, max = 1000 } = {}) {
   const queue = [];

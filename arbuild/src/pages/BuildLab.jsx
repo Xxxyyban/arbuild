@@ -1742,10 +1742,18 @@ function BuildLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixedKey]);
 
-  // The instructor's live table. Time is sent in 15 s steps so a class doesn't flood Firestore.
-  const timeBucket = `${Math.floor(phaseMs.current.assemble / 15000)}:${Math.floor(phaseMs.current.disassemble / 15000)}`;
+  // The instructor's live table: the row, whenever something changes, and once a minute of lab time for
+  // the time and what it has done to the score (lab/rowSaver.js spaces the saves out, so a class doesn't
+  // flood Firestore). And once more as the lab closes: the final result, which the hook sends at once.
+  const timeBucket = `${Math.floor(phaseMs.current.assemble / 60000)}:${Math.floor(phaseMs.current.disassemble / 60000)}`;
+  const ranHere = useRef(false); // this lab was running on this screen (not closed while still waiting)
   useEffect(() => {
-    if (!inClass || classPhase !== "running") return;
+    if (!inClass) {
+      ranHere.current = false;
+      return;
+    }
+    if (classPhase === "running") ranHere.current = true;
+    else if (classPhase !== "ended" || !ranHere.current) return;
     labSession.pushProgress({
       mode, platform, partsLeft, mistakes, phaseDone,
       taskId: task?.id ?? null, taskDone: !!taskDone, taskMs: taskDone?.ms ?? 0,

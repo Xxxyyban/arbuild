@@ -27,6 +27,7 @@ const BuildLab = lazy(() => import("./pages/BuildLab")); // Build Lab: assemble 
 const About = lazy(() => import("./pages/About")); // what ARBuild is, with the 3D model credits
 const CalendarPage = lazy(() => import("./pages/Calendar")); // class meetings, due dates, anything missed
 const ThreeCameraView = lazy(() => import("./pages/ThreeCameraView"));
+const FeedLayout = lazy(() => import("./components/class/FeedLayout")); // one set of class listeners for all of them
 
 // IMPORTANT:
 // Admin must be a DEFAULT export.
@@ -258,6 +259,11 @@ export default function App() {
                 STUDENT / FACULTY
             ================================================== */}
 
+            {/* Every signed-in page down to the Classes pages is inside this one: it keeps the bell's
+                and the to-do lists' class data loaded from page to page (not indented, to keep the
+                routes as they were). */}
+            <Route element={<FeedLayout />}>
+
             <Route
               path="/main"
               element={
@@ -350,6 +356,8 @@ export default function App() {
             {/* Classes (students): join with a code, then announcements, materials, labs */}
             <Route path="/classes" element={<Gate><Classes /></Gate>} />
             <Route path="/classes/:classId" element={<Gate><Classes page="class" /></Gate>} />
+
+            </Route>{/* end of the shared class feed (FeedLayout) */}
 
             <Route
               path="/admin"

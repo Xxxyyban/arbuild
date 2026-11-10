@@ -16,10 +16,16 @@ export const AUDIENCES = [
 
 const items = (audience) => collection(db, "announcements", audience, "items");
 
-/** Posts an announcement. by: { uid, name } (their name as their profile has it). */
+// An announcement is from the admin by name, never by email address: an admin account often has no
+// name saved, only its sign-in email, and that isn't for the whole school to read.
+export const ADMIN_NAME = "ARBuild Admin";
+/** Who an announcement is from, as shown (older ones were saved under the email). */
+export const announcedBy = (a) => (a?.byName && !a.byName.includes("@") ? a.byName : ADMIN_NAME);
+
+/** Posts an announcement. by: { uid, name } (their name as their profile has it, "" if it has none). */
 export async function postAnnouncement({ audience, title, body, by }) {
   const ref = doc(items(audience));
-  await setDoc(ref, { title: title.trim(), body: body.trim(), byUid: by.uid, byName: by.name, createdAt: serverTimestamp() });
+  await setDoc(ref, { title: title.trim(), body: body.trim(), byUid: by.uid, byName: announcedBy({ byName: by.name }), createdAt: serverTimestamp() });
   return ref.id;
 }
 
@@ -47,7 +53,7 @@ export function noticeItems(list, seenAt, now) {
       announcement: true,
       at,
       unread: at > seenAt,
-      who: { name: a.byName || "ARBuild admin", photo: "" },
+      who: { name: announcedBy(a), photo: "" },
       className: "From the admin",
       title: a.title,
       body: a.body,

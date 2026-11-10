@@ -44,6 +44,11 @@ async function seed() {
     await setDoc(doc(db, "sessions", "LAB1"), { code: "LAB1", title: "Build", instructorUid: "profA", classId: "c1", status: "running", expiresAt: null });
     await setDoc(doc(db, "sessions", "LAB1", "students", "maria"), { uid: "maria", score: 100 });
     await setDoc(doc(db, "sessions", "LAB1", "events", "e1"), { uid: "maria", type: "miss" });
+    // a lab the instructor closed a moment ago, and one closed an hour ago
+    await setDoc(doc(db, "sessions", "LABC"), { code: "LABC", title: "Just closed", instructorUid: "profA", classId: "c1", status: "closed", closedAt: Timestamp.now(), expiresAt: null });
+    await setDoc(doc(db, "sessions", "LABC", "students", "maria"), { uid: "maria", score: 60, scoreScale: 100 });
+    await setDoc(doc(db, "sessions", "LABO"), { code: "LABO", title: "Closed earlier", instructorUid: "profA", classId: "c1", status: "closed", closedAt: Timestamp.fromMillis(Date.now() - 3600e3), expiresAt: null });
+    await setDoc(doc(db, "sessions", "LABO", "students", "maria"), { uid: "maria", score: 60, scoreScale: 100 });
   });
 }
 
@@ -237,6 +242,16 @@ await check("student logs a mistake with an extra field", "BLOCKS", () =>
   setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e10"), { uid: "juan", ts: 1, mode: "assemble", type: "miss", part: "cpu", detail: "x", points: 0, junk: "x" }));
 await check("student logs a huge mistake entry", "BLOCKS", () =>
   setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e11"), { uid: "juan", ts: 1, mode: "assemble", type: "miss", part: "cpu", detail: "x".repeat(5000), points: 0 }));
+await check("app: student's lab sends its final result as the lab closes", "ALLOWS", () => updateDoc(doc(as("maria"), "sessions", "LABC", "students", "maria"), { score: 72, scoreScale: 100, partsLeft: 1 }));
+await check("student changes their score an hour after the lab closed", "BLOCKS", () => updateDoc(doc(as("maria"), "sessions", "LABO", "students", "maria"), { score: 100 }));
+await check("student joins a lab that just closed", "BLOCKS", () => setDoc(doc(as("juan"), "sessions", "LABC", "students", "juan"), { uid: "juan", score: 100, scoreScale: 100 }));
+await check("student sets a classmate's final result as the lab closes", "BLOCKS", () => updateDoc(doc(as("juan"), "sessions", "LABC", "students", "maria"), { score: 0 }));
+await check("app: admin posts an announcement as ARBuild Admin", "ALLOWS", () =>
+  setDoc(doc(as("admin"), "announcements", "all", "items", "a1"), { title: "Hello", body: "From the team", byUid: "admin", byName: "ARBuild Admin", createdAt: serverTimestamp() }));
+await check("admin posts an announcement under an instructor's name", "BLOCKS", () =>
+  setDoc(doc(as("admin"), "announcements", "all", "items", "a2"), { title: "Hello", body: "", byUid: "admin", byName: "Rosa Santos", createdAt: serverTimestamp() }));
+await check("student posts an announcement as ARBuild Admin", "BLOCKS", () =>
+  setDoc(doc(as("juan"), "announcements", "all", "items", "a3"), { title: "No class", body: "", byUid: "juan", byName: "ARBuild Admin", createdAt: serverTimestamp() }));
 await check("app: instructor watches the lab", "ALLOWS", () => getDocs(collection(as("profA"), "sessions", "LAB1", "students")));
 await check("app: instructor gives a student a task", "ALLOWS", () => updateDoc(doc(as("profA"), "sessions", "LAB1", "students", "maria"), { assignedTask: "t2", assignedAt: 1 }));
 await check("app: instructor adds an older lab to a class", "ALLOWS", () => updateDoc(doc(as("profA"), "sessions", "LAB1"), { classId: "c1", className: "PC Assembly" }));

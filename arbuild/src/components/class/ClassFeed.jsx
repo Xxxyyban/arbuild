@@ -11,7 +11,11 @@
 // A lab closed before the student finished it is missed: it shows in the bell (and pops up once)
 // until they've looked; a lab past its due date and still open is overdue: still to do, marked late.
 // One invisible listener component per class (and per lab activity) keeps its slice up to date.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// The listeners are opened once for the whole visit, by <ClassFeedProvider> above the pages
+// (FeedLayout.jsx): every <ClassFeed> under it reads that one feed. Each page opening its own meant
+// downloading every class's posts and lab activities again on every page, and the free plan has a
+// daily allowance of reads.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   subscribeMyMemberships,
   subscribeClass,
@@ -31,7 +35,23 @@ import useClock from "../../lab/useClock";
 // missed labs stay in the bell this long after they closed
 const MISSED_DAYS = 30;
 
+const Shared = createContext(null);
+
+/** One feed, from one set of listeners, for every <ClassFeed> under it. */
+export function ClassFeedProvider({ user, profile, children }) {
+  return (
+    <LiveFeed user={user} profile={profile}>
+      {(feed) => <Shared.Provider value={feed}>{children}</Shared.Provider>}
+    </LiveFeed>
+  );
+}
+
 export default function ClassFeed({ user, profile, children }) {
+  const shared = useContext(Shared);
+  return shared ? children(shared) : <LiveFeed user={user} profile={profile}>{children}</LiveFeed>;
+}
+
+function LiveFeed({ user, profile, children }) {
   const student = profile?.role !== "faculty";
   const uid = student ? user?.uid : null;
   const [classes, setClasses] = useState(null);

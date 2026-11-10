@@ -1279,7 +1279,7 @@ export default function Admin() {
         {view === "accounts" && renderAccounts()}
         {view === "announcements" && (
           <Announcements
-            by={{ uid: user?.uid, name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || user?.email || "Admin" }}
+            by={{ uid: user?.uid, name: [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() }}
             onError={setError}
           />
         )}

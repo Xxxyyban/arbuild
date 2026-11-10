@@ -115,6 +115,16 @@ service cloud.firestore {
       return running(get(/databases/$(database)/documents/sessions/$(code)).data);
     }
 
+    // Closed by the instructor within the last minute (closedAt is the server's time). A student's
+    // lab saves its progress every half minute, not at every step, so its last steps may not be in
+    // yet: it sends the final result as the lab closes, and that one still gets in.
+    function sessionJustClosed(code) {
+      let s = get(/databases/$(database)/documents/sessions/$(code)).data;
+      return s.status == 'closed'
+        && s.get('closedAt', null) is timestamp
+        && request.time < s.closedAt + duration.value(60, 's');
+    }
+
     // The instructor who created the session, or an admin
     function ownsSession(code) {
       return signedIn()
@@ -168,7 +178,8 @@ service cloud.firestore {
 
     // The admin's announcements, to everyone, to students or to instructors: each person reads only
     // the ones meant for them. Only the admin posts one (as themselves, timed by the server) or
-    // removes one; nobody edits one.
+    // removes one; nobody edits one. It goes out under their name, or as "ARBuild Admin" when their
+    // account has no name: not under their sign-in email, which the whole school would read.
     match /announcements/{audience}/items/{id} {
       function forMe() {
         return audience == 'all'
@@ -182,7 +193,7 @@ service cloud.firestore {
         && text(request.resource.data.title, 120)
         && upTo(request.resource.data.body, 2000)
         && request.resource.data.byUid == request.auth.uid
-        && isMyName(request.resource.data.byName)
+        && (request.resource.data.byName == 'ARBuild Admin' || isMyName(request.resource.data.byName))
         && request.resource.data.createdAt == request.time;
       allow update: if false;
       allow delete: if isAdmin();
@@ -209,7 +220,8 @@ service cloud.firestore {
       allow update: if ownsSession(code) && request.resource.data.instructorUid == resource.data.instructorUid;
       allow delete: if ownsSession(code);
 
-      // One row per student. A student writes only their own row while the lab is alive, and
+      // One row per student. A student writes only their own row while the lab is alive (and its
+      // final result, in the minute after it closes), and
       // can never set the task the instructor assigned. Their official score is a whole number,
       // out of the task's points (scoreScale, at most 100), never above it. The instructor can
       // write any row. (Screens read the task's points from the lab itself, not from this row.)
@@ -226,7 +238,7 @@ service cloud.firestore {
           && !request.resource.data.keys().hasAny(['assignedTask', 'assignedMode', 'assignedAt'])
           && validScore();
         allow update: if ownsSession(code)
-          || (isOwner(uid) && sessionAlive(code)
+          || (isOwner(uid) && (sessionAlive(code) || sessionJustClosed(code))
               && !changed().hasAny(['assignedTask', 'assignedMode', 'assignedAt', 'uid'])
               && (!changed().hasAny(['score', 'scoreScale']) || validScore()));
         allow delete: if ownsSession(code);
