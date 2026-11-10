@@ -1,12 +1,15 @@
-// Where the Build Lab starts, for free build: learning on your own, with no task, clock or points. Class
-// work doesn't start here: students open their lab activities from their class, which skips these choices
-// (a lab on its way shows "Opening your lab…", and if it can't open, why, with the choices under it).
+// Where the Build Lab starts, for free build: learning on your own, with no task, clock or points.
+// Under the choices, a student's lab activities still to do, from all their classes: each opens the lab
+// the way its class does, which skips these choices (a lab on its way shows "Opening your lab…", and if
+// it can't open, why, with the choices under it).
 // The student doesn't choose the platform either: a teardown gets a random PC (working out what's
 // inside is part of the lesson), and building means choosing every part, AM4 or AM5.
-// Styles: styles/BuildLab.css (.lab-choice*, .lab-start*).
+// Styles: styles/BuildLab.css (.lab-choice*, .lab-start*, .lab-todo).
 import { Link } from "react-router-dom";
 import { PLATFORMS } from "../../lab/Catalog";
 import { useAuth } from "../../context/AuthContext";
+import ClassFeed from "../class/ClassFeed";
+import { TodoList } from "../class/ProfileClasses";
 import AppShell from "../AppShell";
 import Circuit from "../Circuit";
 import Icon from "../Icon";
@@ -34,7 +37,7 @@ const CHOICES = [
 
 // opening: a class's lab is on its way; status: why it couldn't open; backTo: that class
 export default function StartScreen({ onPractice, opening = false, status = null, backTo = null }) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
 
   if (opening) {
     return (
@@ -79,12 +82,27 @@ export default function StartScreen({ onPractice, opening = false, status = null
       </div>
 
       {profile?.role === "student" && (
-        <p className="lab-choose-note">
-          <Icon name="info" size={16} />
-          <span>
-            Got a lab activity from your instructor? Open it in <Link to="/classes" className="text-link">your classes</Link>.
-          </span>
-        </p>
+        <ClassFeed user={user} profile={profile}>
+          {(feed) =>
+            feed.todo.length > 0 ? (
+              <section className="page-section lab-todo" aria-label="Lab activities to do">
+                <h2 className="section-label">
+                  To do
+                  <span className="section-count">{feed.todo.length}</span>
+                </h2>
+                <TodoList items={feed.todo} />
+              </section>
+            ) : (
+              <p className="lab-choose-note">
+                <Icon name="info" size={16} />
+                <span>
+                  No lab activities to do right now. When your instructor gives one, it shows here and in{" "}
+                  <Link to="/classes" className="text-link">your classes</Link>.
+                </span>
+              </p>
+            )
+          }
+        </ClassFeed>
       )}
     </AppShell>
   );

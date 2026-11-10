@@ -232,7 +232,11 @@ await check("app: student saves the class to their list", "ALLOWS", () =>
 await check("app: student joins a lab", "ALLOWS", () =>
   setDoc(doc(as("juan"), "sessions", "LAB1", "students", "juan"), { uid: "juan", name: "Juan Dela Cruz", email: "juan@cdd.edu.ph", studentId: "2023-0142", section: "BSIT 3A", joinedAt: "2026-10-23", joins: 1, lastActive: "2026-10-23", mode: "assemble", platform: "am4", score: 0, assembleMs: 0, disassembleMs: 0, assemble: 0, disassemble: 0, penalty: 0, partsLeft: 0, mistakes: 0, phaseDone: false }, { merge: true }));
 await check("app: student logs a mistake in a running lab", "ALLOWS", () =>
-  setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e9"), { uid: "juan", type: "miss", part: "cpu", msg: "wrong socket", ts: 1 }));
+  setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e9"), { uid: "juan", ts: 1, mode: "assemble", type: "miss", part: "cpu", detail: "wrong socket", points: 0 }));
+await check("student logs a mistake with an extra field", "BLOCKS", () =>
+  setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e10"), { uid: "juan", ts: 1, mode: "assemble", type: "miss", part: "cpu", detail: "x", points: 0, junk: "x" }));
+await check("student logs a huge mistake entry", "BLOCKS", () =>
+  setDoc(doc(as("juan"), "sessions", "LAB1", "events", "e11"), { uid: "juan", ts: 1, mode: "assemble", type: "miss", part: "cpu", detail: "x".repeat(5000), points: 0 }));
 await check("app: instructor watches the lab", "ALLOWS", () => getDocs(collection(as("profA"), "sessions", "LAB1", "students")));
 await check("app: instructor gives a student a task", "ALLOWS", () => updateDoc(doc(as("profA"), "sessions", "LAB1", "students", "maria"), { assignedTask: "t2", assignedAt: 1 }));
 await check("app: instructor adds an older lab to a class", "ALLOWS", () => updateDoc(doc(as("profA"), "sessions", "LAB1"), { classId: "c1", className: "PC Assembly" }));

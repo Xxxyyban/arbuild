@@ -100,6 +100,7 @@ export default function Profile() {
   });
   const [profileSuccess, setProfileSuccess] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [photoNote, setPhotoNote] = useState(null); // the photo button's own message, on every tab: { ok, text }
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -158,6 +159,7 @@ export default function Profile() {
     setActiveTab(tab);
     setProfileError("");
     setProfileSuccess("");
+    setPhotoNote(null);
     setPassError("");
     setPassSuccess("");
   }
@@ -206,51 +208,42 @@ export default function Profile() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setProfileError("Please select a valid image file.");
+      setPhotoNote({ ok: false, text: "Please select a valid image file." });
       input.value = "";
       return;
     }
 
-    // keep the image small so the profile document stays light
-    if (file.size > 500 * 1024) {
-      setProfileError("Please choose an image smaller than 500KB.");
+    // any phone photo is fine: it's saved shrunk (below), so this only stops files too big to open
+    if (file.size > 20 * 1024 * 1024) {
+      setPhotoNote({ ok: false, text: "Please choose an image smaller than 20 MB." });
       input.value = "";
       return;
     }
 
     setUploadingAvatar(true);
-    setProfileError("");
-    setProfileSuccess("");
-
-    const reader = new FileReader();
-
-    reader.onloadend = async () => {
-      try {
-        // only the photo is saved (with the small copy profile cards show, lab/People.js), so unsaved
-        // edits in the form aren't pushed along with it
-        await updateUserProfile({ photoURL: reader.result, photoThumb: await makeThumb(reader.result) });
-        setProfileSuccess("Profile picture updated successfully!");
-      } catch (err) {
-        setProfileError(err.message || "Failed to update profile picture.");
-      } finally {
-        setUploadingAvatar(false);
-        input.value = "";
-      }
-    };
-
-    reader.onerror = () => {
-      setProfileError("Failed to read the image file.");
+    setPhotoNote(null);
+    const url = URL.createObjectURL(file);
+    try {
+      // saved as a 512 px square (about 50 KB) so the profile stays light (the admin's list loads every
+      // one), with the small copy profile cards show (lab/People.js). Only the photo is saved, so unsaved
+      // edits in the form aren't pushed along with it.
+      const [photoURL, photoThumb] = await Promise.all([makeThumb(url, 512), makeThumb(url)]);
+      if (!photoURL) throw new Error("Couldn't read that picture. Try a JPG or PNG photo.");
+      await updateUserProfile({ photoURL, photoThumb });
+      setPhotoNote({ ok: true, text: "Profile picture updated." });
+    } catch (err) {
+      setPhotoNote({ ok: false, text: err.message || "Failed to update profile picture." });
+    } finally {
+      URL.revokeObjectURL(url);
       setUploadingAvatar(false);
       input.value = "";
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   // ============================================================
@@ -363,6 +356,9 @@ export default function Profile() {
               </li>
             )}
           </ul>
+
+          {photoNote?.ok === false && <div className="error-message" role="alert">{photoNote.text}</div>}
+          {photoNote?.ok && <div className="success-message" role="status">{photoNote.text}</div>}
         </section>
 
         {/* The menu */}

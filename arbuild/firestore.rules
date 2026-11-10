@@ -233,11 +233,19 @@ service cloud.firestore {
       }
 
       // Mistake log. Students add their own events (small ones), only the instructor reads them.
+      // Only the fields the lab writes (lab/reportEvent.js, lab/useLabSession.js sink), each kept small,
+      // so nobody can fill the instructor's Common mistakes view with huge entries.
       match /events/{eventId} {
         allow read: if ownsSession(code);
         allow create: if signedIn()
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.size() <= 20
+          && request.resource.data.keys().hasOnly(['uid', 'ts', 'mode', 'type', 'part', 'detail', 'points'])
+          && upTo(request.resource.data.get('mode', ''), 20)
+          && upTo(request.resource.data.get('type', ''), 20)
+          && upTo(request.resource.data.get('part', ''), 80)
+          && upTo(request.resource.data.get('detail', ''), 1000)
+          && request.resource.data.get('ts', 0) is number
+          && request.resource.data.get('points', 0) is number
           && sessionRunning(code);
       }
     }

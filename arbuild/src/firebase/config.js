@@ -34,6 +34,10 @@ export const auth = getAuth(app);
 // (a post, lab progress) are still queued and sent when it comes back, while the page stays open.
 export const db = getFirestore(app);
 export const storage = getStorage(app); // 2. Initialize and export storage
+// shortcut: Firebase Storage isn't set up on arbuild-cdd (it has no bucket; a new one needs the Blaze
+// plan), so a class post can't carry files and the Attach file button stays hidden (links still work).
+// Once Storage is set up in the Firebase console: set this true and deploy storage.rules.
+export const FILES_ON = false;
 
 export const STUDENT_DOMAIN = "cdd.edu.ph";
 export const FACULTY_DOMAIN = "udd.edu.ph";

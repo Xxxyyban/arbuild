@@ -66,8 +66,9 @@ export async function syncStudentCard(classId, uid, card) {
 /* ---------- photos ---------- */
 
 /**
- * A small square JPEG of a photo (a data: or https: address), for the cards: about 10 KB where
- * the profile photo can be 600. "" if the picture can't be read (another site that won't share it).
+ * A small square JPEG of a photo (a data:, blob: or https: address), for the cards: about 10 KB at
+ * 128 px (the profile photo itself is saved at 512). "" if the picture can't be read (another site
+ * that won't share it, or a format the browser can't open).
  */
 export function makeThumb(src, size = 128) {
   return new Promise((resolve) => {

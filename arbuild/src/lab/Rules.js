@@ -194,11 +194,16 @@ export const NO_CORD = { psu: false, wall: false };
 export const CORD_IN = { psu: true, wall: true };
 export const cordIn = (cord) => !!cord?.psu && !!cord?.wall;
 
-/** Can the power cord be plugged in now? null, or { key, msg }. */
+/** Can the power cord be plugged in now? null, or { key, msg }. It goes in last, once every part is in. */
 export function cordBlock(installed, picks, psuScrews = []) {
   if (!picks?.psu) return { key: "power_cord", msg: "Pick a PSU first." };
   if (!installed.psu) return { key: "power_cord", msg: "Put the PSU in the case first: the cord goes into the socket on its back." };
   if (psuScrews.some((s) => !s)) return { key: "power_cord", msg: "Screw the PSU to the case first, then plug the cord into it." };
+  const left = buildSlots(picks).filter((p) => !installed[p]);
+  if (left.length) {
+    const more = left.length > 1 ? ` (and ${left.length - 1} more part${left.length > 2 ? "s" : ""})` : "";
+    return { key: "power_cord", msg: `Put the ${PART_LABEL[left[0]]} in first${more}: the power cord goes in last.` };
+  }
   return null;
 }
 

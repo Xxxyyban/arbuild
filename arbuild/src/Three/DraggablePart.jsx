@@ -45,14 +45,13 @@ export default function DraggablePart({
 
   const [placed, setPlaced] = useState(false);
   const [position, setPosition] = useState(trayPosition);
-  const [exploding, setExploding] = useState(false);
 
   const drag = useRef(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const tmp = useMemo(() => new THREE.Vector3(), []);
 
   const latest = useRef({});
-  latest.current = { isClickToPlace, isSelected, position, exploding, onDrag, onPositionChange };
+  latest.current = { isClickToPlace, isSelected, position, onDrag, onPositionChange };
   const finishRef = useRef(() => {});
 
   useEffect(() => {
@@ -74,7 +73,7 @@ export default function DraggablePart({
 
   // ---------- drag ----------
   const handlePointerDown = (e) => {
-    if (placed || exploding) return;
+    if (placed) return;
     e.stopPropagation();
     if (locked) {
       onClick?.(); // parent shows "mount the motherboard first"
@@ -215,8 +214,7 @@ export default function DraggablePart({
   return (
     <>
       <group ref={group} position={position} {...handlers}>
-        {exploding && <ExplosionBurst />}
-        <group visible={!exploding}>{children}</group>
+        <group>{children}</group>
         {/* invisible grab area so thin parts are easy to pick up */}
         <mesh>
           <sphereGeometry args={[hitRadius, 12, 8]} />
@@ -251,38 +249,6 @@ function TargetMarker({ position, radius, onPlace }) {
         <sphereGeometry args={[radius, 24, 16]} />
         <meshBasicMaterial color="#10b981" transparent opacity={0.35} depthTest={false} depthWrite={false} />
       </mesh>
-    </group>
-  );
-}
-
-function ExplosionBurst() {
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 14 }).map(() => ({
-        dir: new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize(),
-        speed: 1.5 + Math.random() * 1.5,
-      })),
-    []
-  );
-  const ref = useRef();
-  const t = useRef(0);
-  useFrame((_, delta) => {
-    t.current += delta;
-    if (!ref.current) return;
-    ref.current.children.forEach((mesh, i) => {
-      const p = particles[i];
-      mesh.position.addScaledVector(p.dir, p.speed * delta);
-      mesh.material.opacity = Math.max(0, 1 - t.current * 2.2);
-    });
-  });
-  return (
-    <group ref={ref}>
-      {particles.map((_, i) => (
-        <mesh key={i}>
-          <sphereGeometry args={[0.05, 6, 6]} />
-          <meshStandardMaterial color="#e8a33d" emissive="#e8a33d" emissiveIntensity={1.5} transparent opacity={1} />
-        </mesh>
-      ))}
     </group>
   );
 }

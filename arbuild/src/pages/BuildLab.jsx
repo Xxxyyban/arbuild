@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
@@ -147,7 +147,13 @@ function ControlPanel({ buttons }) {
   );
 }
 
-export default function BuildLab() {
+// The lab reads ?lab=, ?class=, ?start= and ?preview= once, when it opens, so a new address (a lab
+// activity picked in the start screen's to-do list or in the bell, while already on /lab) opens a fresh lab.
+export default function BuildLabPage() {
+  return <BuildLab key={useLocation().search} />;
+}
+
+function BuildLab() {
   const { user, profile } = useAuth();
   const userName = profile?.firstName || "Builder";
   const labSession = useLabSession({ user, profile });
@@ -544,8 +550,8 @@ export default function BuildLab() {
       flawed = true;
       ledger.current[k] = 0;
       logAction(name, k, flawed);
-      // troubleshooting scores the faults, not these points: no number in the message
-      deduct(POINTS.skipPaste, `Cooler mounted without thermal paste.${trouble ? "" : ` -${POINTS.skipPaste}`}`);
+      // a number only in a scored lab: troubleshooting scores the faults instead, and free build has no points
+      deduct(POINTS.skipPaste, `Cooler mounted without thermal paste.${scored && !trouble ? ` -${POINTS.skipPaste}` : ""}`);
       reportEvent("penalty", name, "Cooler mounted without thermal paste", -POINTS.skipPaste);
       return;
     }
@@ -735,8 +741,17 @@ export default function BuildLab() {
     setCordTask({ end: cord.psu ? "wall" : "psu", ready: false });
   }
 
+  // A click on the wrong end while the cord is going in: the step it's on (the cord panel's words), not a
+  // restart; with no cord job open, where to start one.
+  function cordStepHint() {
+    if (!cordTask) return showHint("Open Cables and pick the power cord first.");
+    const psu = cordTask.end === "psu";
+    if (cordTask.ready) return showHint(`Push the plug into the ${psu ? "PSU" : "power strip"} first: Push in, or click the plug.`);
+    showHint(psu ? `The PSU end goes in first. ${arLike ? "Tap" : "Click"} the power socket on the back of the PSU.` : `${arLike ? "Tap" : "Click"} a socket on the power strip.`);
+  }
+
   function chooseCordPort(end) {
-    if (cordTask?.end !== end) return showHint("Open Cables and pick the power cord first.");
+    if (cordTask?.end !== end) return cordStepHint();
     setCordTask({ ...cordTask, ready: true });
   }
 
@@ -759,7 +774,7 @@ export default function BuildLab() {
     if (mode === "disassemble") return power.unplugged ? showHint("The power cord is already out.", "success") : unplug();
     if (cordTask?.end === end && cordTask.ready) return pushCord();
     if (cord[end]) return showHint(`The power cord is plugged into the ${end === "psu" ? "PSU" : "power strip"}.`, "success");
-    showHint("Open Cables and pick the power cord first.");
+    cordStepHint();
   }
 
   /* ---------- cables and screws ---------- */
@@ -2215,7 +2230,7 @@ export default function BuildLab() {
         ? "Your instructor controls the mode"
         : !canToggle
         ? "Finish this phase first"
-        : cfg.revertPenalty !== "off"
+        : scored && cfg.revertPenalty !== "off"
         ? "Undoing recent work costs points"
         : "",
     onPress: toggleMode,
@@ -2861,7 +2876,7 @@ export default function BuildLab() {
               variant={variantOf("cpu")}
               hints={hintsOn}
               arLike={arLike}
-              score={!trouble}
+              score={scored && !trouble}
               redone={misses.current[ledgerKey("assemble", "paste")] || 0}
               onKeep={keepPaste}
               onRedo={redoPaste}

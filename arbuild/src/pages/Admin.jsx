@@ -100,17 +100,6 @@ function getDisplayName(userRecord) {
   return fullName || userRecord.email || "Unnamed user";
 }
 
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function formatDateTime(value) {
   if (!value) return "—";
   const date = new Date(value);

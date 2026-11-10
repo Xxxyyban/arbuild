@@ -477,6 +477,13 @@
   color: var(--text-main);
 }
 
+/* the photo button's message, under the account card's facts */
+.pf-card > .error-message,
+.pf-card > .success-message {
+  margin-top: 14px;
+  text-align: left;
+}
+
 .error-message,
 .success-message {
   display: flex;

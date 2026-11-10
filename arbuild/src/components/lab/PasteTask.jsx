@@ -304,7 +304,7 @@ const percent = (v) => `${Math.round(v * 100)}%`;
 
 /**
  * After Done. grade: lab/Paste.js gradePaste. hints off: only the mark, not what's wrong with it.
- * score: whether to give a mark at all (troubleshooting scores the faults, not this). redone: how many
+ * score: whether to give a mark at all (troubleshooting scores the faults, not this; free build has no marks). redone: how many
  * times it was wiped and done again, each of which costs points.
  */
 export function PasteResult({ grade, variant, hints, arLike, score, redone, onKeep, onRedo }) {

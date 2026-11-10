@@ -311,7 +311,7 @@ export default function Scene3D({ children, isCameraOn = false, overlay = null }
       }}
     >
       <Canvas
-        shadows
+        shadows="percentage" // three r185 dropped the soft type and used this one anyway, with a warning
         camera={{ position: [6, 5, 7], fov: 45 }}
         dpr={[1, 2]}
         gl={{ alpha: true, preserveDrawingBuffer: true }}

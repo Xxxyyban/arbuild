@@ -1103,6 +1103,12 @@
   font-size: inherit;
 }
 
+/* a student's lab activities still to do (Classes.css .profile-todo): side by side when there's room */
+.lab-todo .profile-todo {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 10px;
+}
+
 /* one above the other when two side by side would be narrow */
 @media (max-width: 900px) {
   .lab-choices {

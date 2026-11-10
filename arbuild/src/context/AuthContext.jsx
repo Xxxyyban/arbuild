@@ -12,7 +12,6 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
-  updateProfile,
 } from "firebase/auth";
 
 import {
@@ -24,17 +23,9 @@ import {
 } from "firebase/firestore";
 
 import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
-
-import {
   auth,
   db,
-  storage,
   ALLOWED_DOMAINS,
-  STUDENT_DOMAIN,
 } from "../firebase/config";
 
 import { recordSignIn } from "../lab/SignIns";
@@ -46,22 +37,6 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
-
-  // ============================================================
-  // DEFAULT ROLE
-  // ============================================================
-
-  const deriveRoleFromEmail = (email) => {
-    if (!email) return "student";
-
-    const lowerEmail = email.toLowerCase();
-
-    if (lowerEmail.endsWith(`@${STUDENT_DOMAIN}`)) {
-      return "student";
-    }
-
-    return "faculty";
-  };
 
   // ============================================================
   // LOGIN
@@ -704,101 +679,6 @@ export function AuthProvider({ children }) {
   };
 
   // ============================================================
-  // UPDATE AVATAR
-  // ============================================================
-
-  const updateAvatar = async (
-    file
-  ) => {
-    const user =
-      auth.currentUser;
-
-    if (!user) {
-      throw new Error(
-        "No authenticated user."
-      );
-    }
-
-    try {
-      const fileRef = ref(
-        storage,
-        `avatars/${user.uid}/${file.name}`
-      );
-
-      const snapshot =
-        await uploadBytes(
-          fileRef,
-          file
-        );
-
-      const photoURL =
-        await getDownloadURL(
-          snapshot.ref
-        );
-
-      await updateProfile(
-        user,
-        { photoURL }
-      );
-
-      await updateDoc(
-        doc(
-          db,
-          "users",
-          user.uid
-        ),
-        { photoURL }
-      );
-
-      if (
-        userProfile?.role ===
-        "student"
-      ) {
-        await setDoc(
-          doc(
-            db,
-            "students",
-            user.uid
-          ),
-          { photoURL },
-          { merge: true }
-        );
-      }
-
-      if (
-        userProfile?.role ===
-        "faculty"
-      ) {
-        await setDoc(
-          doc(
-            db,
-            "faculty",
-            user.uid
-          ),
-          { photoURL },
-          { merge: true }
-        );
-      }
-
-      setUserProfile(
-        (prev) => ({
-          ...prev,
-          photoURL,
-        })
-      );
-
-      return photoURL;
-    } catch (error) {
-      console.error(
-        "Avatar upload error:",
-        error
-      );
-
-      throw error;
-    }
-  };
-
-  // ============================================================
   // AUTH STATE LISTENER
   // ============================================================
 
@@ -967,8 +847,6 @@ export function AuthProvider({ children }) {
         confirmPassword,
 
         updateUserProfile,
-
-        updateAvatar,
 
         authError,
 

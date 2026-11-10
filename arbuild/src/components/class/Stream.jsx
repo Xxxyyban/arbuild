@@ -19,6 +19,7 @@ import {
 import { subscribeSession, subscribeStudentRow, sessionPhase, formatMs, workLeft, labStanding, dueText } from "../../lab/Sessions";
 import { scoreText } from "../../lab/Scoring";
 import { taskFor, progressHidden } from "../../lab/Tasks";
+import { FILES_ON } from "../../firebase/config";
 import Icon from "../Icon";
 import Avatar from "./Avatar";
 
@@ -203,18 +204,20 @@ function Composer({ classId, me, author, defaultKind }) {
               <Icon name="link" size={16} />
               Add link
             </button>
-            <label className="btn btn--soft cls-file-btn">
-              <Icon name="clip" size={16} />
-              Attach file
-              <input
-                type="file"
-                multiple
-                onChange={(e) => {
-                  setFiles((f) => [...f, ...Array.from(e.target.files || [])]);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+            {FILES_ON && (
+              <label className="btn btn--soft cls-file-btn">
+                <Icon name="clip" size={16} />
+                Attach file
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    setFiles((f) => [...f, ...Array.from(e.target.files || [])]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
           </div>
           {(links.length > 0 || files.length > 0) && (
             <ul className="cls-chips">
