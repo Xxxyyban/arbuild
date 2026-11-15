@@ -12,7 +12,8 @@ service cloud.firestore {
     // ---------- helpers ----------
 
     // Signed in, with a profile the admin hasn't turned off. A sign-in alone isn't enough: a deleted
-    // account's sign-in still works (only the Firebase console removes it), and an inactive one's too.
+    // account's sign-in still works until its next sign-in removes it (the app does, see
+    // src/context/AuthContext.jsx), and an inactive one's too.
     function signedIn() {
       return request.auth != null
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -507,6 +508,44 @@ service cloud.firestore {
         && request.resource.data.id is string
         && request.resource.data.diff(getAfter(/databases/$(database)/documents/signIns/$(request.resource.data.id)).data).affectedKeys().hasOnly(['id'])
         && (resource == null || request.time > resource.data.at + duration.value(60, 's'));
+      allow delete: if false;
+    }
+
+    // ---------- visits (src/lab/Visits.js) ----------
+
+    // How many times students and instructors open ARBuild, counted by the hour (UTC) of each day,
+    // for the admin's graph. One document a day, named by its number of days since 1970 (UTC). A
+    // visit adds exactly 1 to the current hour of the current day (the server's clock), and only
+    // together with the person's visitLast/{uid}, which allows one visit every 10 minutes. Nobody
+    // writes anything else into them, and only the admin reads them.
+
+    function visitDay() {
+      return string(int(request.time.toMillis() / 86400000));
+    }
+    function visitHour() {
+      return 'h' + string(request.time.hours());
+    }
+    function visitStamped() {
+      return getAfter(/databases/$(database)/documents/visitLast/$(request.auth.uid)).data.at == request.time;
+    }
+
+    match /visits/{day} {
+      allow read: if isAdmin();
+      allow create: if signedIn() && !isAdmin() && day == visitDay() && visitStamped()
+        && request.resource.data.keys().hasOnly([visitHour()])
+        && request.resource.data[visitHour()] == 1;
+      allow update: if signedIn() && !isAdmin() && day == visitDay() && visitStamped()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([visitHour()])
+        && request.resource.data[visitHour()] == resource.data.get(visitHour(), 0) + 1;
+      allow delete: if false;
+    }
+
+    match /visitLast/{uid} {
+      allow read: if isAdmin();
+      allow create, update: if isOwner(uid) && !isAdmin()
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at == request.time
+        && (resource == null || request.time > resource.data.at + duration.value(10, 'm'));
       allow delete: if false;
     }
 

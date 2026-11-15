@@ -322,7 +322,8 @@ const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
 
 // Ways to break a part or a connection: each returns a changed set-up, or null if it doesn't apply.
 function mutations(s, platform) {
-  const other = correctPicks(normalizePlatform(platform) === "am5" ? "am4" : "am5");
+  // parts of another kind: a CPU for another socket, and RAM of the other type (AM4 is the only DDR4 one)
+  const other = correctPicks(normalizePlatform(platform) === "am4" ? "am5" : "am4");
   const set = (patch) => normalizeScenario({ ...s, ...patch }, platform);
   const wire = (id, w) => set({ wires: { ...s.wires, [id]: w } });
   const free = (h) => !Object.values(s.wires).some((w) => w?.at === h);

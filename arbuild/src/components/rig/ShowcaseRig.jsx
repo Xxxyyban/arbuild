@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Billboard, Text } from "@react-three/drei";
+import { Billboard, Html, Text } from "@react-three/drei";
 import PartModel, { BOARD_MOUNTS, BOARD_M2_COVERS, BOARD_SOCKETS, PSU_PANELS, MODEL_FILES } from "../../Three/PartModel";
 import { useGLTF } from "../../Three/gltf";
 import { renderSettings } from "../../Three/graphics";
@@ -25,6 +25,7 @@ import { WIRES, WIRE_IDS, wiresStart } from "../../lab/Wires";
 import { STUB_TYPE, PORT_ROT, HEADER_LIFT, FRONT_IO, cableRoute, wireRoute, coolerWireStart, psuToCase } from "../../lab/CableRoutes";
 import { CATALOG, correctPicks } from "../../lab/Catalog";
 import { boardHeaders } from "../../lab/Faults";
+import { CABLE_INFO } from "../../lab/PartGuide";
 
 const HEADER_HEIGHT = 0.045; // a power header stands about 9 mm off the board
 const SOCKET_ROTATION = [0, Math.PI, 0]; // board space -> the socket's frame (Three/cpuSocket.js)
@@ -171,7 +172,7 @@ function Moving({ id, disp, base = ZERO, inBoard = null, children }) {
  * A cable or wire that stays plugged in at both ends while the parts move: each point of its route
  * moves with the part at its start (from) or at its end (to), blended along its length. null: the case.
  */
-function FlexCable({ points, from, to, disp, radius, color, highlight, onClick }) {
+function FlexCable({ points, from, to, disp, radius, color, highlight, onClick, onHover }) {
   const mesh = useRef();
   const base = useMemo(() => points.map((p) => new THREE.Vector3(...p)), [points]);
   // how far along the cable each point is (0 at its start, 1 at its plug), eased so the ends hold on
@@ -201,7 +202,20 @@ function FlexCable({ points, from, to, disp, radius, color, highlight, onClick }
     m.geometry = new THREE.TubeGeometry(curve, Math.round(TUBE[0] * Math.min(2.5, Math.max(1, curve.getLength() / 1.5))), radius, TUBE[1], false);
   });
   return (
-    <mesh ref={mesh} userData={{ pick: "cables" }} onClick={onClick}>
+    <mesh
+      ref={mesh}
+      userData={{ pick: "cables" }}
+      onClick={onClick}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = "pointer";
+        onHover?.(e.point);
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = "";
+        onHover?.(null);
+      }}
+    >
       <bufferGeometry />
       <meshStandardMaterial
         color={color}
@@ -518,6 +532,9 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
     onPointerOut: () => (document.body.style.cursor = ""),
   };
   const cablesOn = selected === "cables";
+  // the cable or wire the mouse is on, and where (rig space): its pop-up says what it is and does
+  const [cableTip, setCableTip] = useState(null);
+  const hoverCable = (id) => (point) => setCableTip(point && root.current ? { id, at: root.current.worldToLocal(point.clone()).toArray() } : null);
 
   // re-made every render, so it always sees the latest props
   useEffect(() => {
@@ -721,7 +738,8 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
           disp={disp}
           radius={c.id === "atx24" ? 0.022 : 0.015}
           color={POWER_CABLE}
-          highlight={cablesOn || activeMarker === `cable:${c.id}`}
+          highlight={cablesOn || activeMarker === `cable:${c.id}` || cableTip?.id === c.id}
+          onHover={hoverCable(c.id)}
           onClick={(e) => {
             e.stopPropagation();
             onPick?.("cables", `cable:${c.id}`);
@@ -737,13 +755,24 @@ export default function ShowcaseRig({ platform = "am4", exploded = false, powere
           disp={disp}
           radius={WIRE_RADIUS[w.id] ?? 0.0055}
           color={WIRE_COLOR[w.id]}
-          highlight={cablesOn || activeMarker === `wire:${w.id}`}
+          highlight={cablesOn || activeMarker === `wire:${w.id}` || cableTip?.id === w.id}
+          onHover={hoverCable(w.id)}
           onClick={(e) => {
             e.stopPropagation();
             onPick?.("cables", `wire:${w.id}`);
           }}
         />
       ))}
+
+      {cableTip && CABLE_INFO[cableTip.id] && (
+        <Html position={cableTip.at} zIndexRange={[60, 0]} style={{ pointerEvents: "none" }}>
+          <div className="rigtip" role="tooltip">
+            <strong>{CABLE_INFO[cableTip.id].title}</strong>
+            <span>{CABLE_INFO[cableTip.id].text}</span>
+            <small>{CABLE_INFO[cableTip.id].colors}</small>
+          </div>
+        </Html>
+      )}
 
       {selected && selTargets.length > 0 && <SelectionBox targets={selTargets} />}
 

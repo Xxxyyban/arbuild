@@ -27,7 +27,7 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
   const [partInfo, setPartInfo] = useState(true);
   const [points, setPoints] = useState(100);
   const [requireGpu, setRequireGpu] = useState(true);
-  const [ramSticks, setRamSticks] = useState(2);
+  const ramSticks = 2; // RAM goes in pairs
   const [mustBoot, setMustBoot] = useState(true);
   const [due, setDue] = useState(""); // "2026-11-10T17:00" from the date and time box, or "" for none
   // troubleshooting: the PC students get, and its faults' points (TroubleshootEditor)
@@ -61,8 +61,7 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
   }
 
   function changeFix(patch) {
-    const { ramSticks: sticks, requireGpu: gpu, ...rest } = patch;
-    if (sticks !== undefined) setRamSticks(sticks);
+    const { ramSticks: _sticks, requireGpu: gpu, ...rest } = patch;
     if (gpu !== undefined) setRequireGpu(gpu);
     setFix((f) => ({ ...f, ...rest }));
   }
@@ -147,19 +146,6 @@ export default function LabActivityForm({ busy, onCreate, onCancel }) {
         <fieldset className="cls-switches">
           <legend>What a complete build needs</legend>
           <Switch on={requireGpu} onChange={setRequireGpu} title="A graphics card" desc={requireGpu ? "Required: leaving it out loses marks." : "Not needed: integrated graphics is fine."} />
-          <div className="cls-switch cls-switch--static">
-            <span className="cls-switch__text">
-              <strong>RAM sticks</strong>
-              <small>{ramSticks === 2 ? "Two, in dual channel (slots 1 and 3)." : "One stick is enough."}</small>
-            </span>
-            <div className="cls-seg" role="radiogroup" aria-label="RAM sticks needed">
-              {[1, 2].map((n) => (
-                <button key={n} type="button" role="radio" aria-checked={ramSticks === n} className={ramSticks === n ? "is-on" : ""} onClick={() => setRamSticks(n)}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
           <Switch on={mustBoot} onChange={setMustBoot} title="Must boot" desc={mustBoot ? "Students power it on and reach the desktop." : "Building it is enough; booting earns nothing extra."} />
         </fieldset>
       )}

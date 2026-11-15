@@ -608,9 +608,9 @@ export function SocketCapOnBench({ size, position, label, waiting, onClick }) {
   );
 }
 
-/** AM5's cover frame on its hinge (plate = { hinge, cap }), with the plastic cap on it while `cap`. */
+/** An LGA socket's cover frame on its hinge (plate = { hinge, cap, shape? }), with the plastic cap on it while `cap`. */
 export function SocketPlate({ plate, open, cap, waiting, onClick }) {
-  const frame = useMemo(() => buildLoadPlate(), []);
+  const frame = useMemo(() => buildLoadPlate(plate.shape), [plate.shape]);
   const turn = useRef();
   const b = useRef(open ? 1 : 0);
   useFrame((state, dt) => {

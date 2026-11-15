@@ -24,6 +24,7 @@ const MODELS = [
   { name: "NVME SSD 2280", creator: "TDD", url: "https://sketchfab.com/3d-models/nvme-ssd-2280-3d478ac74728408890c2a03363138375" },
   { name: "AM4 Cpu [ Free ]", creator: "Igor.Jop", url: "https://skfb.ly/pqx6R" },
   { name: "AMD Ryzen 5 7600 CPU chip (AM5 socket)", creator: "arsdever", url: "https://sketchfab.com/3d-models/amd-ryzen-5-7600-cpu-chip-am5-socket-a05c2732e0b847c2967e2c9282abd5f9" },
+  { name: "Intel core i9 12900k", creator: "teodor088", url: "https://sketchfab.com/3d-models/intel-core-i9-12900k-5eda490bd3c342788d9c5e590cd65dda" },
   { name: "RTX 3060 TI EAGLE", creator: "BlenderFace", url: "https://skfb.ly/oQUIt" },
   { name: "GPU AMD RX 6700 XT", creator: "BlenderFace", url: "https://skfb.ly/oRoEF" },
   { name: "Cooler Master CPU Cooler", creator: "BlenderFace", url: "https://skfb.ly/oQV6T" },
@@ -50,7 +51,7 @@ function parts(teacher) {
     {
       icon: "rig",
       title: "Rig Studio",
-      text: "Explore a complete AM4 or AM5 PC in 3D, or set it on your desk in augmented reality. Take it apart, power it on, and tap any part, port or pin to see what it's for.",
+      text: "Explore a complete AMD (AM4, AM5) or Intel (LGA1700) PC in 3D, or set it on your desk in augmented reality. Take it apart, power it on, and tap any part, port or pin to see what it's for.",
       to: "/main",
       go: "Open Rig Studio",
     },

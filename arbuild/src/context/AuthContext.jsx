@@ -12,6 +12,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
+  deleteUser,
 } from "firebase/auth";
 
 import {
@@ -29,6 +30,23 @@ import {
 } from "../firebase/config";
 
 import { recordSignIn } from "../lab/SignIns";
+import { recordVisit } from "../lab/Visits";
+
+const REMOVED_MSG = "This account was removed by the ARBuild administrator. Please contact them if you think this is a mistake.";
+
+/**
+ * A sign-in whose profile the admin deleted (pages/Admin.jsx): the browser can't delete someone
+ * else's sign-in without a server, so it deletes itself here, the next time that person signs in.
+ * That needs a recent sign-in: an older one is only signed out, and goes at the next sign-in.
+ */
+async function removeOrphan(user) {
+  try {
+    await deleteUser(user);
+  } catch (err) {
+    console.warn("Removed account kept its sign-in for now:", err?.code || err);
+    await signOut(auth);
+  }
+}
 
 const AuthContext = createContext();
 
@@ -148,16 +166,13 @@ export function AuthProvider({ children }) {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // This should normally never happen because
-        // Admin-created accounts receive a Firestore profile.
-        await signOut(auth);
+        // the admin deleted this account: its sign-in goes too (it was just used, so it can)
+        await removeOrphan(user);
 
         setCurrentUser(null);
         setUserProfile(null);
 
-        setAuthError(
-          "Your account exists, but your ARBuild profile has not been configured. Please contact the administrator."
-        );
+        setAuthError(REMOVED_MSG);
 
         setLoading(false);
         return;
@@ -794,14 +809,12 @@ export function AuthProvider({ children }) {
               // This situation should be handled by Admin setup.
               // ------------------------------------------------
 
-              await signOut(auth);
+              await removeOrphan(user);
 
               setCurrentUser(null);
               setUserProfile(null);
 
-              setAuthError(
-                "Your account is not registered in ARBuild. Please contact the administrator."
-              );
+              setAuthError(REMOVED_MSG);
             }
           } catch (error) {
             console.error(
@@ -820,6 +833,14 @@ export function AuthProvider({ children }) {
 
     return unsubscribe;
   }, []);
+
+  // a visit, for the admin's graph (lab/Visits.js): students and instructors, at most one every 10 minutes
+  const visitUid = userProfile && userProfile.role !== "admin" ? currentUser?.uid : null;
+  useEffect(() => {
+    if (visitUid && auth.currentUser?.uid === visitUid) {
+      recordVisit(auth.currentUser).catch((err) => console.warn("Visit not counted:", err?.code || err));
+    }
+  }, [visitUid]);
 
   // ============================================================
   // CONTEXT

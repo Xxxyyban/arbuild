@@ -79,11 +79,12 @@ export function buildLeverHook(height, reach) {
 // The AM5 cover frame, in its hinge's frame: the hinge runs along Y at the origin, the frame
 // reaches +X from it, 0.8 mm thick around z = 0. Its window shows the CPU; the tongue on its far
 // side is what the lever presses down.
+// A board with a socket of another size gives its own (SOCKET.plate.shape): LGA1700's is narrower and taller.
 const PLATE = { from: 0.5, to: 49.5, half: 25, window: [7.5, 43.5, 18], tongue: [55.5, 4] };
 
-export function buildLoadPlate() {
+export function buildLoadPlate(shape = PLATE) {
   const g = new THREE.Group();
-  const { from, to, half, window: win, tongue } = PLATE;
+  const { from, to, half, window: win, tongue } = shape;
   const outline = new THREE.Shape();
   outline.moveTo(from, -half);
   outline.lineTo(to, -half);
@@ -106,7 +107,7 @@ export function buildLoadPlate() {
   const metal = steel("#aab1ba");
   g.add(new THREE.Mesh(geo, metal));
   // the hinge's two knuckles
-  [-18, 18].forEach((y) => g.add(rod([0, y - 4, 0], [0, y + 4, 0], 1.0, metal)));
+  [-half + 7, half - 7].forEach((y) => g.add(rod([0, y - 4, 0], [0, y + 4, 0], 1.0, metal)));
   return finish(g);
 }
 

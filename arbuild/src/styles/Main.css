@@ -55,7 +55,7 @@ body {
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip; /* not hidden: that made it a scroll box, so nothing inside could stay in view (position: sticky) */
 }
 
 /* Backdrop behind the mobile drawer */

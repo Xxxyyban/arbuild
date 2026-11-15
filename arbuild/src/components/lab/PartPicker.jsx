@@ -9,9 +9,8 @@ import { useSizeVar } from "./useSizeVar";
 
 // Headings when a category fills more than one slot (RAM), and the "leave it out" choice
 // for parts a build can do without.
-const SLOT_HEADING = { ram1: "Stick 1", ram2: "Stick 2 (optional)" };
+const SLOT_HEADING = { ram1: "Stick 1", ram2: "Stick 2 (RAM goes in pairs)" };
 const NONE_LABEL = {
-  ram2: "No second stick (run on one stick)",
   gpu: "No graphics card (use the CPU's built-in graphics)",
 };
 

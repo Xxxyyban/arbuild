@@ -5,6 +5,8 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  deleteUser,
   signOut as signOutSecondary,
 } from "firebase/auth";
 
@@ -29,6 +31,7 @@ import AdminLock, { useIdle } from "../components/admin/AdminLock";
 import Watermark from "../components/Watermark";
 import { loadLastSignIns, placeName, shortPlace } from "../lab/SignIns";
 import Announcements from "../components/admin/Announcements";
+import VisitsPanel from "../components/admin/VisitsPanel";
 import "../styles/Admin.css";
 
 const DEFAULT_PASSWORD = "Universidad2026";
@@ -454,9 +457,25 @@ export default function Admin() {
 
   // ============================================================
   // DELETE ACCOUNT
-  // Removes Firestore data only. The Firebase Auth login can only be
-  // removed from a server (Admin SDK / Cloud Function).
+  // Removes the profile. A browser can't delete someone else's sign-in (that needs a server, which
+  // the free plan doesn't have), so the sign-in goes one of two ways:
+  //   - still on the school's starting password (setup never finished): deleted right here, by
+  //     signing in as them on the side app, as account creation does;
+  //   - otherwise: the next time they sign in, their own browser deletes it (context/AuthContext.jsx).
   // ============================================================
+
+  /** Deletes the sign-in now if it still has the starting password. true if it's gone. */
+  async function deleteStartingSignIn(email) {
+    const side = getSecondaryAuth();
+    try {
+      const { user: them } = await signInWithEmailAndPassword(side, email, DEFAULT_PASSWORD);
+      await deleteUser(them);
+      return true;
+    } catch {
+      await signOutSecondary(side).catch(() => {});
+      return false; // a password of their own, or no sign-in left
+    }
+  }
 
   async function deleteAccount(userRecord) {
     setError("");
@@ -468,7 +487,7 @@ export default function Admin() {
     }
 
     const ok = window.confirm(
-      `Delete ${userRecord.email}?\n\nThis removes their profile, so they can no longer use ARBuild. Their sign-in stays in Firebase: to add this email again later, first delete it in the Firebase console (Authentication, Users).`
+      `Delete ${userRecord.email}?\n\nThey can no longer use ARBuild. Their profile is removed now, and their sign-in too if they never changed the starting password; otherwise their sign-in removes itself the next time they try to sign in. Class records and grades they earned stay with the class.`
     );
     if (!ok) return;
 
@@ -481,9 +500,16 @@ export default function Admin() {
       batch.delete(doc(db, roleCollection, userRecord.uid));
       batch.delete(doc(db, "notifications", `profile_setup_${userRecord.uid}`));
 
+      if (userRecord.role === "faculty") batch.delete(doc(db, "instructors", userRecord.uid)); // the card students see
+
       await batch.commit();
 
-      setMessage(`Account deleted for ${userRecord.email}.`);
+      const signInGone = await deleteStartingSignIn(userRecord.email);
+      setMessage(
+        signInGone
+          ? `Account deleted for ${userRecord.email}, with its sign-in.`
+          : `Account deleted for ${userRecord.email}. Their sign-in is removed the next time they try to sign in. To remove it now, or to add this email again right away, delete it in the Firebase console (Authentication, Users).`
+      );
       await loadUsers();
     } catch (err) {
       console.error("Delete account error:", err);
@@ -501,10 +527,20 @@ export default function Admin() {
 
     try {
       await sendPasswordResetEmail(auth, userRecord.email);
-      setMessage(`Password reset email sent to ${userRecord.email}.`);
+      setMessage(
+        `Password reset email sent to ${userRecord.email}. It comes from noreply@${auth.app.options.authDomain}: if it isn't in their inbox within a few minutes, ask them to check Junk or Spam (school mail often files it there). The link works once, within an hour.`
+      );
     } catch (err) {
       console.error("Password reset error:", err);
-      setError(err.message || "Unable to send password reset email.");
+      setError(
+        err.code === "auth/user-not-found"
+          ? `${userRecord.email} has no sign-in any more, so there's nothing to reset. Create the account again.`
+          : err.code === "auth/too-many-requests"
+          ? "Too many reset emails were sent just now. Wait a few minutes, then try again."
+          : err.code === "auth/network-request-failed"
+          ? "No internet connection. Check it, then try again."
+          : `Unable to send the reset email (${err.code || err.message}).`
+      );
     }
   }
 
@@ -751,6 +787,8 @@ export default function Admin() {
             <strong>{stats.inactive}</strong>
           </div>
         </section>
+
+        <VisitsPanel />
 
         <div className="dash-columns">
           <section className="admin-panel">

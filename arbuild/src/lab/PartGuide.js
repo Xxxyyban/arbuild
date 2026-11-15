@@ -2,12 +2,12 @@
 // slots, headers and ports, and what each pin of a header or power plug is for.
 // Pure data and helpers only: no React, no three.js.
 //
-// A text is a string, or { am4, am5 } when the two builds differ. A pinout is rows of pins, top row
+// A text is a string, or { am4, am5, lga1700 } when the builds differ. A pinout is rows of pins, top row
 // first, each pin [label, kind] or null where a pin is missing (the key that makes a plug fit one way).
 import { CATALOG, correctPicks, requiredWatts, PLATFORM_LABEL } from "./Catalog";
 
 /** A text for this platform. */
-export const forPlatform = (text, platform) => (text && typeof text === "object" ? text[platform] : text) || "";
+export const forPlatform = (text, platform) => (text && typeof text === "object" ? text[platform] ?? Object.values(text)[0] : text) || "";
 
 /** A text's sentences: the first says what it is, the rest are its details. */
 export const sentences = (text) => text.replace(/([.!?])\s+(?=[A-Z0-9"“])/g, "$1\n").split("\n");
@@ -71,6 +71,94 @@ const PINOUTS = {
   rgb: [[["+12V", "12v"], ["G", "data"], ["R", "data"], ["B", "data"]]],
 };
 
+// what each colour means (the pop-up on the legend): the wire colour a real cable uses for it
+export const KIND_INFO = {
+  "12v": "Yellow wire on a real PSU cable. +12 volts: the main power, for the CPU, the graphics card and the fans.",
+  "5v": "Red wire. +5 volts: USB devices, drives and the fan lights.",
+  "3v3": "Orange wire. +3.3 volts: the memory and small chips on the board.",
+  neg: "Blue wire. −12 volts: left over from old serial ports. Today's boards barely use it.",
+  sb: "Purple wire. +5 V standby: on whenever the PSU is switched on, even with the PC off. It powers the power button, wake-up and USB charging.",
+  gnd: "Black wire. Ground: the way back for the current. Every voltage is measured against it, so a plug always has several.",
+  sig: "A signal: it tells a part something (start, plugged in, which plug) and carries almost no power.",
+  ok: "Gray wire. Power good: the PSU's sign that its voltages are steady and the PC may start.",
+  data: "Data: it carries information, not power (USB data, the lights' colours).",
+  pwm: "Blue wire on a fan cable. Speed control: the board tells the fan how fast to spin.",
+  led: "Lights a small LED on the case. The coloured wire is +, the white one is −.",
+  sw: "A button on the case: pressing it joins the two pins for a moment.",
+  audio: "Sound: the headphone and microphone channels, left and right.",
+};
+
+// what each pin does (the pop-up on a pin): "plug:LABEL" for a pin that means something else on
+// that plug, then "LABEL" for the rest
+const PIN_INFO = {
+  "+12V": "+12 V power: the yellow wires. It feeds the parts that use the most power.",
+  "eps8:+12V": "+12 V for the CPU. The voltage regulators around the socket turn it into the about 1.2 V the CPU runs on.",
+  "pcie8:+12V": "+12 V for the graphics card, on top of the 75 W the slot gives.",
+  "pcie6:+12V": "+12 V for the graphics card, on top of the 75 W the slot gives.",
+  "fan4:+12V": "+12 V that turns the fan's motor.",
+  "rgb:+12V": "+12 V shared by every LED on the strip.",
+  "+5V": "+5 V power: the red wires. USB ports, drives and some lights run on it.",
+  "argb:+5V": "+5 V for the LEDs. The arrow on the plug goes on this pin.",
+  "5V": "+5 V for the device plugged into the front USB port.",
+  "+3.3V": "+3.3 V power: the orange wires. The memory and small chips use it.",
+  "−12V": "−12 V: the blue wire. Old serial ports needed it; today's boards barely use it.",
+  GND: "Ground: the black wires, the way back for the current. Without enough grounds a plug can't carry its power.",
+  PS_ON: "Power on: the green wire. Pressing the case's power button makes the board join it to ground, and the PSU switches its main power on.",
+  PWR_OK: "Power good: the gray wire. The PSU raises it once its voltages are steady. Until then the board holds the CPU back.",
+  "+5VSB": "+5 V standby: the purple wire. On whenever the PSU is switched on, even with the PC off, so the power button and wake-up still work.",
+  NC: "Not connected: nothing uses this spot.",
+  "pcie8:SENSE": "Sense: it tells the graphics card which plug is in (6 or 8 pins), so it knows it may draw up to 150 W from it.",
+  "pcie6:SENSE": "Sense: it tells the graphics card a 6-pin plug is in, so it may draw up to 75 W from it.",
+  "audio:SENSE": "Jack sense: with the detect pins it tells the board something is plugged into a front jack.",
+  "PLED+": "Power LED +: the coloured wire. The case's power light is on while the PC runs. An LED only lights one way round.",
+  "PLED−": "Power LED −: the white wire, the LED's return.",
+  "HDD+": "Drive LED +: the coloured wire. The case's drive light blinks while the SSD reads or writes.",
+  "HDD−": "Drive LED −: the white wire, the LED's return.",
+  PWR: "Power switch: the case's power button joins these two pins for a moment to start the PC (held 4 seconds, it forces it off). Either way round.",
+  RST: "Reset switch: the case's reset button joins these two pins to restart the PC at once. Either way round.",
+  "RX−": "USB 3.0 receive, −: data coming in from the device, on a pair of wires twisted together so noise cancels out.",
+  "RX+": "USB 3.0 receive, +: the other wire of the receive pair.",
+  "TX−": "USB 3.0 transmit, −: data going out to the device, on a twisted pair.",
+  "TX+": "USB 3.0 transmit, +: the other wire of the transmit pair.",
+  "D−": "USB 2.0 data, −: the slower, older USB data, kept so USB 2.0 devices still work.",
+  "D+": "USB 2.0 data, +: the other wire of the USB 2.0 pair.",
+  ID: "USB ID: tells whether the port is a host or a device. A front panel doesn't use it.",
+  DETECT: "Front panel detect: tells the board an HD Audio front panel is connected.",
+  "MIC JD": "Microphone jack detect: the board knows a microphone is plugged into the front and switches over to it.",
+  "HP JD": "Headphone jack detect: the board knows headphones are plugged into the front and switches the sound to them.",
+  "MIC L": "Microphone, left channel.",
+  "MIC R": "Microphone, right channel.",
+  "HP L": "Headphones, left channel.",
+  "HP R": "Headphones, right channel.",
+  TACH: "Tachometer: the green wire. The fan sends two pulses a turn, so the board reads its speed (RPM) and warns if it stops.",
+  PWM: "Speed control: the blue wire. The board switches it on and off very fast; the longer it's on, the faster the fan spins.",
+  DATA: "Data: the colour for each LED, passed from one LED to the next, so each can show its own colour.",
+  G: "Green: the board switches this colour on and off to mix the strip's colour.",
+  R: "Red: the board switches this colour on and off to mix the strip's colour.",
+  B: "Blue: the board switches this colour on and off to mix the strip's colour.",
+};
+
+/** What a pin on this plug does. */
+export const pinInfo = (plug, label) => PIN_INFO[`${plug}:${label}`] || PIN_INFO[label] || "";
+
+// the cables and wires in the Rig Studio's PC (the pop-up when the mouse is on one): what it is,
+// what its wires' colours mean, and what it does
+export const CABLE_INFO = {
+  atx24: { title: "24-pin ATX cable", colors: "Inside a real one: yellow +12 V, red +5 V, orange +3.3 V, purple standby, green power-on, gray power-good, black ground.", text: "Powers the motherboard, which passes the power on to the RAM, the SSD, the fans and the slots." },
+  eps8: { title: "8-pin CPU cable (4+4)", colors: "Four yellow +12 V wires and four black grounds.", text: "Powers the CPU through the voltage regulators around the socket. Without it the fans spin but the PC never starts." },
+  pcie: { title: "8-pin PCIe cable (6+2)", colors: "Yellow +12 V, black ground, and sense wires that tell the card which plug is in.", text: "Extra power for the graphics card: up to 150 W, on top of the 75 W from its slot." },
+  pcie6: { title: "6-pin PCIe cable", colors: "Yellow +12 V, black ground and a sense wire.", text: "More power for a card with a second socket: up to 75 W." },
+  pwr_sw: { title: "POWER SW wire", colors: "Green and white: a button, so the colours don't matter and it fits either way round.", text: "From the case's power button to the PWR pins. A press starts the PC; holding it 4 seconds forces it off." },
+  rst_sw: { title: "RESET SW wire", colors: "Blue and white: a button, so it fits either way round.", text: "From the case's reset button to the RST pins. A press restarts the PC at once." },
+  pled: { title: "POWER LED wire", colors: "Red is +, white is −. An LED lights only one way round.", text: "Lights the case's power light while the PC is on." },
+  hdd_led: { title: "HDD LED wire", colors: "Orange is +, white is −.", text: "Blinks the case's drive light while the SSD reads or writes." },
+  hd_audio: { title: "HD AUDIO cable", colors: "Each colour is one channel (left, right) of the headphones or microphone, or a jack-detect line; black is ground.", text: "From the front headphone and microphone jacks to the AAFP header." },
+  usb3: { title: "USB 3.0 cable", colors: "Blue: the colour of USB 3.0. Inside, twisted pairs carry data each way.", text: "Makes the front USB 3.0 ports work, through the 19-pin U32G1 header." },
+  cpu_fan: { title: "CPU fan cable", colors: "Black ground, yellow +12 V, green speed reading (TACH), blue speed control (PWM).", text: "Powers the cooler's fan on CPU_FAN. The board speeds it up as the CPU warms, and stops the PC if the fan stops." },
+  case_fans: { title: "Case fan cable (hub)", colors: "Black ground, yellow +12 V, green speed reading (TACH), blue speed control (PWM).", text: "Powers the case fans through a hub on CHA_FAN, to move air through the case." },
+  argb: { title: "ARGB lights cable", colors: "Red +5 V, green data, white ground.", text: "Lights the fans' LEDs from the 5 V ADD_GEN2 header. Never on the 12 V RGB header: it would burn them out." },
+};
+
 /** A pinout's rows, and the kinds of pin it has (for its legend). */
 export function pinout(id) {
   const rows = PINOUTS[id];
@@ -85,13 +173,15 @@ export function pinout(id) {
  */
 export const BOARD_PARTS = {
   socket: {
-    title: { am4: "CPU socket (AM4)", am5: "CPU socket (AM5)" },
+    title: { am4: "CPU socket (AM4)", am5: "CPU socket (AM5)", lga1700: "CPU socket (LGA1700)" },
     marker: "socket",
     text: {
       am4:
         "Holds the processor. AM4 is a PGA socket: the 1,331 pins are on the CPU and drop into the socket's holes, and the lever slides the top plate over to grip them. Line the CPU's gold triangle up with the triangle on the socket; it only fits one way.",
       am5:
         "Holds the processor. AM5 is an LGA socket: the 1,718 pins are in the socket and the CPU has flat gold pads. The metal load plate presses the CPU onto the pins. Keep the plastic cap on until the CPU goes in: a bent socket pin can ruin the board.",
+      lga1700:
+        "Holds the processor. LGA1700 is Intel's socket for 12th to 14th generation Core CPUs: its 1,700 pins are in the socket and the CPU has flat gold pads. The CPU is longer than it is wide, and two notches in its sides fit keys in the socket, so it only goes in one way. The steel cover frame presses it onto the pins, and the lever holds the frame shut. Keep the plastic cap on until the CPU goes in: a bent socket pin can ruin the board.",
     },
   },
   dimm: {
@@ -100,6 +190,7 @@ export const BOARD_PARTS = {
     text: {
       am4: "Four slots for DDR4 RAM. Two sticks run in dual channel (about twice as fast) in alternate slots: 1 and 3, or 2 and 4. Most boards want the second and fourth slots from the CPU first (A2 and B2); the manual says which. The latch clicks shut when a stick is fully in.",
       am5: "Four slots for DDR5 RAM. DDR4 sticks won't go in: the notch in the edge is in a different place. Two sticks run in dual channel in alternate slots: 1 and 3, or 2 and 4 (most boards want A2 and B2 first). The latch clicks shut when a stick is fully in.",
+      lga1700: "Four slots for DDR5 RAM (DIMM_A1, A2, B1, B2). DDR4 sticks won't go in: the notch in the edge is in a different place. Two sticks run in dual channel in alternate slots; this board marks A2 and B2 with a star as the pair to fill first. Each slot has one latch, at the top: push the stick down until it clicks.",
     },
   },
   m2: {
@@ -170,7 +261,7 @@ export const BOARD_PARTS = {
     title: "12 V RGB header",
     marker: "rgb",
     pins: "rgb",
-    platforms: ["am4"],
+    platforms: ["am4", "lga1700"],
     text: "Plain RGB strips: all the LEDs show one colour. 4 pins: +12 V and one each for green, red and blue. Never plug a 5 V ARGB device into it: 12 V can burn it out.",
   },
   rearIo: {
@@ -179,6 +270,7 @@ export const BOARD_PARTS = {
     text: {
       am4: "The ports on the back of the PC: USB-A and USB-C, Ethernet (LAN), the audio jacks (green for speakers or headphones, pink for a microphone, blue for line in) and HDMI / DisplayPort. The board's video ports only work with a CPU that has built-in graphics; the 5600X has none, so the monitor plugs into the graphics card.",
       am5: "The ports on the back of the PC: USB-A and USB-C, Ethernet (LAN), the audio jacks (green for speakers or headphones, pink for a microphone, blue for line in) and HDMI / DisplayPort. The 7600X has built-in graphics, so these video ports work, but with a graphics card fitted the monitor goes on the card.",
+      lga1700: "The ports on the back of the PC, behind a shield that comes fitted to the board: twelve USB ports (Type-A and Type-C), 2.5 Gb Ethernet (LAN), the Wi-Fi antenna's two sockets, five audio jacks and an optical output, HDMI and DisplayPort, and two buttons (BIOS FlashBack and Clear CMOS). The i9-12900K has built-in graphics, so the video ports work, but with a graphics card fitted the monitor goes on the card.",
     },
   },
   vrm: {
@@ -187,7 +279,7 @@ export const BOARD_PARTS = {
     text: "The voltage regulators around the socket, under the heatsinks. They turn the 12 V from the 8-pin CPU cable into the low, steady voltage the CPU runs on (about 1 to 1.4 V), and adjust it many times a second as the CPU's load changes.",
   },
   chipset: {
-    title: { am4: "Chipset (B550)", am5: "Chipset (B650)" },
+    title: { am4: "Chipset (B550)", am5: "Chipset (B650)", lga1700: "Chipset (Z790)" },
     text: "The board's second chip, under a heatsink in its lower half. It runs the extra USB and SATA ports and some PCIe slots, and links them to the CPU. The chipset decides what a board can do: how many drives, USB ports and lanes.",
   },
   sata: {
@@ -303,6 +395,7 @@ export const GUIDE = [
     text: {
       am4: "The processor: it runs every program. The Ryzen 5 5600X has 6 cores (12 threads) and no built-in graphics, so this PC needs a graphics card. Its pins are on the CPU itself. Under the cooler, with a thin layer of thermal paste between them so the heat flows into the cooler.",
       am5: "The processor: it runs every program. The Ryzen 5 7600X has 6 cores (12 threads) and small built-in graphics, enough for a desktop without a graphics card. It has gold pads instead of pins. Under the cooler, with a thin layer of thermal paste between them so the heat flows into the cooler.",
+      lga1700: "The processor: it runs every program. The Intel Core i9-12900K has 16 cores of two kinds: 8 fast performance cores and 8 smaller efficiency cores (24 threads), and small built-in graphics. It has gold pads instead of pins, and it is longer than it is wide. Under the cooler, with a thin layer of thermal paste between them so the heat flows into the cooler.",
     },
   },
   {
@@ -314,6 +407,7 @@ export const GUIDE = [
     text: {
       am4: "Carries the CPU's heat away. The AMD Wraith Stealth's base sits on the CPU with thermal paste; heat spreads into its aluminium fins and the fan blows it off. Rated for 65 W, just right for the 5600X. Its fan plugs into CPU_FAN.",
       am5: "Carries the CPU's heat away. Copper heat pipes in the base take it up into a tall stack of fins, and the 120 mm fan pushes air through them toward the rear exhaust fan. Rated for 150 W: the 7600X makes 105 W, too much for a small stock cooler. Its fan plugs into CPU_FAN.",
+      lga1700: "Carries the CPU's heat away. Copper heat pipes in the base take it up into a tall stack of fins, and the 120 mm fan pushes air through them toward the rear exhaust fan. Rated for 150 W: the i9-12900K makes 125 W at its base power, and more when it is pushed. It needs the bracket for LGA1700; an AMD stock cooler has none. Its fan plugs into CPU_FAN.",
     },
   },
   {
@@ -376,7 +470,7 @@ export const GUIDE = [
 
 export const guidePart = (id) => GUIDE.find((g) => g.id === id) || null;
 
-/** The sub-items a part shows on this platform (the AM5 board has no 12 V RGB header). */
+/** The sub-items a part shows on this platform (the AM5 board has no 12 V RGB header; the others do). */
 export const partsFor = (part, platform) =>
   Object.entries(part?.parts || {}).filter(([, p]) => !p.platforms || p.platforms.includes(platform));
 

@@ -105,15 +105,6 @@ function TaskEditor({ initial, busy, onSave, onCancel }) {
                 <span>out of {MAX_TASK_POINTS} max</span>
               </div>
             </label>
-            {t.mode === "assemble" && (
-              <label className="ins-field">
-                <span>RAM sticks needed</span>
-                <select value={t.ramSticks} onChange={(e) => set({ ramSticks: Number(e.target.value) })}>
-                  <option value={2}>2 (dual channel)</option>
-                  <option value={1}>1</option>
-                </select>
-              </label>
-            )}
           </div>
           {t.mode === "assemble" && (
             <div className="ins-settings">

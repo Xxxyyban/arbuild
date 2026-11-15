@@ -1,21 +1,21 @@
-// Parts the student can pick from, AM4 / AM5 platforms, and the compatibility rules.
+// Parts the student can pick from, the AM4 / AM5 / LGA1700 platforms, and the compatibility rules.
 // Pure data and functions only: no React, no Three.js, no Firebase.
 //
 // `picks` is keyed by bench slot: { motherboard: "mb_b550", cpu: "cpu_5600x", ram1: "ram_ddr4",
-// ram2: "ram_ddr4" | null, ... }. Each RAM stick is picked on its own, so a build can have one stick,
-// two matching sticks, or (by mistake) a DDR4 and a DDR5 stick.
+// ram2: "ram_ddr4", ... }. Each RAM stick is picked on its own, so a build has two matching sticks
+// (the lab's boards take RAM in pairs) or, by mistake, a DDR4 and a DDR5 stick.
 //
 // Models: each option has a `variant` number that picks its own component in Three/PartModel.jsx.
 // variant 0 is the base component and file (GPUModel, gpu.glb); variant 1 the numbered ones
 // (GPUModel1, gpu1.glb). Each variant component has its own size and orientation settings.
 // A variant whose .glb isn't in public/models yet shows the base model instead.
 
-export const PLATFORMS = ["am4", "am5"];
-export const PLATFORM_LABEL = { am4: "AM4", am5: "AM5" };
-export const PLATFORM_MEMORY = { am4: "ddr4", am5: "ddr5" };
+export const PLATFORMS = ["am4", "am5", "lga1700"]; // two AMD sockets and an Intel one
+export const PLATFORM_LABEL = { am4: "AM4", am5: "AM5", lga1700: "LGA1700" };
+export const PLATFORM_MEMORY = { am4: "ddr4", am5: "ddr5", lga1700: "ddr5" };
 export const MEMORY_LABEL = { ddr4: "DDR4", ddr5: "DDR5" };
 
-/** "am4" | "am5" | null. Anything else becomes null. */
+/** "am4" | "am5" | "lga1700" | null. Anything else becomes null. */
 export const normalizePlatform = (value) => (PLATFORMS.includes(value) ? value : null);
 
 // Picker order. Each category lists the bench slots it fills; RAM has one pick per stick.
@@ -33,9 +33,10 @@ export const CATEGORIES = [
 export const categoryOf = (slot) => (slot === "ram1" || slot === "ram2" ? "ram" : slot);
 
 // Parts every build needs. The second RAM stick and the graphics card are up to the student
-// (the Ryzen 5 7600X has built-in graphics; the 5600X does not, see Rules.evaluateBoot).
-export const REQUIRED_SLOTS = ["motherboard", "cpu", "ram1", "cpu_cooler", "storage", "psu"];
-export const OPTIONAL_SLOTS = ["ram2", "gpu"];
+// (the Ryzen 5 7600X and the Core i9-12900K have built-in graphics; the 5600X does not, see
+// Rules.evaluateBoot). RAM goes in pairs here, on every board: two sticks, never one
+export const REQUIRED_SLOTS = ["motherboard", "cpu", "ram1", "ram2", "cpu_cooler", "storage", "psu"];
+export const OPTIONAL_SLOTS = ["gpu"];
 
 export const CATALOG = {
   /* ---------- motherboards ---------- */
@@ -59,6 +60,16 @@ export const CATALOG = {
     lacksHeaders: ["rgb"], // no 12 V RGB header (lab/Wires.js HEADERS); its model's MOUNTS.headers has none either
     specs: [["Socket", "AM5 (LGA 1718)"], ["Chipset", "B650"], ["Memory", "DDR5, 4 slots"], ["Size", "ATX"]],
     note: "AM5 boards have the pins in the socket. Keep the plastic cover on until the CPU goes in.",
+  },
+  mb_z790: {
+    category: "motherboard",
+    name: "ASUS ROG STRIX Z790-E GAMING WIFI II",
+    short: "Z790",
+    socket: "lga1700",
+    memory: "ddr5",
+    variant: 2, // built in code: Three/z790Board.js
+    specs: [["Socket", "LGA1700 (Intel)"], ["Chipset", "Z790"], ["Memory", "DDR5, 4 slots"], ["Size", "ATX"]],
+    note: "An Intel board: the pins are in the socket, under a steel cover frame. Keep the plastic cap on until the CPU goes in.",
   },
 
   /* ---------- CPUs ---------- */
@@ -86,6 +97,18 @@ export const CATALOG = {
     specs: [["Socket", "AM5"], ["Cores", "6 cores / 12 threads"], ["Heat output", "105 W"], ["Graphics", "Basic built-in graphics"]],
     note: "This CPU has flat pads underneath. The pins are on the board's socket.",
   },
+  cpu_12900k: {
+    category: "cpu",
+    name: "Intel Core i9-12900K",
+    short: "12900K",
+    socket: "lga1700",
+    tdp: 125,
+    igpu: true,
+    bootS: 1.5,
+    variant: 2, // cpu2.glb
+    specs: [["Socket", "LGA1700"], ["Cores", "16 cores (8 P + 8 E) / 24 threads"], ["Heat output", "125 W"], ["Graphics", "Basic built-in graphics"]],
+    note: "A long Intel CPU with flat pads underneath: the two notches in its sides fit the socket's keys, so it goes in one way.",
+  },
 
   /* ---------- memory (one stick per pick) ---------- */
   ram_ddr4: {
@@ -96,7 +119,7 @@ export const CATALOG = {
     bootS: 2,
     variant: 0, // ram.glb
     specs: [["Type", "DDR4"], ["Speed", "3200 MT/s"], ["Size", "8 GB"]],
-    note: "Two matching sticks in slots 1 and 3 run in dual channel, which is faster than one.",
+    note: "RAM goes in pairs: two matching sticks in slots 1 and 3 (or four), never one. A pair runs in dual channel.",
   },
   ram_ddr5: {
     category: "ram",
@@ -117,17 +140,17 @@ export const CATALOG = {
     sockets: ["am4", "am5"],
     cooling: 65,
     variant: 0, // cpu_cooler.glb
-    specs: [["Fits", "AM4 and AM5"], ["Cools up to", "65 W"], ["Type", "Low-profile, top-down fan"]],
-    note: "The cooler that comes in the box with 65 W Ryzen CPUs. Too weak for hotter CPUs.",
+    specs: [["Fits", "AM4 and AM5 (AMD only)"], ["Cools up to", "65 W"], ["Type", "Low-profile, top-down fan"]],
+    note: "The cooler that comes in the box with 65 W Ryzen CPUs. Too weak for hotter CPUs, and it has no bracket for an Intel board.",
   },
   cooler_cm: {
     category: "cpu_cooler",
     name: "Cooler Master compact tower cooler",
     short: "CM tower",
-    sockets: ["am4", "am5"],
+    sockets: ["am4", "am5", "lga1700"],
     cooling: 150,
     variant: 1, // cpu_cooler1.glb
-    specs: [["Fits", "AM4 and AM5"], ["Cools up to", "150 W"], ["Type", "Tower, heat pipes"]],
+    specs: [["Fits", "AM4, AM5 and LGA1700"], ["Cools up to", "150 W"], ["Type", "Tower, heat pipes"]],
     note: "Heat pipes carry heat up into the fins, so it handles hotter CPUs than a stock cooler.",
   },
 
@@ -226,15 +249,16 @@ export const buildSlots = (picks) => [...REQUIRED_SLOTS, ...OPTIONAL_SLOTS.filte
 /** A working set of parts for a platform (used for a pre-built PC and "auto pick"). */
 export function correctPicks(platform) {
   const p = normalizePlatform(platform) || "am4";
+  const ram = PLATFORM_MEMORY[p] === "ddr5" ? "ram_ddr5" : "ram_ddr4";
   return {
-    motherboard: p === "am5" ? "mb_b650" : "mb_b550",
-    cpu: p === "am5" ? "cpu_7600x" : "cpu_5600x",
-    ram1: p === "am5" ? "ram_ddr5" : "ram_ddr4",
-    ram2: p === "am5" ? "ram_ddr5" : "ram_ddr4",
-    cpu_cooler: p === "am5" ? "cooler_cm" : "cooler_stock", // the 7600X is too hot for the stock cooler
+    motherboard: { am4: "mb_b550", am5: "mb_b650", lga1700: "mb_z790" }[p],
+    cpu: { am4: "cpu_5600x", am5: "cpu_7600x", lga1700: "cpu_12900k" }[p],
+    ram1: ram,
+    ram2: ram,
+    cpu_cooler: p === "am4" ? "cooler_stock" : "cooler_cm", // the 7600X and the 12900K are too hot for the stock cooler
     storage: "ssd_nvme",
     gpu: "gpu_3060ti",
-    psu: "psu_550",
+    psu: p === "lga1700" ? "psu_850" : "psu_550", // the 12900K and the card need about 553 W: just over the 550 W unit
   };
 }
 
@@ -253,7 +277,7 @@ const VAGUE = "It won't go in. Check that this part matches the rest of your bui
 
 /**
  * Can the picked part for `slot` go in, given the other picks?
- * `workOrder` ("am4" | "am5") is only set in a class, where the instructor's task decides
+ * `workOrder` ("am4" | "am5" | "lga1700") is only set in a class, where the instructor's task decides
  * the platform. In free build it is null and only the real, physical fit is checked.
  * Returns null if it fits, else { msg, vague } (vague is shown when hints are off).
  */
@@ -279,8 +303,8 @@ export function fitBlock(slot, picks, workOrder = null) {
         msg:
           `You picked a ${M[other.memory]} and a ${M[item.memory]} stick. They can never be mixed: this ${M[item.memory]} ` +
           `stick's notch doesn't line up with the ${M[board.memory]} slots on the ${board.short}, and pushing harder would crack ` +
-          `the slot. What to do: put it back and pick a second ${M[board.memory]} stick, or choose "No second stick" and ` +
-          `run on one stick.`,
+          `the slot. What to do: put it back and pick a second ${M[board.memory]} stick, since this board takes RAM ` +
+          `in pairs.`,
         vague: "This stick won't go in. Do both of your sticks match each other and the board?",
       };
     }

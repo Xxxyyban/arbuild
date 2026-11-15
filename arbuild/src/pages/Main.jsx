@@ -1,4 +1,4 @@
-// Rig Studio: a complete PC to explore in 3D and AR. Pick the AM4 or AM5 build, take it apart, turn it
+// Rig Studio: a complete PC to explore in 3D and AR. Pick the AM4, AM5 or LGA1700 (Intel) build, take it apart, turn it
 // on (fans, RGB lights, airflow) and read what every part, slot, header and pin is for
 // (lab/PartGuide.js). AR works on any device with a camera:
 //   - "Place it in your room": WebXR, on phones that have it (Android with ARCore, in Chrome)
@@ -42,7 +42,8 @@ const WIRE_ITEM = { pwr_sw: "panel", rst_sw: "panel", pled: "panel", hdd_led: "p
 
 function readPlatform() {
   try {
-    return localStorage.getItem(PLATFORM_KEY) === "am5" ? "am5" : "am4";
+    const saved = localStorage.getItem(PLATFORM_KEY);
+    return PLATFORMS.includes(saved) ? saved : "am4";
   } catch {
     return "am4";
   }

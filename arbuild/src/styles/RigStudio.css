@@ -1088,6 +1088,108 @@
   border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
+.pins__pin,
+.pins__legend li {
+  cursor: help;
+  border-radius: 4px;
+  outline: none;
+}
+
+.pins__pin:hover i,
+.pins__pin:focus-visible i {
+  box-shadow: 0 0 0 2px #34d399;
+}
+
+.pins__legend li:hover,
+.pins__legend li:focus-visible,
+.pins__pin:focus-visible small {
+  color: #f8fafc;
+}
+
+.pins__legend li:focus-visible,
+.pins__pin:focus-visible {
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.6);
+}
+
+.pins__hint {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* the pop-up on a pin or a colour: on the page itself (GuidePanel.jsx PinTip), above it or below it */
+.pintip {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -100%);
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0b1220;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.pintip.is-below {
+  transform: translate(-50%, 0);
+}
+
+.pintip strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f8fafc;
+  font-size: 0.84rem;
+}
+
+.pintip strong i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.pintip strong em {
+  margin-left: auto;
+  color: #94a3b8;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 0.72rem;
+}
+
+/* the pop-up on a cable or wire in the 3D view (ShowcaseRig.jsx), above the mouse */
+.rigtip {
+  transform: translate(-50%, calc(-100% - 14px));
+  width: 250px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(11, 18, 32, 0.94);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  user-select: none;
+}
+
+.rigtip strong {
+  color: #f8fafc;
+  font-size: 0.85rem;
+}
+
+.rigtip small {
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
 /* ---------- narrower screens: the guide goes under the view ---------- */
 @media (max-width: 1080px) {
   .rig {

@@ -70,7 +70,7 @@ export default function ProfileSetup() {
     if (!passChanged) {
       if (newPass.length < 6) return setError("Your new password needs at least 6 characters.");
       if (newPass !== newPass2) return setError("The two new passwords don't match.");
-      if (newPass === startPass) return setError("Choose your own password, not the one from the school.");
+      if (newPass === startPass) return setError("Choose a new password, not the one you signed in with.");
     }
 
     if (!privacyOk || !termsOk) {
@@ -99,7 +99,7 @@ export default function ProfileSetup() {
       const code = err?.code || "";
       setError(
         code === "auth/wrong-password" || code === "auth/invalid-credential"
-          ? "That isn't the password the school gave you."
+          ? "That isn't the password you signed in with."
           : code === "auth/too-many-requests"
           ? "Too many tries. Wait a minute, then try again."
           : code === "auth/weak-password"
@@ -211,7 +211,7 @@ export default function ProfileSetup() {
             {!passChanged && (
               <fieldset className="setup-consent">
                 <legend className="field__label">Set your own password</legend>
-                <Field label="Password from the school" type="password" autoComplete="current-password" value={startPass} onChange={setStartPass} required />
+                <Field label="Password you signed in with" type="password" autoComplete="current-password" value={startPass} onChange={setStartPass} required />
                 <div className="setup__row">
                   <Field label="Your new password" type="password" autoComplete="new-password" value={newPass} onChange={setNewPass} required />
                   <Field label="Confirm new password" type="password" autoComplete="new-password" value={newPass2} onChange={setNewPass2} required />

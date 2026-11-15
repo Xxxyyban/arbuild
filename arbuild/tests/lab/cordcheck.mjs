@@ -29,7 +29,7 @@ const allIn = Object.fromEntries(C.buildSlots(picks).map((p) => [p, true]));
 const screwed = [true, true, true, true];
 eq("PSU in and screwed, the rest still out", R.cordBlock({ psu: true }, picks, screwed)?.msg, "Put the Motherboard in first (and 6 more parts): the power cord goes in last.");
 eq("all in but the second stick", R.cordBlock({ ...allIn, ram2: false }, picks, screwed)?.msg, "Put the RAM 2 in first: the power cord goes in last.");
-eq("no second stick picked: not needed", R.cordBlock({ ...allIn, ram2: false }, { ...picks, ram2: null }, screwed), null);
+eq("no second stick picked: still needed (AMD boards take RAM in pairs)", R.cordBlock({ ...allIn, ram2: false }, { ...picks, ram2: null }, screwed)?.msg, "Put the RAM 2 in first: the power cord goes in last.");
 eq("every part in and the PSU screwed", R.cordBlock(allIn, picks, screwed), null);
 eq("cordIn: neither", R.cordIn(R.NO_CORD), false);
 eq("cordIn: one end", R.cordIn({ psu: true, wall: false }), false);
@@ -47,6 +47,9 @@ eq("in the strip only: names the PSU", /the PSU/.test(R.evaluateBoot(state({ psu
 eq("hints off: says no more", R.evaluateBoot(state(R.NO_CORD), { hints: false }).message, "Nothing happens.");
 eq("older callers (no cord given) aren't checked", R.evaluateBoot({ ...full, cord: undefined }).status, "hello");
 eq("no PSU comes first", R.evaluateBoot({ ...state(R.NO_CORD), installed: { motherboard: true } }).message, "Nothing happens, there's no power supply installed.");
+
+eq("one RAM stick: won't start, RAM goes in pairs", R.evaluateBoot({ ...state(R.CORD_IN), installed: { ...full.installed, ram2: false } }).code, "Error: MEM-02 (RAM needs a pair)");
+eq("both sticks are part of every build", C.buildSlots({ ...picks, ram2: null }).includes("ram2"), true);
 
 console.log("-- how a lab starts");
 eq("empty bench", Setup.buildStart({ startMode: "assemble", startState: "empty", platform: "am4" }).cord, R.NO_CORD);
@@ -192,6 +195,72 @@ stopped.clock.run(60000);
 eq("leaving the class drops what was waiting", stopped.saves.length, 1);
 eq("correct steps aren't saved to the log", ["success", "pick", "reset"].some((t) => Ev.SAVED_TYPES.includes(t)), false);
 eq("mistakes, exam warnings and the finish are", ["miss", "safety", "bootfail", "integrity", "task"].every((t) => Ev.SAVED_TYPES.includes(t)), true);
+
+console.log("-- RAM in pairs, in tasks");
+const T = await import(src("lab/Tasks.js"));
+eq("an old one-stick task asks for two", T.normalizeTask({ mode: "assemble", ramSticks: 1 }).ramSticks, 2);
+
+console.log("-- the Rig Studio's pop-ups");
+const G = await import(src("lab/PartGuide.js"));
+const noInfo = [];
+for (const id of ["atx24", "eps8", "pcie8", "pcie6", "panel", "usb3", "usb2", "audio", "fan4", "argb", "rgb"]) {
+  const p = G.pinout(id);
+  for (const pin of p.rows.flat()) if (pin && !G.pinInfo(id, pin[0])) noInfo.push(`${id}:${pin[0]}`);
+  for (const k of p.kinds) if (!G.KIND_INFO[k]) noInfo.push(`colour ${k}`);
+}
+eq("every pin and colour says what it does", noInfo, []);
+eq("SENSE means one thing on the PCIe plug, another on audio", G.pinInfo("pcie8", "SENSE") !== G.pinInfo("audio", "SENSE"), true);
+const Rig = await import(src("lab/Wires.js"));
+eq("every cable and wire in the rig has a pop-up", [...Object.keys(R.CABLES), ...Rig.WIRE_IDS].filter((id) => !G.CABLE_INFO[id]), []);
+
+console.log("-- the Intel build (LGA1700: i9-12900K on the Z790 board)");
+const intel = C.correctPicks("lga1700");
+eq("its parts", [intel.motherboard, intel.cpu, intel.ram1, intel.cpu_cooler, intel.psu], ["mb_z790", "cpu_12900k", "ram_ddr5", "cooler_cm", "psu_850"]);
+eq("every part fits", C.buildSlots(intel).map((s) => C.fitBlock(s, intel, "lga1700")).filter(Boolean), []);
+eq("it needs more than the 550 W PSU gives", [C.requiredWatts(intel), C.requiredWatts(intel) <= C.CATALOG[intel.psu].watts], [553, true]);
+eq("its socket is an LGA one (lever and cover frame)", R.socketKind(intel), "lga");
+const intelPc = Setup.buildStart({ startMode: "assemble", startState: "full", platform: "lga1700" });
+eq("a full Intel PC starts", R.evaluateBoot({ ...intelPc, picks: intelPc.picks, cables: intelPc.cables }).status, "hello");
+eq("an AMD stock cooler has no bracket for it", /no bracket for LGA1700/.test(C.fitBlock("cpu_cooler", { ...intel, cpu_cooler: "cooler_stock" })?.msg), true);
+eq("an AM5 CPU won't go in its socket", /won't fit the LGA1700 socket/.test(C.fitBlock("cpu", { ...intel, cpu: "cpu_7600x" })?.msg), true);
+eq("the Intel CPU won't go in an AM5 socket", /won't fit the AM5 socket/.test(C.fitBlock("cpu", { ...C.correctPicks("am5"), cpu: "cpu_12900k" })?.msg), true);
+eq("DDR4 won't go in its slots", /DDR4 sticks won't fit the DDR5 slots/.test(C.fitBlock("ram1", { ...intel, ram1: "ram_ddr4", ram2: "ram_ddr4" })?.msg), true);
+eq("a working Intel PC has no faults", F.scenarioFaults(F.workingScenario("lga1700"), { platform: "lga1700" }), []);
+eq("a DDR4 stick in it is a fault", F.scenarioFaults(F.normalizeScenario({ ...F.workingScenario("lga1700"), parts: { ...intel, ram1: "ram_ddr4" } }, "lga1700"), { platform: "lga1700" }).map((f) => f.id), ["part:ram1"]);
+eq("its task's title", (await import(src("lab/Tasks.js"))).defaultTitle("assemble", "lga1700").includes("LGA1700"), true);
+const Paste = await import(src("lab/Paste.js"));
+eq("its lid, for the thermal paste", [Paste.lidFor(C.CATALOG.cpu_12900k.variant).name, Paste.lidFor(2).area > 1000], ["LGA1700", true]);
+const Z = await import(src("Three/z790Board.js"));
+eq("the board has every header the lab's wires use", F.boardHeaders("mb_z790").filter((h) => !Z.LAYOUT.headers[h]), []);
+const onBoard = ([x, t]) => x > 0 && x < Z.BOARD.w && t > 0 && t < Z.BOARD.h;
+eq("its 9 screw holes, headers and slots are on the board", [Z.LAYOUT.holes.length, Z.LAYOUT.holes.every(onBoard), Object.values(Z.LAYOUT.headers).every((h) => onBoard([h.x, h.t])), Z.LAYOUT.dimm.x.length], [9, true, true, 4]);
+// the small soldered parts are scattered by a fixed sequence: none may sit where a plug, a stick or a card goes
+const small = Z.smallParts();
+const plugSpots = [...Object.values(Z.LAYOUT.headers).map((h) => [h.x, h.t]), [Z.LAYOUT.atx24.x, Z.LAYOUT.atx24.t], ...Z.LAYOUT.eps8.map((e) => [e.x, e.t]), ...Z.LAYOUT.dimm.x.map((x) => [x, Z.LAYOUT.dimm.t]), [Z.LAYOUT.socket.x, Z.LAYOUT.socket.t], [Z.LAYOUT.m2.x - 40, Z.LAYOUT.m2.t], ...Z.LAYOUT.pcie.map((p) => [87, p.t])];
+eq("the board's small parts: plenty, all on it, none under a plug", [small.length > 250, small.every((p) => onBoard([p.x, p.t])), small.filter((p) => plugSpots.some(([x, t]) => Math.hypot(p.x - x, p.t - t) < 4)).length], [true, true, 0]);
+eq("and the same ones every time", JSON.stringify(Z.smallParts()) === JSON.stringify(small), true);
+// the whole board builds without a browser: a canvas that swallows the drawing stands in
+const blank = () => new Proxy({}, { get: (t, k) => (k in t ? t[k] : /Gradient$/.test(String(k)) ? () => ({ addColorStop() {} }) : () => {}), set: (t, k, v) => ((t[k] = v), true) });
+globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: blank }) };
+for (const lite of [false, true]) {
+  const meshes = [];
+  Z.buildZ790Board({ lite }).traverse((m) => m.isMesh && meshes.push(m));
+  eq(`the ${lite ? "lite" : "full"} board builds: few draw calls, no broken shapes`, [meshes.length > 20 && meshes.length < 40, meshes.every((m) => m.geometry.attributes.position.array.every(Number.isFinite))], [true, true]);
+}
+delete globalThis.document;
+const guideBoard = G.guidePart("motherboard");
+eq("the guide has words for the Intel build", Object.values(guideBoard.parts).filter((p) => !G.forPlatform(p.text, "lga1700") || !G.forPlatform(p.title, "lga1700")).length, 0);
+eq("the guide says LGA1700 and Z790", [G.forPlatform(guideBoard.parts.socket.title, "lga1700"), G.forPlatform(guideBoard.parts.chipset.title, "lga1700")], ["CPU socket (LGA1700)", "Chipset (Z790)"]);
+
+console.log("-- the admin's visits graph");
+const V = await import(src("lab/Visits.js"));
+const day = Math.floor(Date.UTC(2026, 10, 10) / V.DAY_MS); // 10 Nov 2026, UTC
+eq("a day's document, hour by hour", V.hoursOf(day, { h0: 2, h13: 1, x: 5 }).map((e) => [e.at.toISOString(), e.count]), [["2026-11-10T00:00:00.000Z", 2], ["2026-11-10T13:00:00.000Z", 1]]);
+const visit = (iso, count) => ({ at: new Date(iso), count });
+const now = new Date(2026, 10, 12, 15); // 12 Nov, 3 PM here
+const list = [visit(new Date(2026, 10, 12, 9).toISOString(), 3), visit(new Date(2026, 10, 11, 9).toISOString(), 1), visit(new Date(2026, 10, 1, 9).toISOString(), 7)];
+eq("by day: the last 3 days, oldest first", V.byDay(list, 3, now).map((d) => d.count), [0, 1, 3]);
+eq("by hour: 9 AM, the last 7 days only", [V.byHour(list, 7, now)[9], V.byHour(list, 7, now).reduce((a, b) => a + b, 0)], [4, 4]);
 
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);

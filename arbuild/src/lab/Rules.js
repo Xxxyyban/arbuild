@@ -334,7 +334,11 @@ export function evaluateBoot(state, { hints = true } = {}) {
     };
   }
   if (ramCount === 0) {
-    return { status: "post", lowRes, title: "No memory detected", detail: fix("Install at least one RAM stick."), code: "Error: MEM-01 (long continuous beeps)" };
+    return { status: "post", lowRes, title: "No memory detected", detail: fix("Install two RAM sticks, in slots 1 and 3."), code: "Error: MEM-01 (long continuous beeps)" };
+  }
+  // the lab's boards take RAM in pairs (2 or 4 sticks): one stick alone won't start its PCs
+  if (ramCount === 1) {
+    return { status: "post", lowRes, title: "Memory not in pairs", detail: fix("Only one RAM stick is in. This board takes RAM in pairs: add a matching second stick (slots 1 and 3)."), code: "Error: MEM-02 (RAM needs a pair)" };
   }
   if (!installed.storage) {
     return { status: "post", lowRes, title: "No bootable device", detail: fix("No drive found. Install an SSD or HDD, then restart."), code: "Error: BOOT-02" };
@@ -400,7 +404,6 @@ export function evaluateBoot(state, { hints = true } = {}) {
   }
 
   const notes = [];
-  if (ramCount === 1) notes.push("One RAM stick works, but it runs in single channel. A matching second stick in slot 3 makes memory about twice as fast.");
   if (ramCount === 2 && Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) {
     notes.push("RAM sticks are in neighbouring slots, try slots 1+3 or 2+4 for dual channel.");
   }
@@ -457,7 +460,8 @@ export const m2Done = (m2, installed) =>
 // with a plastic cap on it that pops off once a CPU is locked in (`cap` false: it waits on the bench,
 // and can go back on an empty socket). On AM4 `plate` and `cap` are ignored. The lever only moves
 // with no cooler on the CPU, so a CPU under a cooler is always locked in.
-export const socketKind = (picks) => (itemFor("motherboard", picks)?.socket === "am5" ? "lga" : "zif");
+// LGA1700 (Intel) is an LGA socket too: its pins are in the socket, under a cover frame its lever holds shut.
+export const socketKind = (picks) => (["am5", "lga1700"].includes(itemFor("motherboard", picks)?.socket) ? "lga" : "zif");
 
 /** How a board starts: lever down, frame shut, the cap on while there is no CPU in it. */
 export const socketStart = (cpuIn) => ({ lever: "down", plate: "closed", cap: !cpuIn });
@@ -563,7 +567,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       any("M.2 SSD unscrewed and out", out("storage")),
     ];
   }
-  const ramDone = installed.ram1 && (!has("ram2") || installed.ram2);
+  const ramDone = installed.ram1 && installed.ram2;
   return [
     { label: "Pick parts that work together", done: buildSlots(picks).every(has) },
     { label: lga ? "Open the CPU socket: unhook the lever, lift it, lift the cover frame" : "Lift the CPU socket's lever (it slides the socket open)", done: !!installed.cpu || sockOpen },
@@ -572,7 +576,7 @@ export function expertSteps(mode, { installed, picks, pasteApplied, booted, powe
       label: lga ? "Close the cover frame and hook the lever down (the cap pops off)" : "Push the socket lever down: the socket grips the CPU's pins",
       done: !!installed.cpu && socketLocked(sock),
     },
-    { label: has("ram2") ? "Click both RAM sticks into slots 1 and 3" : "Click the RAM stick into its slot", done: !!ramDone },
+    { label: "Click both RAM sticks into slots 1 and 3", done: !!ramDone },
     { label: "Unscrew and lift off the M.2 cover", done: slot.cover === "off" || !!installed.storage },
     { label: "Screw the M.2 SSD into its slot", done: !!installed.storage && slot.ssdScrew },
     { label: "Put the M.2 cover back and screw it down", done: !!installed.storage && m2Done(slot, installed) },

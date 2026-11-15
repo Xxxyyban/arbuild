@@ -1,23 +1,74 @@
 // The Rig Studio's guide (pages/Main.jsx): the build's parts, each part's slots, headers and ports,
 // and what each pin of a header or plug carries. Beside the 3D view it's as tall as the view: its top
 // and foot stay put and its middle scrolls. Styles: styles/RigStudio.css (.rguide*, .pins*).
-import { useEffect, useRef } from "react";
-import { GUIDE, PIN_KINDS, guidePart, guideItem, partsFor, buildSummary, forPlatform, pinout, sentences, shortTitle } from "../../lab/PartGuide";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { GUIDE, PIN_KINDS, KIND_INFO, pinInfo, guidePart, guideItem, partsFor, buildSummary, forPlatform, pinout, sentences, shortTitle } from "../../lab/PartGuide";
 import Icon from "../Icon";
 
+/**
+ * The pop-up beside a pin or a colour in the legend: what it is and what it does. It opens while the
+ * mouse is on it, while it has the keyboard's focus, or on a tap (phones have no mouse). Drawn on the
+ * page itself, so the guide's scrolling middle doesn't cut it off.
+ */
+function PinTip({ tip }) {
+  if (!tip) return null;
+  const W = 260;
+  const left = Math.min(Math.max(tip.x, W / 2 + 8), window.innerWidth - W / 2 - 8);
+  const below = tip.top < 150; // no room above: open under it
+  return createPortal(
+    <div
+      className={`pintip ${below ? "is-below" : ""}`}
+      role="tooltip"
+      id="pintip"
+      style={{ left, top: below ? tip.bottom + 8 : tip.top - 8, width: W }}
+    >
+      <strong>
+        {tip.color && <i style={{ background: tip.color }} />}
+        {tip.title}
+        {tip.kind && <em>{tip.kind}</em>}
+      </strong>
+      <span>{tip.text}</span>
+    </div>,
+    document.body
+  );
+}
+
+/** Opens a PinTip on hover, focus and tap. info: { title, kind, color, text }. */
+function tipProps(info, tip, setTip) {
+  const show = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ ...info, x: r.left + r.width / 2, top: r.top, bottom: r.bottom, el: e.currentTarget });
+  };
+  const hide = () => setTip(null);
+  return {
+    tabIndex: 0,
+    "aria-describedby": tip?.title === info.title && tip?.text === info.text ? "pintip" : undefined,
+    onMouseEnter: show,
+    onMouseLeave: hide,
+    onFocus: show,
+    onBlur: hide,
+    onClick: show, // a tap on a phone; tapping anywhere else closes it again (blur)
+    onKeyDown: (e) => e.key === "Escape" && hide(),
+  };
+}
+
 /** One pin, coloured by what it carries; a gap where one is missing. */
-function Pin({ pin }) {
+function Pin({ pin, plug, tip, setTip }) {
   if (!pin) {
+    const info = { title: "Key (no pin)", text: "No pin here on purpose: the plug's blocked hole lines up with it, so the plug fits only one way round." };
     return (
-      <span className="pins__pin is-key" title="No pin here: the key that makes the plug fit one way">
+      <span className="pins__pin is-key" {...tipProps(info, tip, setTip)}>
         <i />
         <small>key</small>
       </span>
     );
   }
+  const kind = PIN_KINDS[pin[1]];
+  const info = { title: pin[0], kind: pin[1] === "nc" ? "" : kind.label, color: pin[1] === "nc" ? "" : kind.color, text: pinInfo(plug, pin[0]) };
   return (
-    <span className={`pins__pin ${pin[1] === "nc" ? "is-nc" : ""}`} title={`${pin[0]}: ${PIN_KINDS[pin[1]].label}`}>
-      <i style={{ background: PIN_KINDS[pin[1]].color }} />
+    <span className={`pins__pin ${pin[1] === "nc" ? "is-nc" : ""}`} aria-label={`${pin[0]}: ${kind.label}`} {...tipProps(info, tip, setTip)}>
+      <i style={{ background: kind.color }} />
       <small>{pin[0]}</small>
     </span>
   );
@@ -26,8 +77,22 @@ function Pin({ pin }) {
 /**
  * A header's or plug's pins, top row first. A long plug (the 24-pin) fits by standing on its side, a
  * quarter turn to the right, instead of scrolling sideways: its top row is then on the right.
+ * Every pin and every colour in the legend says what it is when pointed at or tapped.
  */
 export function PinDiagram({ id }) {
+  const [tip, setTip] = useState(null);
+  // the pop-up stays where it opened: close it once the guide or the page scrolls
+  useEffect(() => {
+    if (!tip) return undefined;
+    const close = () => setTip(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [tip]);
+  useEffect(() => setTip(null), [id]);
   const p = pinout(id);
   if (!p) return null;
   const cols = Math.max(...p.rows.map((r) => r.length));
@@ -37,19 +102,21 @@ export function PinDiagram({ id }) {
     <figure className="pins">
       <div className={`pins__grid ${tall ? "is-tall" : ""}`} style={tall ? undefined : { gridTemplateColumns: `repeat(${cols}, minmax(28px, 1fr))` }}>
         {pins.map((pin, i) => (
-          <Pin key={i} pin={pin} />
+          <Pin key={i} pin={pin} plug={id} tip={tip} setTip={setTip} />
         ))}
       </div>
       <figcaption>
+        <p className="pins__hint">Point at a pin or a colour to see what it does.</p>
         <ul className="pins__legend">
           {p.kinds.map((k) => (
-            <li key={k}>
+            <li key={k} {...tipProps({ title: PIN_KINDS[k].label, color: PIN_KINDS[k].color, text: KIND_INFO[k] }, tip, setTip)}>
               <i style={{ background: PIN_KINDS[k].color }} />
               {PIN_KINDS[k].label}
             </li>
           ))}
         </ul>
       </figcaption>
+      <PinTip tip={tip} />
     </figure>
   );
 }

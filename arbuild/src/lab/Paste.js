@@ -35,6 +35,7 @@ function lid(name, top, rects) {
 export const LIDS = [
   lid("AM4", 4.53, [[-17.28, -18.83, 17.92, 19.19]]), // a plain square
   lid("AM5", 5.73, notchedLid()), // the "octopus" lid, with notches around its edges
+  lid("LGA1700", 4.84, [[-13.8, -18.8, 13.8, 18.8]]), // a long rectangle (measured on cpu2.glb: 27.7 x 37.7 mm)
 ];
 
 export const lidFor = (variant) => LIDS[variant] ?? LIDS[0];

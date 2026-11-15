@@ -19,7 +19,7 @@ export const TASK_DEFAULTS = {
   instructions: "",
   // "assemble" (empty bench) | "disassemble" (running PC) | "troubleshoot" (the instructor's faulty PC)
   mode: "assemble",
-  platform: "am4", // "am4" | "am5"
+  platform: "am4", // "am4" | "am5" | "lga1700"
   partPicking: "student", // "student" picks every part | "auto" lays the right parts out
   partInfo: true, // part info panel and the specs on the picker cards
   hints: true, // hint toasts, "Fix:" lines and AR target markers
@@ -29,7 +29,7 @@ export const TASK_DEFAULTS = {
   // grading: what the task is worth, and (building, fixing) what a complete PC needs
   points: 100, // the task's score is out of this (1 to 100); a troubleshooting task's is its faults' points
   requireGpu: true, // the build needs a graphics card
-  ramSticks: 2, // RAM sticks the build needs (1 or 2)
+  ramSticks: 2, // RAM sticks the build needs: always 2 (RAM goes in pairs)
   mustBoot: true, // the build has to boot
   // troubleshooting: the PC the student gets (lab/Faults.js), each of its faults' points, and the
   // points for it starting at the end with nothing wrong
@@ -62,7 +62,7 @@ export function normalizeTask(t = {}) {
   const pts = Math.floor(Number(out.points));
   out.points = Number.isFinite(pts) && pts >= 1 ? Math.min(pts, MAX_TASK_POINTS) : TASK_DEFAULTS.points;
   out.requireGpu = out.requireGpu !== false;
-  out.ramSticks = Number(out.ramSticks) === 1 ? 1 : 2;
+  out.ramSticks = 2; // RAM goes in pairs: an older task that asked for one stick now asks for two
   out.mustBoot = out.mustBoot !== false;
   out.hints = out.hints !== false;
   out.partInfo = out.partInfo !== false;
@@ -152,7 +152,6 @@ export function taskSummary(task) {
     `${t.points} pts`,
     trouble ? (faults ? `${faults} fault${faults === 1 ? "" : "s"} to fix` : "nothing wrong with it") : null,
     (build || trouble) && !t.requireGpu ? "no GPU needed" : null,
-    (build || trouble) && t.ramSticks === 1 ? "1 RAM stick" : null,
     build && !t.mustBoot ? "needn't boot" : null,
     build ? (t.partPicking === "student" ? "students pick parts" : "parts auto-picked") : null,
     t.partInfo ? null : "part info hidden",

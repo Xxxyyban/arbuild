@@ -19,14 +19,22 @@ const FIT = {
 };
 
 export default function CPUModel1(props) {
-  const ok = useFileExists(MODEL_PATH);
-  if (ok === null) return null;
-  if (!ok) return <CPUModel {...props} />; // file not added yet: show the AM4 CPU
-  return <RealCPU {...props} />;
+  return <FittedCPU path={MODEL_PATH} fit={FIT} {...props} />;
 }
 
-function RealCPU({ spinY = 0, ...props }) {
-  const { scene } = useGLTF(MODEL_PATH);
+/**
+ * A CPU file lying flat, fitted by fit = { width (its longest side), flip, turn, lift }: this one and
+ * the LGA1700 CPU (CPUModel2.jsx). The AM4 CPU shows while the file isn't there.
+ */
+export function FittedCPU({ path, ...props }) {
+  const ok = useFileExists(path);
+  if (ok === null) return null;
+  if (!ok) return <CPUModel {...props} />; // file not added yet: show the AM4 CPU
+  return <RealCPU path={path} {...props} />;
+}
+
+function RealCPU({ path, fit: FIT, spinY = 0, ...props }) {
+  const { scene } = useGLTF(path);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   useEffect(() => {
@@ -59,7 +67,7 @@ function RealCPU({ spinY = 0, ...props }) {
     const center = box.getCenter(new THREE.Vector3());
     const s = FIT.width / (Math.max(size.x, size.z) || 1);
     return { scale: s, offset: [-center.x * s, -box.min.y * s + FIT.lift, -center.z * s] };
-  }, [cloned]);
+  }, [cloned, FIT]);
 
   return (
     <group {...props} rotation={[0, spinY, 0]}>

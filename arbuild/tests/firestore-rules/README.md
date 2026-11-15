@@ -6,7 +6,9 @@ It also replays the app's own writes, so a rules change that would break the app
 
 It runs on Firebase's local emulator: your real database is never touched.
 
-Needs Java 11+ and the Firebase CLI (`npm i -g firebase-tools`).
+Needs Java 21+ (today's Firebase CLI won't start the emulator on older Java) and the Firebase CLI
+(`npm i -g firebase-tools`). Java doesn't have to be installed system-wide: set `JAVA_HOME` and put its
+`bin` folder first on `PATH` for the session.
 
     cd tests/firestore-rules
     npm install

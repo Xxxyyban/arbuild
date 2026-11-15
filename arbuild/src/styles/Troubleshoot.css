@@ -3,10 +3,21 @@
    It lays itself out by its own width (container queries), as it sits in forms of different widths. */
 
 .tse {
+  --tse-warn-bg: #fffbeb;
+  --tse-warn-line: #f59e0b;
+  --tse-warn-text: #92400e;
+  --tse-flag-bg: #fef3c7;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   container-type: inline-size;
+}
+
+[data-theme="dark"] .tse {
+  --tse-warn-bg: rgba(245, 158, 11, 0.08);
+  --tse-warn-line: #fbbf24;
+  --tse-warn-text: #fcd34d;
+  --tse-flag-bg: rgba(251, 191, 36, 0.16);
 }
 
 /* the fieldset around it: a fieldset is as wide as its content unless told otherwise */
@@ -18,7 +29,7 @@
   margin: 0;
 }
 
-/* compact selects: a row holds a part and where it is */
+/* compact selects */
 .tse select.ins-select {
   min-height: 34px;
   padding: 5px 26px 5px 8px;
@@ -31,6 +42,7 @@
   }
 }
 
+/* ---------- the tools: start over, add a fault, try it ---------- */
 .tse-tools {
   display: flex;
   flex-wrap: wrap;
@@ -38,10 +50,50 @@
   gap: 8px;
 }
 
-.tse-tools__label {
+/* "Add a random fault" and its three buttons, as one joined group */
+.tse-add {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--lab-line-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--lab-card);
+}
+
+.tse-add > span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
   color: var(--lab-muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
+  background: var(--lab-surface);
+}
+
+.tse-add button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 0;
+  border-left: 1px solid var(--lab-line);
+  background: transparent;
+  color: var(--lab-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tse-add button:hover {
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+}
+
+.tse-add button:focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: -2px;
 }
 
 .tse-note {
@@ -50,44 +102,122 @@
   font-size: 0.82rem;
 }
 
+/* ---------- the layout: the PC, and the faults beside it ---------- */
 .tse-cols {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  gap: 16px;
   align-items: start;
 }
 
-.tse-sec {
+.tse-pc {
   display: grid;
-  gap: 6px;
+  gap: 12px;
+  min-width: 0;
 }
 
-.tse-sec + .tse-sec {
-  margin-top: 14px;
+/* a section: Parts, Power cables, Case and fan wires, What the fixed PC needs */
+.tse-card {
+  border: 1px solid var(--lab-line);
+  border-radius: 12px;
+  background: var(--lab-card);
+  overflow: hidden;
 }
 
-.tse-sec h4 {
-  margin: 0 0 2px;
-  color: var(--lab-muted);
+.tse-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lab-line);
+  background: var(--lab-surface);
+}
+
+.tse-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--lab-accent-soft);
+  color: var(--lab-accent);
+}
+
+.tse-card__head h4 {
+  margin: 0;
+  color: var(--lab-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tse-count {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--lab-accent);
+  background: var(--lab-accent-soft);
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-/* one part, cable or wire: its name, then where it is */
+.tse-count.is-bad {
+  color: var(--tse-warn-text);
+  background: var(--tse-flag-bg);
+}
+
+.tse-card__body {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+}
+
+.tse-card__body > .ins-check,
+.tse-card__body > .tse-hint {
+  padding: 4px 8px;
+}
+
+.tse-hint {
+  color: var(--lab-muted);
+  font-size: 0.76rem;
+}
+
+/* ---------- one part, cable or wire: its name, its settings, right or a fault ---------- */
 .tse-row {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-columns: 118px minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
 }
 
-.tse-row--wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin-top: 2px;
+.tse-row.is-fault {
+  background: var(--tse-warn-bg);
+  border-left-color: var(--tse-warn-line);
+}
+
+/* a fault picked in the list: its row lights up for a moment */
+.tse-row.is-flash {
+  animation: tse-flash 1.4s ease-out;
+}
+
+@keyframes tse-flash {
+  0%,
+  30% {
+    box-shadow: 0 0 0 2px var(--tse-warn-line);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tse-row.is-flash {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--tse-warn-line);
+  }
 }
 
 .tse-row__name {
@@ -105,42 +235,116 @@
   min-width: 0;
 }
 
+/* the main choice in a row takes the room; where it is and its slot stay small beside it */
+.tse-row__controls .tse-part {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 300px;
+}
+
+.tse-row__state {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 46px;
+}
+
+.tse-flag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--tse-warn-text);
+  background: var(--tse-flag-bg);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.tse-ok {
+  display: inline-flex;
+  color: var(--lab-accent);
+  opacity: 0.55;
+}
+
 .tse-row__fixed {
   color: var(--lab-muted);
   font-size: 0.82rem;
 }
 
 .tse-row__note {
-  grid-column: 2;
+  grid-column: 2 / -1;
   color: var(--lab-muted);
   font-size: 0.76rem;
   font-style: italic;
 }
 
-.tse-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--lab-text-soft);
+.tse-swap {
+  padding: 6px 8px;
   font-size: 0.82rem;
-  font-weight: 600;
 }
 
 .tse-group {
   display: grid;
-  gap: 6px;
+  gap: 2px;
+}
+
+.tse-group + .tse-group {
+  margin-top: 6px;
 }
 
 .tse-group__head {
-  margin-top: 4px;
+  padding: 4px 8px 2px;
   color: var(--lab-muted);
-  font-size: 0.78rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ---------- beside it: how many faults, the points, and each fault's difficulty ---------- */
+.tse-side {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--lab-line);
+  border-radius: 12px;
+  background: var(--lab-card);
+  container-type: inline-size;
+}
+
+.tse-sum {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tse-sum > div {
+  display: grid;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--lab-surface);
+}
+
+.tse-sum strong {
+  color: var(--lab-text);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tse-sum span {
+  color: var(--lab-muted);
+  font-size: 0.74rem;
   font-weight: 600;
 }
 
-/* the faults, each with its difficulty and points: under the fault in a narrow column, beside it in a wide one */
-.tse-side {
-  container-type: inline-size;
+.tse-sum > .is-over strong {
+  color: var(--lab-danger);
+}
+
+.tse-empty {
+  margin: 0;
 }
 
 .tse-faults {
@@ -153,29 +357,45 @@
 
 .tse-faults li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 6px 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--lab-surface);
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
   border: 1px solid var(--lab-line);
-}
-
-@container (min-width: 420px) {
-  .tse-faults li {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
+  border-left: 3px solid var(--tse-warn-line);
+  background: var(--lab-card);
 }
 
 .tse-faults li.tse-faults__boot {
   border-style: dashed;
+  border-left: 1px dashed var(--lab-line);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 .tse-faults__text {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--lab-text);
+  font: inherit;
   font-size: 0.84rem;
   line-height: 1.35;
+  text-align: left;
+}
+
+button.tse-faults__text {
+  cursor: pointer;
+}
+
+button.tse-faults__text:hover {
+  color: var(--lab-accent);
+}
+
+button.tse-faults__text:focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .tse-faults__text em {
@@ -189,17 +409,66 @@
 }
 
 .tse-faults__pts {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   color: var(--lab-muted);
   font-size: 0.8rem;
 }
 
+/* Easy, Medium, Hard: one click */
+.tse-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+}
+
+.tse-seg button {
+  min-height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lab-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tse-seg button.is-on {
+  background: var(--lab-card);
+  color: var(--lab-accent);
+  box-shadow: 0 1px 2px var(--lab-shadow), 0 0 0 1px var(--lab-line);
+}
+
+.tse-seg button:focus-visible {
+  outline: 2px solid var(--lab-accent);
+  outline-offset: 1px;
+}
+
+@media (pointer: coarse) {
+  .tse-seg button {
+    min-height: 40px;
+  }
+}
+
+/* the points and their unit stay together, at the end of the line */
+.tse-pts {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .tse-faults__pts input {
   width: 56px;
-  min-height: 34px;
-  padding: 5px 6px;
+  min-height: 32px;
+  padding: 4px 6px;
   border-radius: 8px;
   background: var(--lab-surface);
   border: 1px solid var(--lab-line-strong);
@@ -218,7 +487,7 @@
 }
 
 .tse-total {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--lab-text);
   font-weight: 700;
 }
@@ -226,27 +495,43 @@
 .tse-total.is-over {
   color: var(--lab-danger);
   font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.tse-side > .ins-small {
+  margin: 0;
 }
 
 /* wide enough: the faults beside the PC, in view while it's set up */
 @container (min-width: 760px) {
   .tse-cols {
-    grid-template-columns: minmax(0, 1.65fr) minmax(250px, 1fr);
+    grid-template-columns: minmax(0, 1.7fr) minmax(270px, 1fr);
   }
 
   .tse-side {
     position: sticky;
     top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
   }
 }
 
 /* narrow (a phone): each name above its settings */
-@container (max-width: 480px) {
+@container (max-width: 520px) {
   .tse-row {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tse-row__controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   .tse-row__note {
-    grid-column: 1;
+    grid-column: 1 / -1;
+  }
+
+  .tse-row__controls .tse-part {
+    max-width: none;
   }
 }

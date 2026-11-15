@@ -212,14 +212,25 @@ await check("app: instructor comments with the badge", "ALLOWS", () => {
   return b.commit();
 });
 await check("app: student clears the new-posts badge", "ALLOWS", () => updateDoc(doc(as("juan"), "classes", "c1", "members", "juan"), { seenStreamAt: serverTimestamp() }));
-await check("app: student leaves the class", "ALLOWS", () => {
+// students can't leave on their own: only the instructor takes them out (src/lab/Classes.js)
+await check("student takes themselves out of the class", "BLOCKS", () => {
   const db = as("juan"); const b = writeBatch(db);
   b.delete(doc(db, "classes", "c1", "members", "juan"));
   b.delete(doc(db, "userClasses", "juan", "classes", "c1"));
   b.update(doc(db, "classes", "c1"), { studentCount: increment(-1) });
   return b.commit();
 });
+// as removeStudent does: the removal and its line in the class's record, in the same write
 await check("app: instructor removes a student", "ALLOWS", () => {
+  const db = as("profA"); const b = writeBatch(db);
+  const log = doc(collection(db, "classes", "c1", "log"));
+  b.set(log, { type: "removed", byUid: "profA", byName: "Rosa Santos", studentUid: "maria", studentName: "Maria Reyes", studentId: "2023-0177", reason: "", at: serverTimestamp() });
+  b.set(doc(db, "classes", "c1", "removed", "maria"), { uid: "maria", name: "Maria Reyes", studentId: "2023-0177", reason: "", byUid: "profA", logId: log.id, removedAt: serverTimestamp() });
+  b.delete(doc(db, "classes", "c1", "members", "maria"));
+  b.update(doc(db, "classes", "c1"), { studentCount: increment(-1) });
+  return b.commit();
+});
+await check("instructor removes a student without a line in the record", "BLOCKS", () => {
   const db = as("profA"); const b = writeBatch(db);
   b.delete(doc(db, "classes", "c1", "members", "maria"));
   b.update(doc(db, "classes", "c1"), { studentCount: increment(-1) });
@@ -258,7 +269,11 @@ await check("app: instructor adds an older lab to a class", "ALLOWS", () => upda
 await check("app: student reads their own lab result", "ALLOWS", () => getDoc(doc(as("maria"), "sessions", "LAB1", "students", "maria")));
 await check("app: new student finishes first-time setup", "ALLOWS", async () => {
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users", "eve"), { uid: "eve", role: "student", email: "eve@cdd.edu.ph", profileCompleted: false }));
-  return updateDoc(doc(as("eve"), "users", "eve"), { firstName: "Eve", lastName: "H", studentId: "2023-0666", section: "BSIT 3A", profileCompleted: true });
+  return updateDoc(doc(as("eve"), "users", "eve"), { firstName: "Eve", lastName: "H", studentId: "2023-0666", section: "BSIT 3A", profileCompleted: true, consent: { privacy: "2026-11", terms: "2026-11", at: serverTimestamp() } });
+});
+await check("new student finishes setup without agreeing to the privacy notice", "BLOCKS", async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users", "eve"), { uid: "eve", role: "student", email: "eve@cdd.edu.ph", profileCompleted: false }));
+  return updateDoc(doc(as("eve"), "users", "eve"), { firstName: "Eve", lastName: "H", profileCompleted: true });
 });
 
 /* ---------- profile cards (src/lab/People.js) ---------- */
@@ -413,6 +428,70 @@ await check("latest sign-in deleted", "BLOCKS", async () => {
 });
 await check("signed-out visitor records a sign-in", "BLOCKS", () =>
   setDoc(doc(anon(), "signIns", "x"), { ...signInEntry("eve"), uid: "nobody" }));
+
+/* ---------- visits (src/lab/Visits.js) ---------- */
+// A visit: +1 on the current UTC hour of today's document, with visitLast/{uid}, in one write.
+const visitDay = () => String(Math.floor(Date.now() / 86400000));
+const visitHour = () => `h${new Date().getUTCHours()}`;
+const countVisit = (db, uid, { day = visitDay(), field = visitHour(), by = 1, last = uid } = {}) => {
+  const b = writeBatch(db);
+  b.set(doc(db, "visits", day), { [field]: increment(by) }, { merge: true });
+  b.set(doc(db, "visitLast", last), { at: serverTimestamp() });
+  return b.commit();
+};
+// juan's last visit 20 minutes ago, and 3 visits so far this hour
+const seedVisits = (lastMs = 20 * 60000) =>
+  env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "visits", visitDay()), { [visitHour()]: 3 });
+    await setDoc(doc(db, "visitLast", "juan"), { at: Timestamp.fromMillis(Date.now() - lastMs) });
+  });
+
+await check("app: a student's first visit of the day", "ALLOWS", () => countVisit(as("juan"), "juan"));
+await check("app: an instructor's visit adds to the hour", "ALLOWS", async () => {
+  await seedVisits();
+  return countVisit(as("profA"), "profA");
+});
+await check("app: a visit 20 minutes after the last", "ALLOWS", async () => {
+  await seedVisits();
+  return countVisit(as("juan"), "juan");
+});
+await check("app: admin reads the visits", "ALLOWS", async () => {
+  await seedVisits();
+  return getDocs(collection(as("admin"), "visits"));
+});
+await check("a second visit within 10 minutes", "BLOCKS", async () => {
+  await seedVisits(5 * 60000);
+  return countVisit(as("juan"), "juan");
+});
+await check("a visit that adds more than 1", "BLOCKS", () => countVisit(as("eve"), "eve", { by: 50 }));
+await check("a visit to another hour", "BLOCKS", () => countVisit(as("eve"), "eve", { field: `h${(new Date().getUTCHours() + 3) % 24}` }));
+await check("a visit to another day", "BLOCKS", () => countVisit(as("eve"), "eve", { day: String(Number(visitDay()) - 1) }));
+await check("a visit with an extra field", "BLOCKS", () => {
+  const db = as("eve");
+  const b = writeBatch(db);
+  b.set(doc(db, "visits", visitDay()), { [visitHour()]: increment(1), note: "x" }, { merge: true });
+  b.set(doc(db, "visitLast", "eve"), { at: serverTimestamp() });
+  return b.commit();
+});
+await check("a visit without its visitLast (no 10-minute limit)", "BLOCKS", () =>
+  setDoc(doc(as("eve"), "visits", visitDay()), { [visitHour()]: increment(1) }, { merge: true }));
+await check("a visit stamped as someone else", "BLOCKS", () => countVisit(as("eve"), "eve", { last: "juan" }));
+await check("visits set back to zero", "BLOCKS", async () => {
+  await seedVisits();
+  return updateDoc(doc(as("juan"), "visits", visitDay()), { [visitHour()]: 0 });
+});
+await check("visits deleted by the admin", "BLOCKS", async () => {
+  await seedVisits();
+  return deleteDoc(doc(as("admin"), "visits", visitDay()));
+});
+await check("student reads the visits", "BLOCKS", async () => {
+  await seedVisits();
+  return getDocs(collection(as("juan"), "visits"));
+});
+await check("an inactive account counts a visit", "BLOCKS", () => countVisit(as("gone"), "gone"));
+await check("signed-out visitor counts a visit", "BLOCKS", () => countVisit(anon(), "nobody"));
+await check("the admin's own visit", "BLOCKS", () => countVisit(as("admin"), "admin"));
 
 /* ---------- report ---------- */
 const failed = results.filter((r) => r[0] === "FAIL");

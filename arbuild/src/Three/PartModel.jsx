@@ -4,8 +4,10 @@
 import { Suspense } from "react";
 import MotherboardModel, { MOUNTS as MOUNTS_0, M2_COVER as M2_COVER_0, SOCKET as SOCKET_0 } from "./MotherboardModel";
 import MotherboardModel1, { MOUNTS as MOUNTS_1, SOCKET as SOCKET_1 } from "./MotherboardModel1";
+import MotherboardModel2, { MOUNTS as MOUNTS_2, SOCKET as SOCKET_2 } from "./MotherboardModel2";
 import CPUModel from "./CPUModel";
 import CPUModel1 from "./CPUModel1";
+import CPUModel2 from "./CPUModel2";
 import RAMModel from "./RAMModel";
 import RAMModel1 from "./RAMModel1";
 import CPUCoolerModel from "./CPUCoolerModel";
@@ -19,8 +21,8 @@ import PSUModel1, { MODULAR as PSU_PANEL_1, FIXED as PSU_FIXED_1, INLET as PSU_I
 import PSUModel2, { MODULAR as PSU_PANEL_2, INLET as PSU_INLET_2 } from "./PSUModel2";
 
 const MODELS = {
-  motherboard: [MotherboardModel, MotherboardModel1],
-  cpu: [CPUModel, CPUModel1],
+  motherboard: [MotherboardModel, MotherboardModel1, MotherboardModel2],
+  cpu: [CPUModel, CPUModel1, CPUModel2],
   ram: [RAMModel, RAMModel1],
   cpu_cooler: [CPUCoolerModel, CPUCoolerModel1],
   storage: [StorageModel, StorageModel1],
@@ -29,10 +31,10 @@ const MODELS = {
 };
 
 // Each component's .glb, the same way round (the Rig Studio loads its build's files all at once, up
-// front). null: no file shipped yet (PSUModel2 draws the base PSU's instead).
+// front). null: no file (PSUModel2 draws the base PSU's instead; MotherboardModel2 is built in code).
 export const MODEL_FILES = {
-  motherboard: ["/models/motherboard.glb", "/models/motherboard1.glb"],
-  cpu: ["/models/cpu.glb", "/models/cpu1.glb"],
+  motherboard: ["/models/motherboard.glb", "/models/motherboard1.glb", null],
+  cpu: ["/models/cpu.glb", "/models/cpu1.glb", "/models/cpu2.glb"],
   ram: ["/models/ram.glb", "/models/ram1.glb"],
   cpu_cooler: ["/models/cpu_cooler.glb", "/models/cpu_cooler1.glb"],
   storage: ["/models/ssd.glb", "/models/ssd1.glb"],
@@ -41,11 +43,11 @@ export const MODEL_FILES = {
 };
 
 // Where the CPU, RAM and SSD sit on each board, by board variant.
-export const BOARD_MOUNTS = [MOUNTS_0, MOUNTS_1];
+export const BOARD_MOUNTS = [MOUNTS_0, MOUNTS_1, MOUNTS_2];
 // Each board's M.2 cover, by board variant (null: the lab's built one, Hardware.jsx BUILT_M2_COVER).
-export const BOARD_M2_COVERS = [M2_COVER_0, null];
-// Each board's CPU socket lever, its hook, and (AM5) its cover frame, by board variant.
-export const BOARD_SOCKETS = [SOCKET_0, SOCKET_1];
+export const BOARD_M2_COVERS = [M2_COVER_0, null, null];
+// Each board's CPU socket lever, its hook, and (AM5, LGA1700) its cover frame, by board variant.
+export const BOARD_SOCKETS = [SOCKET_0, SOCKET_1, SOCKET_2];
 
 // Each PSU's modular sockets, by PSU variant (null: its cables are fixed to it).
 export const PSU_PANELS = [PSU_PANEL_0, PSU_PANEL_1, PSU_PANEL_2];
