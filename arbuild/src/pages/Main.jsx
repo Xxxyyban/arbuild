@@ -19,6 +19,8 @@ import GuidePanel from "../components/rig/GuidePanel";
 import { CameraFocus } from "../components/lab/BenchScene";
 import { GLBridge, ARHitTest, ARRoot, CamAR, useARSupport, startARSession, requestMotion } from "../Three/ar/ARTools";
 import { useARGestures, GestureGroup } from "../Three/ar/ARGestures";
+import ARSize from "../Three/ar/ARSize";
+import { clampScale } from "../Three/ar/twoFinger";
 import { ARContext } from "../Three/xrSetup";
 import WarmUp from "../Three/WarmUp";
 import { renderSettings, setGraphicsChoice } from "../Three/graphics";
@@ -82,6 +84,9 @@ export default function MainPage() {
   const [copied, setCopied] = useState(false);
   const arLite = camMode && gyro; // camera + motion sensors
   const arLike = inAR || arLite;
+  // one finger spins it, two fingers move/resize/turn it: works in the headset, and in the camera
+  // view even without a motion sensor (OrbitControls, not gestures, drives the plain 3D view)
+  const gestureAR = inAR || camMode;
   const arSupported = useARSupport();
   const hasCamera = !!navigator.mediaDevices?.getUserMedia; // only over HTTPS (or localhost)
   const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
@@ -92,7 +97,15 @@ export default function MainPage() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const rigApi = useRef(null);
-  const gestures = useARGestures({ overlayRef, enabled: arLike });
+  // AR: the PC's size (1 = as placed), from a pinch or the size buttons. The gestures listen on the
+  // whole stage: in motion AR the touches land on the canvas, in WebXR on the overlay.
+  const [arSize, setArSize] = useState(1);
+  const [markerSize, setMarkerSize] = useState(1);
+  const gestures = useARGestures({ overlayRef: stageRef, enabled: gestureAR, onScale: setArSize });
+  const resetGestures = () => {
+    gestures.reset();
+    setArSize(1);
+  };
   const loading = useProgress(); // the models coming in
 
   const setPlatform = (p) => {
@@ -208,10 +221,10 @@ export default function MainPage() {
         sessionRef.current = null;
         setInAR(false);
         setPlacement(null);
-        gestures.reset();
+        resetGestures();
       });
       setPlacement(null);
-      gestures.reset();
+      resetGestures();
       setInAR(true);
     } catch (err) {
       console.error(err);
@@ -229,7 +242,7 @@ export default function MainPage() {
       streamRef.current = stream;
       setGyro(await motionP);
       setPlacement(null);
-      gestures.reset();
+      resetGestures();
       setArMenu(false);
       setFull(true);
       setCamMode(true);
@@ -295,8 +308,9 @@ export default function MainPage() {
 
   let hint = null;
   if (inAR && !placement) hint = "Move your phone slowly over the floor or a table, then tap the ring to place the PC.";
-  else if (arLite) hint = "Turn your phone to look around the PC. Tap a part to read about it.";
-  else if (camMode) hint = "No motion sensor here: drag to turn the PC over the camera view.";
+  else if (inAR) hint = "Tap a part to read about it. One finger spins it; two fingers drag it, pinch to resize.";
+  else if (arLite) hint = "Turn your phone to look around the PC. Tap a part to read about it. Two fingers drag it, pinch to resize.";
+  else if (camMode) hint = "No motion sensor here: one finger spins it, two fingers drag it, pinch to resize.";
 
   const rig = (
     <ShowcaseRig
@@ -342,13 +356,13 @@ export default function MainPage() {
         </button>
       )}
       {inAR && placement && (
-        <button type="button" onClick={() => setPlacement(null)}>
+        <button type="button" onClick={() => { setPlacement(null); gestures.recenter(); }}>
           <Icon name="pin" size={17} />
           <span>Move</span>
         </button>
       )}
       {arLite && (
-        <button type="button" onClick={() => setPlaceToken((t) => t + 1)}>
+        <button type="button" onClick={() => { setPlaceToken((t) => t + 1); gestures.recenter(); }}>
           <Icon name="pin" size={17} />
           <span>Move</span>
         </button>
@@ -401,7 +415,7 @@ export default function MainPage() {
     </div>
   );
 
-  // hides every control over the view (to see all of it), and brings them back
+  // hides every control over the view (to see all of it), and brings them back; a tapped part still says what it is
   const bareToggle = (
     <button
       type="button"
@@ -468,23 +482,26 @@ export default function MainPage() {
                   rigCenterY={CASE_HEIGHT / 2}
                   rigApi={rigApi}
                 >
-                  <GestureGroup api={gestures} pivotY={0} active={arLike}>
+                  <GestureGroup api={gestures} pivotY={0} active={gestureAR}>
                     {!markerOn && rig}
                   </GestureGroup>
                 </ARRoot>
                 {!ready && <WarmUp key={platform} onReady={() => setReady(true)} />}
               </Suspense>
             </ARContext.Provider>
-            <ARHitTest active={inAR} placed={!!placement} onPlace={setPlacement} onRay={(o, d) => rigApi.current?.tap(o, d)} />
+            <ARHitTest active={inAR} placed={!!placement} onPlace={setPlacement} onRay={(o, d) => !gestures.consumeSuppress() && rigApi.current?.tap(o, d)} />
             <CamAR active={arLite} placeToken={placeToken} onPlace={setPlacement} restore={resetCamera} />
             {!arLike && <CameraFocus focus={focus} home={HOME} />}
-            {!arLite && (
+            {!gestureAR && (
               <OrbitControls makeDefault enabled={!inAR} target={HOME.target} enableDamping dampingFactor={0.08} minDistance={0.6} maxDistance={16} />
             )}
           </Canvas>
 
           {/* everything here also shows in WebXR (it's the dom-overlay root) */}
-          <div className="rig__overlay" ref={overlayRef}>
+          <div className={`rig__overlay ${inAR ? "is-xr" : ""}`} ref={overlayRef} data-ar-surface="">
+            {((inAR && placement) || camMode) && !bare && (
+              <ARSize size={arSize} onBy={(f) => setArSize(gestures.setScale(gestures.state.current.target.scale * f))} onReset={() => setArSize(gestures.setScale(1))} label="PC size" />
+            )}
             {!bare && (
               <div className="rig__top">
                 {platformSwitch}
@@ -508,9 +525,9 @@ export default function MainPage() {
                 </div>
               </div>
             ) : (
-              !bare && (
+              (!bare || sheet) && (
                 <div className="rig__dock">
-                  {slow && (
+                  {!bare && slow && (
                     <div className="rig-note" role="status">
                       <span>The 3D view is running slowly on this device.</span>
                       <button type="button" onClick={() => setGraphicsChoice("lite")}>
@@ -522,7 +539,7 @@ export default function MainPage() {
                     </div>
                   )}
                   {sheet}
-                  {tools()}
+                  {!bare && tools()}
                 </div>
               )
             )}
@@ -602,15 +619,16 @@ export default function MainPage() {
       {markerOn && (
         <Suspense fallback={<div className="rig-wait">Starting the camera…</div>}>
           <MarkerAR
-            scale={MARKER_SCALE}
+            scale={MARKER_SCALE * markerSize}
             onExit={() => setMarkerOn(false)}
             overlay={
               <div className="rig-marker-ui">
                 {bareToggle}
-                {!bare && (
+                {!bare && <ARSize size={markerSize} onBy={(f) => setMarkerSize((v) => clampScale(v * f))} onReset={() => setMarkerSize(1)} label="PC size" />}
+                {(!bare || sheet) && (
                   <div className="rig__dock">
                     {sheet}
-                    {tools(true)}
+                    {!bare && tools(true)}
                   </div>
                 )}
               </div>

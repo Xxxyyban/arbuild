@@ -407,21 +407,23 @@ export function evaluateBoot(state, { hints = true } = {}) {
   if (ramCount === 2 && Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) {
     notes.push("RAM sticks are in neighbouring slots, try slots 1+3 or 2+4 for dual channel.");
   }
-  if (!installed.gpu) notes.push("Built-in graphics: a low, blocky picture. A graphics card makes it sharp.");
+  if (!installed.gpu) notes.push("No graphics card: the CPU draws the picture itself. It starts slower and looks low and blocky.");
   const symptoms = (wired?.symptoms ?? []).map((s) => ({ id: s.id, text: s.text, cause: hints ? s.cause : null }));
   return { status: "hello", lowRes, ramCount, note: hints ? notes[0] ?? null : null, symptoms };
 }
 
 /**
  * How long the PC takes to start, in seconds: the drive, the CPU and the memory set the pace, one
- * stick (or two in neighbouring slots) runs single channel, and built-in graphics is slower to draw
- * the screen than a graphics card. A stronger build starts faster. state as for evaluateBoot.
+ * stick (or two in neighbouring slots) runs single channel, and built-in graphics is much slower to
+ * draw the screen than a graphics card (NO_CARD_S more). A stronger build starts faster. state as for
+ * evaluateBoot.
  */
+export const NO_CARD_S = 3; // what starting on the CPU's built-in graphics adds
 export function bootTime({ installed, picks, ramSlot }) {
   const parts = ["storage", "cpu", "ram1"].map((slot) => itemFor(slot, picks)?.bootS ?? 3);
   const sticks = (installed.ram1 ? 1 : 0) + (installed.ram2 ? 1 : 0);
   if (sticks < 2 || Math.abs(ramSlot.ram1 - ramSlot.ram2) === 1) parts.push(1); // single channel
-  if (!installed.gpu) parts.push(1); // built-in graphics
+  if (!installed.gpu) parts.push(NO_CARD_S);
   return Math.round(parts.reduce((s, x) => s + x, 0) * 10) / 10;
 }
 

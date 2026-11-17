@@ -69,6 +69,11 @@
   pointer-events: auto;
 }
 
+/* WebXR shows only this overlay: it takes the touches itself (drag, pinch), as nothing is under it */
+.rig__overlay.is-xr {
+  pointer-events: auto;
+}
+
 .rig__top {
   position: absolute;
   top: 12px;

@@ -221,6 +221,11 @@ eq("it needs more than the 550 W PSU gives", [C.requiredWatts(intel), C.required
 eq("its socket is an LGA one (lever and cover frame)", R.socketKind(intel), "lga");
 const intelPc = Setup.buildStart({ startMode: "assemble", startState: "full", platform: "lga1700" });
 eq("a full Intel PC starts", R.evaluateBoot({ ...intelPc, picks: intelPc.picks, cables: intelPc.cables }).status, "hello");
+// no graphics card: a CPU with built-in graphics still runs the PC, slower and with a low picture
+const noCard = (pc) => ({ ...pc, installed: { ...pc.installed, gpu: false } });
+eq("no graphics card, built-in graphics: it still runs, low and blocky", [R.evaluateBoot(noCard(intelPc)).status, R.evaluateBoot(noCard(intelPc)).lowRes, R.evaluateBoot(intelPc).lowRes], ["hello", true, false]);
+eq("and it starts slower", Math.round((R.bootTime(noCard(intelPc)) - R.bootTime(intelPc)) * 10) / 10, R.NO_CARD_S);
+eq("no graphics card and none in the CPU (5600X): on, but no picture", R.evaluateBoot(noCard(state(R.CORD_IN))).status, "nosignal");
 eq("an AMD stock cooler has no bracket for it", /no bracket for LGA1700/.test(C.fitBlock("cpu_cooler", { ...intel, cpu_cooler: "cooler_stock" })?.msg), true);
 eq("an AM5 CPU won't go in its socket", /won't fit the LGA1700 socket/.test(C.fitBlock("cpu", { ...intel, cpu: "cpu_7600x" })?.msg), true);
 eq("the Intel CPU won't go in an AM5 socket", /won't fit the AM5 socket/.test(C.fitBlock("cpu", { ...C.correctPicks("am5"), cpu: "cpu_12900k" })?.msg), true);
@@ -251,6 +256,41 @@ delete globalThis.document;
 const guideBoard = G.guidePart("motherboard");
 eq("the guide has words for the Intel build", Object.values(guideBoard.parts).filter((p) => !G.forPlatform(p.text, "lga1700") || !G.forPlatform(p.title, "lga1700")).length, 0);
 eq("the guide says LGA1700 and Z790", [G.forPlatform(guideBoard.parts.socket.title, "lga1700"), G.forPlatform(guideBoard.parts.chipset.title, "lga1700")], ["CPU socket (LGA1700)", "Chipset (Z790)"]);
+
+console.log("-- AR: what two fingers mean");
+const TF = await import(src("Three/ar/twoFinger.js"));
+const touch = (x, y) => ({ clientX: x, clientY: y });
+const two = (x1, y1, x2, y2) => TF.fingers(touch(x1, y1), touch(x2, y2));
+const down = two(100, 300, 300, 300);
+eq("both fingers going the same way: a move", TF.intent(down, two(130, 320, 330, 322)), "move");
+eq("fingers spreading apart: a pinch, not a move", TF.intent(down, two(80, 300, 320, 300)), "pinch");
+eq("one finger still, the other pulling away: a pinch", TF.intent(down, two(100, 300, 340, 300)), "pinch");
+eq("the two turning round each other: a pinch (twist)", TF.intent(down, two(105, 275, 295, 325)), "pinch");
+eq("barely moved yet: nothing decided", TF.intent(down, two(104, 303, 305, 302)), null);
+eq("a turn across 180 degrees is a small turn", Math.abs(TF.turned(3.1, -3.1)) < 0.1, true);
+eq("the size stays between its limits", [TF.clampScale(0.01), TF.clampScale(1.5), TF.clampScale(99)], [TF.MIN_SCALE, 1.5, TF.MAX_SCALE]);
+
+console.log("-- AR: dragging with two fingers moves the model");
+const THREE = await import("three");
+const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+cam.position.set(0, 0, 5);
+cam.lookAt(0, 0, 0);
+cam.updateMatrixWorld(true);
+const placement = new THREE.Object3D(); // the spot it was placed at, no scale or tilt of its own
+const rig = new THREE.Object3D();
+placement.add(rig);
+placement.updateMatrixWorld(true);
+const slid = (pan) => {
+  const s = { pan, target: { x: 0, z: 0 } };
+  TF.slide(cam, rig, s);
+  return s.target;
+};
+const right = slid({ x: 0.5, y: 0 });
+eq("drag right: the model moves right, not up/down the depth axis", [right.x > 0, Math.abs(right.z) < 1e-6], [true, true]);
+const away = slid({ x: 0, y: 0.5 });
+eq("drag up the screen: the model moves away from the camera (here, further -Z)", [Math.abs(away.x) < 1e-6, away.z < 0], [true, true]);
+const far = slid({ x: 50, y: 0 });
+eq("it cannot be slid further than MAX_SLIDE from where it was placed", Math.round(Math.hypot(far.x, far.z) * 100) / 100, TF.MAX_SLIDE);
 
 console.log("-- the admin's visits graph");
 const V = await import(src("lab/Visits.js"));

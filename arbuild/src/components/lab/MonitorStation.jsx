@@ -1,7 +1,8 @@
 // Floating screen. One monitor object drives every status from both modes:
 // off | shuttingDown | booting | loading | hello | bsod | post | nosignal
 // Each new screen fades in. A badge in its corner gives the status as a colour and a word (lab/Screen.js),
-// and a teardown's safety warning is a slowly pulsing strip along the bottom.
+// and a teardown's safety warning is a slowly pulsing strip along the bottom. A running PC has a
+// Shut down button in its top left corner (onShutdown), as its desktop would.
 import { useRef, useMemo, useEffect, useLayoutEffect, useState } from "react";
 import * as THREE from "three";
 import { useFrame, createPortal } from "@react-three/fiber";
@@ -206,6 +207,38 @@ function StatusBadge({ level, label, big }) {
   );
 }
 
+// The Shut down button of a running PC: where it is on the screen, and how big (a comfortable tap).
+const BTN = { w: 0.5, h: 0.11 };
+const BTN_AT = [-SCREEN_W / 2 + 0.055 + BTN.w / 2, SCREEN_H / 2 - 0.055 - BTN.h / 2];
+
+/** Its picture, drawn on the screen like everything else there (so built-in graphics make it blocky too). */
+function ShutdownButton({ big }) {
+  const size = big ? 0.058 : 0.048;
+  const x = -BTN.w / 2 + 0.075;
+  return (
+    <group position={[BTN_AT[0], BTN_AT[1], 0.004]}>
+      <mesh geometry={pillGeometry(BTN.w, BTN.h)} raycast={noRay}>
+        <meshBasicMaterial color="#64748b" toneMapped={false} />
+      </mesh>
+      <mesh geometry={pillGeometry(BTN.w - 0.012, BTN.h - 0.012)} position={[0, 0, 0.001]} raycast={noRay}>
+        <meshBasicMaterial color="#1e293b" toneMapped={false} />
+      </mesh>
+      {/* the power sign: a ring open at the top, and a bar through the gap */}
+      <mesh position={[x, -0.003, 0.002]} raycast={noRay}>
+        <ringGeometry args={[0.019, 0.027, 28, 1, Math.PI / 2 + 0.6, Math.PI * 2 - 1.2]} />
+        <meshBasicMaterial color="#f87171" toneMapped={false} />
+      </mesh>
+      <mesh position={[x, 0.016, 0.002]} raycast={noRay}>
+        <planeGeometry args={[0.009, 0.03]} />
+        <meshBasicMaterial color="#f87171" toneMapped={false} />
+      </mesh>
+      <Text position={[x + 0.05, 0, 0.002]} fontSize={size} fontWeight={600} color="#f8fafc" anchorX="left" anchorY="middle" raycast={noRay}>
+        Shut down
+      </Text>
+    </group>
+  );
+}
+
 const STRIP_W = SCREEN_W - 0.16;
 const STRIP_H = 0.135;
 const STRIP_Y = -SCREEN_H / 2 + 0.115;
@@ -265,7 +298,7 @@ function SafetyStrip({ text }) {
   );
 }
 
-function ScreenContent({ monitor, userName }) {
+function ScreenContent({ monitor, userName, canShutDown }) {
   const { status } = monitor;
   const L = -SCREEN_W / 2 + 0.14;
   const bg = BG[status] ?? "#0a1620";
@@ -304,6 +337,7 @@ function ScreenContent({ monitor, userName }) {
         </group>
       )}
       {status === "hello" && monitor.safety && <SafetyStrip text={monitor.safety} />}
+      {status === "hello" && canShutDown && <ShutdownButton big={!!monitor.lowRes} />}
 
       {status === "bsod" && (
         <ScreenStack
@@ -351,7 +385,8 @@ function ScreenContent({ monitor, userName }) {
   );
 }
 
-export default function MonitorStation({ monitor, userName }) {
+/** onShutdown: a press of the screen's Shut down button (a click, or a tap in AR by its partId). */
+export default function MonitorStation({ monitor, userName, onShutdown = null }) {
   const output = monitor.status === "nosignal"
     ? { text: "No graphics output", dot: STATUS_COLOR.bad }
     : monitor.lowRes
@@ -360,8 +395,24 @@ export default function MonitorStation({ monitor, userName }) {
   return (
     <group position={STATION.position} rotation={[0, STATION.rotationY, 0]} scale={MONITOR_SCALE}>
       <ScreenSurface lowRes={!!monitor.lowRes}>
-        <ScreenContent monitor={monitor} userName={userName} />
+        <ScreenContent monitor={monitor} userName={userName} canShutDown={!!onShutdown} />
       </ScreenSurface>
+      {/* the button itself: the picture above is only a texture, this is what a click or tap lands on */}
+      {monitor.status === "hello" && onShutdown && (
+        <mesh
+          position={[BTN_AT[0], BTN_AT[1], 0.01]}
+          userData={{ partId: "screen:shutdown" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onShutdown();
+          }}
+          onPointerOver={() => (document.body.style.cursor = "pointer")}
+          onPointerOut={() => (document.body.style.cursor = "")}
+        >
+          <planeGeometry args={[BTN.w, BTN.h]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
       {/* what's drawing the picture: at the screen's corner, where the case in front doesn't hide it */}
       <PillLabel key={output.text} text={output.text} dot={output.dot} size={0.04} billboard={false} position={[-SCREEN_W / 2, -SCREEN_H / 2 - 0.052, 0.002]} />
     </group>

@@ -16,7 +16,8 @@ import DraggablePart from "../Three/DraggablePart";
 import PullablePart from "../Three/PullablePart";
 import { ARContext } from "../Three/xrSetup";
 import { GLBridge, ARHitTest, ARRoot, CamAR, useARSupport, startARSession, requestMotion } from "../Three/ar/ARTools";
-import { useARGestures, GestureGroup, MIN_SCALE, MAX_SCALE } from "../Three/ar/ARGestures";
+import { useARGestures, GestureGroup } from "../Three/ar/ARGestures";
+import ARSize from "../Three/ar/ARSize";
 import Icon from "../components/Icon";
 import Logo from "../components/Logo";
 import StepList from "../components/lab/StepList";
@@ -683,6 +684,17 @@ function BuildLab() {
       setPower((p) => ({ ...p, shutdown: true }));
       showHint("PC is off. Now unplug it from power.", "success");
     }, SHUTDOWN_DURATION);
+  }
+
+  // The Shut down button on the PC's own screen. Taking a PC apart, it is the Shut down step; in a
+  // build it closes the PC down properly (the bar's Power off just cuts the power).
+  function screenShutdown() {
+    if (gestures.consumeSuppress() || exploding || classLocked) return;
+    if (mode === "disassemble") return doShutdown();
+    if (monitor.status !== "hello") return;
+    clearTimers();
+    setMonitor({ status: "shuttingDown", lowRes: monitor.lowRes });
+    later(() => setMonitor({ status: "off" }), SHUTDOWN_DURATION);
   }
 
   function unplug() {
@@ -1493,7 +1505,7 @@ function BuildLab() {
           : trouble
           ? `Started in ${seconds} s.${help.faultsLeft ? ` Still ${left} thing${left === 1 ? "" : "s"} to fix.` : ""}`
           : lowRes
-          ? `Started in ${seconds} s on the CPU's built-in graphics: the picture is low and blocky. Add a graphics card${more}.`
+          ? `Started in ${seconds} s with no graphics card: the CPU draws the picture itself, so it starts slower and looks low and blocky. Add a graphics card${more}.`
           : result.ramCount === 2
           ? `Started in ${seconds} s. Build complete!`
           : `Started in ${seconds} s. Add a second RAM stick${more}.`;
@@ -1934,6 +1946,7 @@ function BuildLab() {
       else if (id.startsWith("psufixed:")) routeFixed(id.slice(9));
       else if (id.startsWith("cordport:")) chooseCordPort(id.slice(9));
       else if (id.startsWith("cord:")) clickCord(id.slice(5));
+      else if (id === "screen:shutdown") screenShutdown();
       else if (id === "m2cover") clickM2Cover();
       else if (id === "socketlever") clickLever();
       else if (id === "socketplate") clickPlate();
@@ -2729,7 +2742,7 @@ function BuildLab() {
                       </Suspense>
 
                       <Suspense fallback={null}>
-                        <MonitorStation monitor={monitor} userName={userName} />
+                        <MonitorStation monitor={monitor} userName={userName} onShutdown={screenShutdown} />
                       </Suspense>
                     </group>
                   </GestureGroup>
@@ -2798,22 +2811,11 @@ function BuildLab() {
           )}
 
           {arLike && (placement || arLite) && (
-            <div className="lab-ar-hint">Drag to spin · pinch or use + and − to resize · twist to rotate</div>
+            <div className="lab-ar-hint">One finger: spin · two fingers: drag to move, pinch to resize, twist to turn</div>
           )}
 
           {arLike && (placement || arLite) && (
-            <div className="ar-size" role="group" aria-label="Bench size">
-              <button type="button" aria-label="Make it bigger" disabled={arSize >= MAX_SCALE} onClick={() => sizeBy(1.25)}>
-                <Icon name="plus" size={20} />
-              </button>
-              <span className="ar-size__value" aria-live="polite">{Math.round(arSize * 100)}%</span>
-              <button type="button" aria-label="Make it smaller" disabled={arSize <= MIN_SCALE} onClick={() => sizeBy(0.8)}>
-                <Icon name="minus" size={20} />
-              </button>
-              <button type="button" aria-label="Back to the placed size" disabled={arSize === 1} onClick={() => setArSize(gestures.setScale(1))}>
-                <Icon name="fit" size={18} />
-              </button>
-            </div>
+            <ARSize size={arSize} onBy={sizeBy} onReset={() => setArSize(gestures.setScale(1))} label="Bench size" />
           )}
 
           {!arLike && (

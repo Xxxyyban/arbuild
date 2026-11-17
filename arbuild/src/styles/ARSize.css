@@ -1,0 +1,61 @@
+/* AR: the model's size, beside the pinch (Three/ar/ARSize.jsx). The Build Lab's own colours where it
+   has them, the same look everywhere else. */
+.ar-size {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--lab-panel, rgba(15, 17, 21, 0.85));
+  border: 1px solid var(--lab-line-strong, rgba(255, 255, 255, 0.14));
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+
+.ar-size button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--lab-line-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  background: var(--lab-surface, rgba(255, 255, 255, 0.05));
+  color: var(--lab-text, #f3f4f6);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ar-size button:focus-visible {
+  outline: 2px solid var(--lab-accent, #10b981);
+  outline-offset: 2px;
+}
+
+.ar-size button:active:not(:disabled) {
+  background: var(--lab-accent-soft, rgba(16, 185, 129, 0.18));
+  color: var(--lab-accent, #10b981);
+}
+
+.ar-size button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ar-size__value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--lab-text, #f3f4f6);
+}
+
+/* a phone or tablet has the pinch, and no room to spare: the buttons are for a mouse or trackpad */
+@media (pointer: coarse) {
+  .ar-size {
+    display: none;
+  }
+}
