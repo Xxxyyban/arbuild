@@ -36,15 +36,17 @@ import "../styles/Admin.css";
 
 const DEFAULT_PASSWORD = "Universidad2026";
 const MAX_BULK = 200;
+// what a role is called on screen; instructors' stored role stays "faculty"
+const roleName = (role) => (role === "faculty" ? "instructor" : role);
 
 const VIEWS = {
   dashboard: {
     title: "Dashboard",
-    text: "A quick look at your student and faculty accounts.",
+    text: "A quick look at your student and instructor accounts.",
   },
   create: {
     title: "Create account",
-    text: "Add student or faculty accounts using their school email.",
+    text: "Add student or instructor accounts using their school email.",
   },
   accounts: {
     title: "Accounts",
@@ -325,7 +327,7 @@ export default function Admin() {
       await createOne(getSecondaryAuth(), cleanEmail, password, accountType);
 
       setMessage(
-        `${accountType === "student" ? "Student" : "Faculty"} account created for ${cleanEmail}.`
+        `${accountType === "student" ? "Student" : "Instructor"} account created for ${cleanEmail}.`
       );
 
       setEmail("");
@@ -398,7 +400,7 @@ export default function Admin() {
     if (okCount === 0) {
       setError("No accounts were created. See details below.");
     } else {
-      setMessage(`${okCount} of ${list.length} ${accountType} accounts created.`);
+      setMessage(`${okCount} of ${list.length} ${roleName(accountType)} accounts created.`);
     }
 
     if (okCount) await loadUsers();
@@ -698,7 +700,7 @@ export default function Admin() {
       return (
         <section className="admin-panel admin-empty-state">
           <h3>No accounts yet</h3>
-          <p>Create the first student or faculty account to get started.</p>
+          <p>Create the first student or instructor account to get started.</p>
           <button
             type="button"
             className="admin-primary-btn"
@@ -775,7 +777,7 @@ export default function Admin() {
             <strong>{stats.students}</strong>
           </div>
           <div>
-            <span>Faculty</span>
+            <span>Instructors</span>
             <strong>{stats.faculty}</strong>
           </div>
           <div>
@@ -835,7 +837,7 @@ export default function Admin() {
                           : "recently"}
                       </span>
                     </div>
-                    <span className={`role-badge ${item.role}`}>{item.role}</span>
+                    <span className={`role-badge ${item.role}`}>{roleName(item.role)}</span>
                   </li>
                 ))}
               </ul>
@@ -861,7 +863,7 @@ export default function Admin() {
                         : item.email}
                     </span>
                   </div>
-                  <span className={`role-badge ${item.role}`}>{item.role}</span>
+                  <span className={`role-badge ${item.role}`}>{roleName(item.role)}</span>
                 </li>
               ))}
             </ul>
@@ -921,10 +923,10 @@ export default function Admin() {
               className={accountType === "faculty" ? "selected" : ""}
               onClick={() => setAccountType("faculty")}
             >
-              <span className="role-icon">F</span>
+              <span className="role-icon">I</span>
               <span>
-                <strong>Faculty</strong>
-                <small>Faculty or instructor account</small>
+                <strong>Instructor</strong>
+                <small>Instructor teaching account</small>
               </span>
             </button>
           </div>
@@ -956,7 +958,7 @@ export default function Admin() {
                 />
                 <small>
                   One per line, or separated by commas. Everyone will be created
-                  as a {accountType} account (up to {MAX_BULK} at a time).{" "}
+                  as {accountType === "student" ? "a student" : "an instructor"} account (up to {MAX_BULK} at a time).{" "}
                   <label className="link-btn file-btn">
                     Load .csv / .txt
                     <input
@@ -1006,8 +1008,8 @@ export default function Admin() {
               {creating
                 ? "Creating..."
                 : createMode === "bulk"
-                ? `Create ${bulkCount || ""} ${accountType} accounts`.replace(/\s+/g, " ")
-                : `Create ${accountType === "student" ? "student" : "faculty"} account`}
+                ? `Create ${bulkCount || ""} ${roleName(accountType)} accounts`.replace(/\s+/g, " ")
+                : `Create ${accountType === "student" ? "student" : "instructor"} account`}
             </button>
           </div>
         </form>
@@ -1039,7 +1041,7 @@ export default function Admin() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, email, student ID, or faculty ID"
+              placeholder="Search by name, email, student ID, or instructor ID"
             />
           </div>
 
@@ -1047,7 +1049,7 @@ export default function Admin() {
             {[
               ["all", "All"],
               ["student", "Students"],
-              ["faculty", "Faculty"],
+              ["faculty", "Instructors"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -1110,7 +1112,7 @@ export default function Admin() {
 
                     <td data-label="Role">
                       <span className={`role-badge ${item.role}`}>
-                        {item.role}
+                        {roleName(item.role)}
                       </span>
                     </td>
 

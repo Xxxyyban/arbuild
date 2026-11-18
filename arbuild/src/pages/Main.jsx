@@ -492,8 +492,8 @@ export default function MainPage() {
             <ARHitTest active={inAR} placed={!!placement} onPlace={setPlacement} onRay={(o, d) => !gestures.consumeSuppress() && rigApi.current?.tap(o, d)} />
             <CamAR active={arLite} placeToken={placeToken} onPlace={setPlacement} restore={resetCamera} />
             {!arLike && <CameraFocus focus={focus} home={HOME} />}
-            {!gestureAR && (
-              <OrbitControls makeDefault enabled={!inAR} target={HOME.target} enableDamping dampingFactor={0.08} minDistance={0.6} maxDistance={16} />
+            {!arLite && (
+              <OrbitControls makeDefault enabled={!inAR && !camMode} target={HOME.target} enableDamping dampingFactor={0.08} minDistance={0.6} maxDistance={16} />
             )}
           </Canvas>
 
