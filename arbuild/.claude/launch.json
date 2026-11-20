@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "arbuild-dev-http",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        "vite.devtest.config.js",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "arbuild-prod-test",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--config",
+        "vite.devtest.config.js",
+        "--outDir",
+        "C:/Users/Angelo/AppData/Local/Temp/claude/C--Users-Angelo-Downloads-arbuild-scaffold-arbuild/563aa675-b2ad-42e8-91aa-d95c43a86e73/scratchpad/prodtest",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
+    }
+  ]
+}
